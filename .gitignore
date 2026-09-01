@@ -1,0 +1,7 @@
+node_modules/
+web/node_modules/
+web/dist/
+数据源/
+数据源2/
+.cursor/
+*.log
