@@ -1,9 +1,8 @@
 /**
  * 只从 Excel 转换后的 JSON 取值，不做分时/订单流等推演。
- * 源文件：数据源/8.21、8.28 下「门店排行」「经营分析-城市」
+ * 源文件：数据源/8.21、8.28 下「门店排行」「经营分析-城市/门店」「门店清单」
  */
 import raw from '../data/dashboard.json'
-import opsRaw from '../data/opsDashboard.json'
 import { isAbnormalStore } from '../utils/health'
 
 const CITY_COORDS: Record<string, [number, number]> = {
@@ -14,6 +13,40 @@ const CITY_COORDS: Record<string, [number, number]> = {
   无锡市: [120.31, 31.59],
   武汉市: [114.31, 30.52],
   南通市: [120.86, 32.01],
+  淮安市: [119.02, 33.61],
+  济南市: [117.0, 36.65],
+  郑州市: [113.65, 34.76],
+}
+
+type StoreListRow = { city: string; name: string; shortName: string }
+
+function storeListRows(dateKey: string): StoreListRow[] {
+  return ((raw as { storeList?: Record<string, StoreListRow[]> }).storeList?.[dateKey] ||
+    []) as StoreListRow[]
+}
+
+function coverageByCity(dateKey: string) {
+  const cover: Record<string, number> = {}
+  storeListRows(dateKey).forEach((r) => {
+    if (!r.city) return
+    cover[r.city] = (cover[r.city] || 0) + 1
+  })
+  return cover
+}
+
+export function hasStoreList(dateKey: string) {
+  return storeListRows(dateKey).length > 0
+}
+
+export function fetchCoverageStoreCnt(dateKey: string, cityName = '全国') {
+  const list = storeListRows(dateKey)
+  if (!list.length) {
+    const ranks = storeRows(dateKey)
+    if (!cityName || cityName === '全国') return ranks.length
+    return filterStores(dateKey, cityName).length
+  }
+  if (!cityName || cityName === '全国') return list.length
+  return list.filter((r) => matchCity(r.city, cityName)).length
 }
 
 export function toNum(v: unknown): number {
@@ -115,7 +148,7 @@ export async function fetchOverview(dateKey: string, cityName = '全国') {
     sku_sales: sum('商品销量'),
     return_qty: sum('商品退货数量'),
     return_rate: sum('商品销量') ? sum('商品退货数量') / sum('商品销量') : 0,
-    store_cnt: ranks.length,
+    store_cnt: fetchCoverageStoreCnt(dateKey, cityName) || ranks.length,
     active_store_cnt: ranks.filter((r) => toNum(r['用户实付订单量']) > 0).length,
     refund_orders: sum('退款订单量'),
     refund_amount: sum('退款金额'),
@@ -126,6 +159,7 @@ export async function fetchOverview(dateKey: string, cityName = '全国') {
 
 export async function fetchGeo(dateKey: string) {
   const ranks = storeRows(dateKey)
+  const cover = coverageByCity(dateKey)
   const map: Record<
     string,
     {
@@ -155,6 +189,24 @@ export async function fetchGeo(dateKey: string) {
     map[city].paid_orders += toNum(r['用户实付订单量'])
     map[city].store_cnt += 1
   })
+
+  if (Object.keys(cover).length) {
+    Object.entries(cover).forEach(([city, cnt]) => {
+      if (!map[city]) {
+        map[city] = {
+          city,
+          city_code: '',
+          paid_amount: 0,
+          est_profit: 0,
+          paid_orders: 0,
+          store_cnt: cnt,
+        }
+      } else {
+        map[city].store_cnt = cnt
+      }
+    })
+  }
+
   return wait(
     Object.values(map).map((c) => ({
       ...c,
@@ -199,7 +251,7 @@ function cityMetricSnapshot(dateKey: string, cityName: string) {
     aov,
     profit_rate: profitRate,
     refund_rate: refundRate,
-    store_cnt: ranks.length,
+    store_cnt: fetchCoverageStoreCnt(dateKey, cityName) || ranks.length,
     est_profit: estProfit,
   }
 }
@@ -369,30 +421,57 @@ export async function fetchReverse(dateKey: string, cityName = '全国', compare
   })
 }
 
-/** 营销活动清单（活动名 + 花费 + ROI），供成本板块浮窗 */
-export async function fetchMarketingActivities(limit = 12) {
-  const activities = (
-    opsRaw as {
-      activities?: {
-        name: string
-        subsidy_merchant?: number
-        subsidy_total?: number
-        roi?: number
-        shortStore?: string
-        paid?: number
-      }[]
-    }
-  ).activities || []
-  const list = activities
-    .map((a) => ({
-      name: String(a.name || '未命名活动'),
-      cost: toNum(a.subsidy_merchant || a.subsidy_total),
-      roi: toNum(a.roi),
-      store: String(a.shortStore || ''),
-      paid: toNum(a.paid),
-    }))
+function storeSheetRows(dateKey: string): Record<string, unknown>[] {
+  return ((raw as { stores?: Record<string, Record<string, unknown>[]> }).stores?.[dateKey] ||
+    []) as Record<string, unknown>[]
+}
+
+function storeCityByName(dateKey: string) {
+  const map: Record<string, string> = {}
+  storeRows(dateKey).forEach((r) => {
+    const city = String(r['城市名称'] || '')
+    const full = String(r['门店名称'] || '')
+    map[full] = city
+    map[storeName(full)] = city
+  })
+  return map
+}
+
+/** 营销费用明细（数据源 · 经营分析-城市/门店），供成本板块浮窗 */
+export async function fetchMarketingActivities(dateKey: string, cityName = '全国', limit = 12) {
+  if (!dateKey) return wait([])
+
+  if (!cityName || cityName === '全国') {
+    const list = filterCities(dateKey, '全国')
+      .map((r) => ({
+        name: '城市营销合计',
+        cost: toNum(r['营销活动费用']) + toNum(r['推广费用']),
+        store: String(r['城市'] || ''),
+        paid: toNum(r['有效订单金额（实付）']),
+      }))
+      .filter((a) => a.cost > 0)
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, limit)
+    return wait(list)
+  }
+
+  const cityMap = storeCityByName(dateKey)
+  const list = storeSheetRows(dateKey)
+    .map((r) => {
+      const store = storeName(String(r['门店'] || ''))
+      return {
+        name: '门店营销合计',
+        cost: toNum(r['营销活动费用']) + toNum(r['推广费用']),
+        store,
+        paid: toNum(r['预计线上收入']),
+        city: cityMap[store] || cityMap[String(r['门店'] || '')] || '',
+      }
+    })
+    .filter((a) => a.cost > 0 && matchCity(a.city, cityName))
     .sort((a, b) => b.cost - a.cost)
     .slice(0, limit)
+    .map(({ city: _city, ...rest }) => rest)
+
   return wait(list)
 }
 
@@ -437,7 +516,7 @@ export async function fetchHealth(dateKey: string, compareKey: string | null, ci
     net_rate: grossRate - marketingRate,
     abnormal_store_cnt: abnormalStores.length,
     abnormal_store_names: abnormalStores.map((s) => s.name),
-    store_cnt: ranks.length,
+    store_cnt: fetchCoverageStoreCnt(dateKey, cityName) || ranks.length,
   })
 }
 

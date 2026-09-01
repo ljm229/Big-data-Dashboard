@@ -10,7 +10,7 @@
         </label>
         <div class="summary">
           <span>覆盖门店 <b>{{ storeCnt }}</b></span>
-          <span class="map-hint">点击城市气泡查看诊断弹窗</span>
+          <span class="map-hint">{{ mapHint }}</span>
         </div>
       </div>
       <div class="map-body">
@@ -43,7 +43,7 @@ import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Panel from '../Panel.vue'
 import { useFilterStore } from '../../stores/filter'
-import { fetchGeo, fetchCityOptions, fetchCityPopup, fetchStoreRank } from '../../api/dashboard'
+import { fetchGeo, fetchCityOptions, fetchCityPopup, fetchStoreRank, fetchCoverageStoreCnt, hasStoreList } from '../../api/dashboard'
 import { useEcharts } from '../../composables/useEcharts'
 import { formatMoney, formatInt, formatPercent } from '../../utils/format'
 import chinaGeo from '../../assets/china.json'
@@ -74,13 +74,12 @@ const popup = ref<CityPopup | null>(null)
 const popupPos = ref({ left: 24, top: 24 })
 const mapReady = ref(false)
 const time = computed(() => (updatedAt.value ? updatedAt.value.slice(5, 10) : ''))
-const storeCnt = computed(() => {
-  if (!cityName.value || cityName.value === '全国') {
-    return list.value.reduce((a, c) => a + (c.store_cnt || 0), 0)
-  }
-  const hit = list.value.find((c) => c.city === cityName.value)
-  return hit?.store_cnt ?? 0
-})
+const storeCnt = computed(() => fetchCoverageStoreCnt(dataKey.value, cityName.value || '全国'))
+const mapHint = computed(() =>
+  hasStoreList(dataKey.value)
+    ? '按门店清单统计 · 点击城市气泡查看诊断'
+    : '点击城市气泡查看诊断弹窗',
+)
 const { chart } = useEcharts(el, option)
 
 const popupStyle = computed(() => ({
@@ -231,7 +230,9 @@ function paint() {
   const amounts = list.value.map((c) => c.paid_amount)
   const minAmount = amounts.length ? Math.min(...amounts) : 0
   const maxAmount = amounts.length ? Math.max(...amounts) : 1
-  const scatter = list.value.map((c) => ({
+  const scatter = list.value
+    .filter((c) => c.paid_amount > 0)
+    .map((c) => ({
     name: c.city,
     value: [c.lng, c.lat, c.paid_amount, c.profit_rate, c.store_cnt],
     itemStyle: { color: colorByAmount(c.paid_amount, minAmount, maxAmount) },

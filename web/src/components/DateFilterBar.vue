@@ -5,15 +5,15 @@
       <input
         type="date"
         :value="selectedDate"
-        :min="UNIFIED_DATES[0]"
-        :max="UNIFIED_DATES[UNIFIED_DATES.length - 1]"
+        :min="pickerDates[0]"
+        :max="pickerDates[pickerDates.length - 1]"
         @change="onDate"
       />
     </label>
     <div class="date-bar__tags">
-      <span v-if="hasCockpitData" class="tag tag--cockpit">大屏</span>
-      <span v-if="hasOpsData" class="tag tag--ops">看板</span>
-      <span v-if="!hasCockpitData && !hasOpsData" class="tag tag--empty">无数据</span>
+      <span v-if="scope === 'cockpit' || (scope === 'unified' && hasCockpitData)" class="tag tag--cockpit">数据源</span>
+      <span v-if="scope === 'ops' || (scope === 'unified' && hasOpsData)" class="tag tag--ops">数据源2</span>
+      <span v-if="scope === 'unified' && !hasCockpitData && !hasOpsData" class="tag tag--empty">无数据</span>
     </div>
     <p class="date-bar__hint">{{ hint }}</p>
   </div>
@@ -22,18 +22,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import {
-  useFilterStore,
-  COCKPIT_DATES,
-  OPS_DATES,
-  UNIFIED_DATES,
-} from '../stores/filter'
+import { useFilterStore, COCKPIT_DATES, OPS_DATES } from '../stores/filter'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     variant?: 'dark' | 'light'
+    /** cockpit=仅数据源日期；ops=仅数据源2；unified=合并（默认） */
+    scope?: 'cockpit' | 'ops' | 'unified'
   }>(),
-  { variant: 'dark' },
+  { variant: 'dark', scope: 'unified' },
 )
 
 const filter = useFilterStore()
@@ -41,10 +38,23 @@ const { selectedDate, hasCockpitData, hasOpsData } = storeToRefs(filter)
 
 const fmt = (iso: string) => iso.slice(5).replace('-', '/')
 
+const pickerDates = computed(() => {
+  if (props.scope === 'cockpit') return COCKPIT_DATES
+  if (props.scope === 'ops') return OPS_DATES.length ? OPS_DATES : COCKPIT_DATES
+  return [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
+})
+
 const hint = computed(() => {
+  if (props.scope === 'cockpit') {
+    return `数据源 · ${COCKPIT_DATES.map(fmt).join('、')} · 城市/门店联动筛选`
+  }
+  if (props.scope === 'ops') {
+    const ops = OPS_DATES.map(fmt).join('、') || '暂无'
+    return `数据源2 · ${ops} · 城市/门店联动筛选`
+  }
   const cockpit = COCKPIT_DATES.map(fmt).join('、')
-  const ops = OPS_DATES.map(fmt).join('、')
-  return `大屏 ${cockpit} · 看板 ${ops || '暂无'} · 切换视图日期联动`
+  const ops = OPS_DATES.map(fmt).join('、') || '暂无'
+  return `大屏 ${cockpit} · 看板 ${ops} · 切换视图日期联动`
 })
 
 function onDate(e: Event) {

@@ -4,7 +4,7 @@
       <button type="button" :class="{ active: activeView === 'cockpit' }" @click="activeView = 'cockpit'">数据大屏</button>
       <button type="button" :class="{ active: activeView === 'ops' }" @click="activeView = 'ops'">门店运营看板</button>
     </div>
-    <DateFilterBar :variant="activeView === 'ops' ? 'light' : 'dark'" />
+    <DateFilterBar :variant="activeView === 'ops' ? 'light' : 'dark'" :scope="activeView === 'cockpit' ? 'cockpit' : 'ops'" />
   </div>
 
   <div v-if="activeView === 'cockpit'" class="screen-root">
@@ -62,8 +62,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useScreenScale } from './composables/useScale'
+import { useFilterStore, COCKPIT_DATES, OPS_DATES } from './stores/filter'
+import { hasOpsData as checkOpsData } from './api/opsDashboard'
 import AppHeader from './components/modules/AppHeader.vue'
 import KpiBand from './components/modules/KpiBand.vue'
 import L1Trend from './components/modules/L1Trend.vue'
@@ -80,8 +82,21 @@ import DateFilterBar from './components/DateFilterBar.vue'
 import bgUrl from './assets/beijing.png'
 
 const activeView = ref<'cockpit' | 'ops'>('cockpit')
+const filter = useFilterStore()
 const { style, wrapperStyle } = useScreenScale(1920, 1760)
 const bgImage = `url(${bgUrl})`
+
+/** 切换视图时把日期收敛到当前视图可用范围，避免大屏读到无效日期 */
+watch(activeView, (view) => {
+  const iso = filter.selectedDate
+  if (view === 'cockpit' && !COCKPIT_DATES.includes(iso)) {
+    filter.setDate(COCKPIT_DATES[COCKPIT_DATES.length - 1] || iso)
+  }
+  if (view === 'ops' && !checkOpsData(iso)) {
+    const fallback = OPS_DATES[OPS_DATES.length - 1] || COCKPIT_DATES[COCKPIT_DATES.length - 1]
+    if (fallback) filter.setDate(fallback)
+  }
+})
 </script>
 
 <style scoped lang="scss">

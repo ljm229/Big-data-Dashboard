@@ -16,12 +16,44 @@ function readSheet(file, sheetName) {
   return XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: null })
 }
 
+/** 与门店清单/排行对齐的门店短名 */
+function normStoreName(name) {
+  return String(name || '')
+    .replace(/淘宝便利店[（(]/g, '')
+    .replace(/优沃森超市[（(]/g, '')
+    .replace(/[）)]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+function normCity(city) {
+  const c = String(city || '').trim()
+  return c.endsWith('市') ? c : `${c}市`
+}
+
+function dedupeRankRows(rows) {
+  const seen = new Set()
+  const out = []
+  for (const r of rows) {
+    const key = normStoreName(r['门店名称'])
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(r)
+  }
+  return out
+}
+
+function filterRankByAllowlist(rows, allowNames) {
+  if (!allowNames.size) return rows
+  return rows.filter((r) => allowNames.has(normStoreName(r['门店名称'])))
+}
+
 const sourceRoot = path.join(root, '数据源')
 const dates = fs
   .readdirSync(sourceRoot)
   .filter((name) => fs.statSync(path.join(sourceRoot, name)).isDirectory())
   .sort()
-const result = { cities: {}, stores: {}, storeTrend: {}, storeRank: {} }
+const result = { cities: {}, stores: {}, storeTrend: {}, storeRank: {}, storeList: {} }
 
 for (const d of dates) {
   const dir = path.join(root, '数据源', d)
@@ -31,6 +63,7 @@ for (const d of dates) {
   const storeFile = files.find((f) => f.includes('经营分析-门店') && !f.includes('周期'))
   const trendFile = find('周期趋势')
   const rankFile = find('门店排行')
+  const listFile = files.find((f) => f.includes('门店清单'))
   result.cities[d] = readSheet(path.join(dir, cityFile), 'data').filter(
     (r) => r['城市'] && Number(r['总营业额'] || r['预计线上收入'] || 0) > 0,
   )
@@ -38,7 +71,35 @@ for (const d of dates) {
     (r) => r['门店'] && Number(r['预计线上收入'] || 0) > 0,
   )
   result.storeTrend[d] = readSheet(path.join(dir, trendFile), 'data')
-  result.storeRank[d] = readSheet(path.join(dir, rankFile), '门店排行')
+
+  const allowNames = new Set()
+  if (listFile) {
+    const listRows = readSheet(path.join(dir, listFile))
+    result.storeList[d] = listRows
+      .filter((r) => r['门店名称'] || r['门店'])
+      .map((r) => ({
+        city: normCity(r['城市'] || r['城市名称'] || ''),
+        name: String(r['门店名称'] || r['门店'] || ''),
+        shortName: normStoreName(r['门店名称'] || r['门店']),
+      }))
+    result.storeList[d].forEach((r) => {
+      if (r.shortName) allowNames.add(r.shortName)
+    })
+  } else {
+    result.stores[d].forEach((r) => {
+      const n = normStoreName(r['门店'])
+      if (n) allowNames.add(n)
+    })
+    result.storeList[d] = result.stores[d].map((r) => ({
+      city: normCity(r['城市'] || r['城市名称'] || ''),
+      name: String(r['门店'] || ''),
+      shortName: normStoreName(r['门店']),
+    }))
+  }
+
+  let rankRows = readSheet(path.join(dir, rankFile), '门店排行')
+  rankRows = filterRankByAllowlist(dedupeRankRows(rankRows), allowNames)
+  result.storeRank[d] = rankRows
 }
 
 function aggregate(rankRows) {
@@ -115,9 +176,20 @@ const cityCoords = {
   常州市: [119.97, 31.81],
   扬州市: [119.42, 32.39],
   郑州市: [113.65, 34.76],
+  武汉市: [114.31, 30.52],
+  南通市: [120.86, 32.01],
+  淮安市: [119.02, 33.61],
+  济南市: [117.0, 36.65],
 }
 
-function buildGeo(rankRows) {
+function buildGeo(rankRows, listRows = []) {
+  const coverByCity = {}
+  listRows.forEach((r) => {
+    const city = normCity(r.city || r['城市'] || r['城市名称'] || '')
+    if (!city) return
+    coverByCity[city] = (coverByCity[city] || 0) + 1
+  })
+
   const map = {}
   rankRows.forEach((r) => {
     const city = r['城市名称']
@@ -135,6 +207,24 @@ function buildGeo(rankRows) {
     map[city].paid_orders += Number(r['用户实付订单量'] || 0)
     map[city].store_cnt += 1
   })
+
+  if (listRows.length) {
+    Object.keys(coverByCity).forEach((city) => {
+      if (!map[city]) {
+        map[city] = {
+          city,
+          city_code: '',
+          paid_amount: 0,
+          est_profit: 0,
+          paid_orders: 0,
+          store_cnt: coverByCity[city],
+        }
+      } else {
+        map[city].store_cnt = coverByCity[city]
+      }
+    })
+  }
+
   return Object.values(map).map((c) => ({
     ...c,
     profit_rate: c.paid_amount ? c.est_profit / c.paid_amount : 0,
@@ -144,7 +234,7 @@ function buildGeo(rankRows) {
 }
 
 const geo = {}
-for (const d of dates) geo[d] = buildGeo(result.storeRank[d])
+for (const d of dates) geo[d] = buildGeo(result.storeRank[d], result.storeList[d] || [])
 
 function costStructure(cities) {
   const sum = (k) => cities.reduce((a, r) => a + Number(r[k] || 0), 0)
@@ -186,95 +276,6 @@ function reverse(cities, ov) {
 const reverseData = {}
 for (const d of dates) reverseData[d] = reverse(result.cities[d], overview[d])
 
-function makeTrend(ov, compareOv) {
-  const weights = [0.01, 0.005, 0.005, 0.005, 0.01, 0.02, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.08, 0.07, 0.06, 0.06, 0.07, 0.08, 0.09, 0.07, 0.05, 0.04, 0.03, 0.02]
-  const s = weights.reduce((a, b) => a + b, 0)
-  const w = weights.map((x) => x / s)
-  return Array.from({ length: 24 }, (_, i) => ({
-    label: String(i).padStart(2, '0') + ':00',
-    paid_orders: Math.round(ov.paid_orders * w[i]),
-    paid_amount: Math.round(ov.paid_amount * w[i] * 100) / 100,
-    compare_orders: compareOv ? Math.round(compareOv.paid_orders * w[i] * (0.9 + Math.random() * 0.2)) : 0,
-    compare_amount: compareOv ? Math.round(compareOv.paid_amount * w[i] * (0.9 + Math.random() * 0.2) * 100) / 100 : 0,
-  }))
-}
-
-const trend = {}
-for (let i = 0; i < dates.length; i++) {
-  const d = dates[i]
-  const compare = i > 0 ? dates[i - 1] : null
-  trend[d] = makeTrend(overview[d], compare ? overview[compare] : null)
-}
-
-function cumulative(trendArr) {
-  let a = 0
-  let b = 0
-  return trendArr.map((t) => {
-    a += t.paid_amount
-    b += t.compare_amount || 0
-    return { label: t.label, today: Math.round(a * 100) / 100, yesterday: Math.round(b * 100) / 100 }
-  })
-}
-
-const marketTrend = {}
-for (const d of dates) marketTrend[d] = cumulative(trend[d])
-
-function productRank(rankRows) {
-  const sorted = [...rankRows].sort((a, b) => Number(b['商品销量'] || 0) - Number(a['商品销量'] || 0)).slice(0, 5)
-  const byReturn = [...rankRows].sort((a, b) => Number(b['退货率'] || 0) - Number(a['退货率'] || 0)).slice(0, 5)
-  const clean = (n) => String(n).replace('淘宝便利店（', '').replace('）', '')
-  return {
-    sales: sorted.map((r) => ({ name: clean(r['门店名称']), value: Number(r['商品销量'] || 0) })),
-    return_rate: byReturn.map((r) => ({ name: clean(r['门店名称']), value: Number(r['退货率'] || 0) })),
-  }
-}
-
-const products = {}
-for (const d of dates) products[d] = productRank(result.storeRank[d])
-
-function mockOrders(rankRows) {
-  const statuses = ['已支付', '已支付', '已支付', '已退款', '已取消']
-  const items = ['饮料组合', '方便速食', '日用百货', '鲜食套餐', '零食礼包']
-  return Array.from({ length: 40 }, (_, i) => {
-    const r = rankRows[i % rankRows.length]
-    return {
-      ts: `${String(8 + Math.floor(i / 3)).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}:${String((i * 13) % 60).padStart(2, '0')}`,
-      order_no: `ASDA${5400 + i}****${10 + (i % 90)}`,
-      city: r['城市名称'],
-      store: String(r['门店名称']).replace('淘宝便利店（', '').replace('）', ''),
-      item: items[i % 5],
-      amount: Math.round((20 + Math.random() * 80) * 100) / 100,
-      status: statuses[i % 5],
-    }
-  })
-}
-
-const orders = {}
-for (const d of dates) orders[d] = mockOrders(result.storeRank[d])
-
-function profitSeries(cities) {
-  const labels = Array.from({ length: 12 }, (_, i) => String(i * 2).padStart(2, '0') + ':00')
-  const baseProfit = cities.reduce((a, r) => a + Number(r['毛利率'] || 0), 0) / Math.max(cities.length, 1)
-  const neg = cities.reduce((a, r) => a + Number(r['负毛利订单占比'] || 0), 0) / Math.max(cities.length, 1)
-  return labels.map((label, i) => ({
-    label,
-    profit_rate: Math.max(0, baseProfit + Math.sin(i / 2) * 0.03 - i * 0.002),
-    discount_rate: Math.min(0.6, 0.35 + Math.cos(i / 3) * 0.02 + i * 0.002),
-    neg_profit_order_rate: Math.max(0, neg + Math.sin(i) * 0.01),
-  }))
-}
-
-const profit = {}
-for (const d of dates) {
-  const cities = result.cities[d]
-  profit[d] = {
-    series: profitSeries(cities),
-    profit_per_order: cities.reduce((a, r) => a + Number(r['单均毛利'] || 0), 0) / Math.max(cities.length, 1),
-    per_store: cities.reduce((a, r) => a + Number(r['店日均毛利'] || 0), 0) / Math.max(cities.length, 1),
-    neg_profit_order_rate: cities.reduce((a, r) => a + Number(r['负毛利订单占比'] || 0), 0) / Math.max(cities.length, 1),
-  }
-}
-
 const payload = {
   primaryDate: dates[dates.length - 1] || '',
   compareDate: dates.length > 1 ? dates[dates.length - 2] || '' : '',
@@ -282,15 +283,11 @@ const payload = {
   cities: result.cities,
   stores: result.stores,
   storeRank: result.storeRank,
+  storeList: result.storeList,
   geo,
   costs,
   reverse: reverseData,
-  trend,
-  marketTrend,
-  products,
-  orders,
-  profit,
-  updated_at: '2026-08-28 18:00:00',
+  updated_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
 }
 
 const out = path.join(root, 'web', 'src', 'data', 'dashboard.json')

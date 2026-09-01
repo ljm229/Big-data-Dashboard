@@ -32,7 +32,10 @@
       <div v-if="openMarketing" class="popup-mask" @click.self="openMarketing = false">
         <div class="popup">
           <header>
-            <h4>营销活动清单</h4>
+            <div>
+              <h4>营销费用明细</h4>
+              <p class="popup-sub">数据源 · 经营分析{{ cityName === '全国' ? '-城市' : '-门店' }}</p>
+            </div>
             <button type="button" @click="openMarketing = false">×</button>
           </header>
           <div v-if="!activities.length" class="popup-empty">暂无活动明细</div>
@@ -41,7 +44,7 @@
               <span class="a-name" :title="a.name">{{ a.name }}</span>
               <span class="a-store">{{ a.store }}</span>
               <b>{{ formatMoney(a.cost) }}</b>
-              <em>ROI {{ a.roi.toFixed(1) }}</em>
+              <em v-if="a.paid">实付 {{ formatMoney(a.paid) }}</em>
             </li>
           </ul>
         </div>
@@ -70,7 +73,7 @@ const filter = useFilterStore()
 const { dataKey, cityName, loadingTick, updatedAt, costFlashTick } = storeToRefs(filter)
 const loading = ref(true)
 const items = ref<CostItem[]>([])
-const activities = ref<{ name: string; cost: number; roi: number; store: string }[]>([])
+const activities = ref<{ name: string; cost: number; store: string; paid?: number }[]>([])
 const openMarketing = ref(false)
 const flashing = ref(false)
 const time = computed(() => (updatedAt.value ? updatedAt.value.slice(11, 19) : ''))
@@ -83,11 +86,17 @@ function barWidth(rate: number) {
   return `${Math.max(2, (rate / maxRate.value) * 100)}%`
 }
 
+async function loadActivities() {
+  if (!dataKey.value) {
+    activities.value = []
+    return
+  }
+  activities.value = await fetchMarketingActivities(dataKey.value, cityName.value)
+}
+
 async function onItemClick(item: CostItem) {
   if (item.key !== 'marketing') return
-  if (!activities.value.length) {
-    activities.value = await fetchMarketingActivities()
-  }
+  if (!activities.value.length) await loadActivities()
   openMarketing.value = true
 }
 
@@ -101,7 +110,10 @@ async function load(showLoading = false) {
   }
 }
 
-watch([dataKey, cityName, loadingTick], () => load(true), { immediate: true })
+watch([dataKey, cityName, loadingTick], () => {
+  void load(true)
+  void loadActivities()
+}, { immediate: true })
 watch(costFlashTick, () => {
   flashing.value = true
   window.clearTimeout(flashTimer)
@@ -111,9 +123,6 @@ watch(costFlashTick, () => {
 })
 onMounted(() => {
   timer = window.setInterval(() => load(false), 60000)
-  fetchMarketingActivities().then((list) => {
-    activities.value = list
-  })
 })
 onUnmounted(() => {
   clearInterval(timer)
@@ -242,6 +251,11 @@ onUnmounted(() => {
       margin: 0;
       color: #fff;
       font-size: 15px;
+    }
+    .popup-sub {
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: #8899aa;
     }
     button {
       border: 0;
