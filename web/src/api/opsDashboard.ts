@@ -33,6 +33,50 @@ export type OpsStore = {
   stockout_lost: number
 }
 
+type StockoutRow = {
+  name: string
+  fullName?: string
+  cat: string
+  times: number
+  lost: number
+  loss: number
+  store_cnt?: number
+}
+
+type ReverseBoard = {
+  line_cnt?: number
+  order_cnt?: number
+  amount?: number
+  reasons?: Array<{ name: string; value: number }>
+  types?: Array<{ name: string; value: number }>
+  categories?: Array<{ name: string; value: number }>
+  products?: Array<Record<string, unknown>>
+}
+
+type MarketingOverview = {
+  roi?: number
+  new_users?: number
+  activity_order_rate?: number
+  new_aov?: number
+  old_aov?: number
+  subsidy_merchant?: number
+}
+
+type MarketingBoard = {
+  overview?: MarketingOverview
+  activities?: Array<Record<string, unknown>>
+}
+
+type ProductsBoard = {
+  categories: Array<{ name: string; amount: number }>
+  stockouts: StockoutRow[]
+  sku_total?: number
+  sku_active?: number
+  sku_stockout?: number
+  stockout_rate?: number
+  stockout_loss?: number
+}
+
 type Overview = {
   date: string
   store_cnt: number
@@ -81,26 +125,91 @@ function wait<T>(data: T): Promise<T> {
   return Promise.resolve(structuredClone(data))
 }
 
-export function getSourceDate() {
-  return String(raw.source_date || '')
+type OpsSnapshot = {
+  source_date?: string
+  overview?: Overview
+  stores?: OpsStore[]
+  cities?: string[]
+  categories?: Array<{ name: string; amount: number }>
+  stockouts?: Array<Record<string, unknown>>
+  reverse?: Record<string, unknown>
+  activities?: Array<Record<string, unknown>>
+  activityOverview?: Record<string, unknown>
+  problemStores?: Array<Record<string, unknown>>
+  actions?: Array<{ level: string; module: string; title: string; desc: string }>
+  standards?: Record<string, number>
+}
+
+type OpsRoot = OpsSnapshot & {
+  updated_at?: string
+  dates?: Record<string, OpsSnapshot>
+  primaryDate?: string
+}
+
+const root = raw as OpsRoot
+
+function snapshotFromLegacy(): OpsSnapshot {
+  return {
+    source_date: root.source_date,
+    overview: root.overview as Overview,
+    stores: root.stores as OpsStore[],
+    cities: root.cities as string[],
+    categories: root.categories as Array<{ name: string; amount: number }>,
+    stockouts: root.stockouts as Array<Record<string, unknown>>,
+    reverse: root.reverse as Record<string, unknown>,
+    activities: root.activities as Array<Record<string, unknown>>,
+    activityOverview: root.activityOverview as Record<string, unknown>,
+    problemStores: root.problemStores as Array<Record<string, unknown>>,
+    actions: root.actions,
+    standards: root.standards,
+  }
+}
+
+function resolveSnapshot(isoDate: string): OpsSnapshot | null {
+  if (root.dates) {
+    return root.dates[isoDate] || null
+  }
+  const legacyIso = formatBizDate(String(root.source_date || ''))
+  if (!isoDate || isoDate === legacyIso) return snapshotFromLegacy()
+  return null
+}
+
+export function getOpsAvailableDates() {
+  if (root.dates) {
+    return Object.keys(root.dates).sort()
+  }
+  const iso = formatBizDate(String(root.source_date || ''))
+  return iso ? [iso] : []
+}
+
+export function hasOpsData(isoDate: string) {
+  return getOpsAvailableDates().includes(isoDate)
+}
+
+export function getSourceDate(isoDate?: string) {
+  const snap = isoDate ? resolveSnapshot(isoDate) : snapshotFromLegacy()
+  return String(snap?.source_date || root.source_date || '')
 }
 
 export function getUpdatedAt() {
-  return String(raw.updated_at || '')
+  return String(root.updated_at || '')
 }
 
-export function listCities() {
-  return ['全部', ...((raw.cities || []) as string[])]
+export function listCities(isoDate: string) {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap) return ['全部']
+  return ['全部', ...((snap.cities || []) as string[])]
 }
 
-export function listStores(city = '全部') {
-  const rows = (raw.stores || []) as OpsStore[]
+export function listStores(isoDate: string, city = '全部') {
+  const snap = resolveSnapshot(isoDate)
+  const rows = (snap?.stores || []) as OpsStore[]
   if (!city || city === '全部') return rows
   return rows.filter((s) => s.city === city)
 }
 
-function filterStores(city: string, storeId: string) {
-  let rows = listStores(city)
+function filterStores(isoDate: string, city: string, storeId: string) {
+  let rows = listStores(isoDate, city)
   if (storeId && storeId !== '全部') rows = rows.filter((s) => s.id === storeId)
   return rows
 }
@@ -118,12 +227,18 @@ function weighted(rows: OpsStore[], valueKey: keyof OpsStore, weightKey: keyof O
   return rows.reduce((a, r) => a + Number(r[valueKey] || 0) * Number(r[weightKey] || 0), 0) / w
 }
 
-export async function fetchOpsOverview(city = '全部', storeId = '全部'): Promise<Overview | null> {
-  const rows = filterStores(city, storeId)
+export async function fetchOpsOverview(
+  isoDate: string,
+  city = '全部',
+  storeId = '全部',
+): Promise<Overview | null> {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap?.overview) return null
+  const rows = filterStores(isoDate, city, storeId)
   if (!rows.length) return null
 
   if (city === '全部' && storeId === '全部') {
-    return wait({ ...(raw.overview as Overview), scope: '全国' })
+    return wait({ ...(snap.overview as Overview), scope: '全国' })
   }
 
   const orders = sum(rows, 'orders')
@@ -137,7 +252,7 @@ export async function fetchOpsOverview(city = '全部', storeId = '全部'): Pro
   const order_users = Math.round(sum(rows, 'orders')) // 门店维无下单人数时用订单近似
 
   return wait({
-    ...(raw.overview as Overview),
+    ...(snap.overview as Overview),
     scope: storeId !== '全部' ? rows[0]?.shortName : city,
     store_cnt: rows.length,
     active_store_cnt: rows.filter((r) => r.orders > 0).length,
@@ -169,9 +284,14 @@ export async function fetchOpsOverview(city = '全部', storeId = '全部'): Pro
   })
 }
 
-export async function fetchAssessmentMetrics(city = '全部', storeId = '全部'): Promise<AssessMetric[]> {
-  const ov = await fetchOpsOverview(city, storeId)
-  const std = (raw.standards || {}) as Record<string, number>
+export async function fetchAssessmentMetrics(
+  isoDate: string,
+  city = '全部',
+  storeId = '全部',
+): Promise<AssessMetric[]> {
+  const snap = resolveSnapshot(isoDate)
+  const ov = await fetchOpsOverview(isoDate, city, storeId)
+  const std = (snap?.standards || {}) as Record<string, number>
   if (!ov) return []
 
   const mk = (
@@ -212,8 +332,8 @@ export async function fetchAssessmentMetrics(city = '全部', storeId = '全部'
   ]
 }
 
-export async function fetchFunnel(city = '全部', storeId = '全部') {
-  const ov = await fetchOpsOverview(city, storeId)
+export async function fetchFunnel(isoDate: string, city = '全部', storeId = '全部') {
+  const ov = await fetchOpsOverview(isoDate, city, storeId)
   if (!ov) return null
   return wait({
     expose: ov.expose,
@@ -228,15 +348,19 @@ export async function fetchFunnel(city = '全部', storeId = '全部') {
   })
 }
 
-export async function fetchReverseBoard() {
-  return wait(raw.reverse)
+export async function fetchReverseBoard(isoDate: string) {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap) return wait(null as ReverseBoard | null)
+  return wait((snap.reverse || null) as ReverseBoard | null)
 }
 
-export async function fetchProductsBoard() {
-  const ov = raw.overview as Overview
+export async function fetchProductsBoard(isoDate: string) {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap?.overview) return wait(null as ProductsBoard | null)
+  const ov = snap.overview as Overview
   return wait({
-    categories: raw.categories || [],
-    stockouts: raw.stockouts || [],
+    categories: (snap.categories || []) as Array<{ name: string; amount: number }>,
+    stockouts: (snap.stockouts || []) as StockoutRow[],
     sku_total: ov.sku_total,
     sku_active: ov.sku_active,
     sku_stockout: ov.sku_stockout,
@@ -245,25 +369,31 @@ export async function fetchProductsBoard() {
   })
 }
 
-export async function fetchMarketingBoard() {
+export async function fetchMarketingBoard(isoDate: string) {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap) return wait(null as MarketingBoard | null)
   return wait({
-    overview: raw.activityOverview,
-    activities: raw.activities || [],
+    overview: snap.activityOverview as MarketingOverview | undefined,
+    activities: snap.activities || [],
   })
 }
 
-export async function fetchProblemStores(city = '全部') {
-  let rows = (raw.problemStores || []) as Array<Record<string, unknown>>
+export async function fetchProblemStores(isoDate: string, city = '全部') {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap) return wait([])
+  let rows = (snap.problemStores || []) as Array<Record<string, unknown>>
   if (city && city !== '全部') rows = rows.filter((r) => r.city === city)
   return wait(rows)
 }
 
-export async function fetchActions() {
-  return wait((raw.actions || []) as Array<{ level: string; module: string; title: string; desc: string }>)
+export async function fetchActions(isoDate: string) {
+  const snap = resolveSnapshot(isoDate)
+  if (!snap) return wait([])
+  return wait((snap.actions || []) as Array<{ level: string; module: string; title: string; desc: string }>)
 }
 
-export async function fetchFinanceStrip(city = '全部', storeId = '全部') {
-  const ov = await fetchOpsOverview(city, storeId)
+export async function fetchFinanceStrip(isoDate: string, city = '全部', storeId = '全部') {
+  const ov = await fetchOpsOverview(isoDate, city, storeId)
   if (!ov) return []
   return wait([
     { label: '总成交额', value: ov.gmv, kind: 'money' as const },

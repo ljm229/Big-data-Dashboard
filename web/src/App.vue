@@ -1,7 +1,10 @@
 <template>
-  <div class="view-switch">
-    <button type="button" :class="{ active: activeView === 'cockpit' }" @click="activeView = 'cockpit'">数据大屏</button>
-    <button type="button" :class="{ active: activeView === 'ops' }" @click="activeView = 'ops'">门店运营看板</button>
+  <div class="global-toolbar" :class="{ 'global-toolbar--ops': activeView === 'ops' }">
+    <div class="view-switch">
+      <button type="button" :class="{ active: activeView === 'cockpit' }" @click="activeView = 'cockpit'">数据大屏</button>
+      <button type="button" :class="{ active: activeView === 'ops' }" @click="activeView = 'ops'">门店运营看板</button>
+    </div>
+    <DateFilterBar :variant="activeView === 'ops' ? 'light' : 'dark'" />
   </div>
 
   <div v-if="activeView === 'cockpit'" class="screen-root">
@@ -73,6 +76,7 @@ import R3Reverse from './components/modules/R3Reverse.vue'
 import R4Orders from './components/modules/R4Orders.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import StoreOpsDashboard from './components/StoreOpsDashboard.vue'
+import DateFilterBar from './components/DateFilterBar.vue'
 import bgUrl from './assets/beijing.png'
 
 const activeView = ref<'cockpit' | 'ops'>('cockpit')
@@ -81,31 +85,50 @@ const bgImage = `url(${bgUrl})`
 </script>
 
 <style scoped lang="scss">
-.view-switch {
+.global-toolbar {
   position: fixed;
   top: 14px;
   right: 18px;
   z-index: 20;
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.view-switch {
+  display: flex;
   gap: 8px;
-  padding: 6px;
-  border-radius: 10px;
-  background: rgba(6, 20, 48, 0.82);
-  border: 1px solid rgba(94, 200, 255, 0.35);
-  box-shadow: 0 0 18px rgba(40, 140, 255, 0.2);
-  backdrop-filter: blur(10px);
+  padding: 0;
   button {
     border: 0;
     border-radius: 7px;
     padding: 8px 12px;
     color: #cfe0f6;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(94, 200, 255, 0.28);
     cursor: pointer;
     font-size: var(--fs-axis);
     &.active {
       color: #04122a;
       background: linear-gradient(135deg, #9adfff, #3aa0ff);
+      border-color: transparent;
       font-weight: 800;
+    }
+  }
+}
+.global-toolbar--ops {
+  .view-switch button {
+    color: #5a6a7a;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(42, 92, 130, 0.18);
+    &.active {
+      color: #fff;
+      background: linear-gradient(135deg, #2a5c82, #5b9bd5);
+      border-color: transparent;
     }
   }
 }

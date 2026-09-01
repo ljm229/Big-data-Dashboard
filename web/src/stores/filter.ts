@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import raw from '../data/dashboard.json'
+import { getOpsAvailableDates, hasOpsData as opsHasData } from '../api/opsDashboard'
 
 function isoFromKey(key: string) {
   const [m, d] = key.split('.')
@@ -8,13 +9,17 @@ function isoFromKey(key: string) {
 }
 
 const sourceKeys = Object.keys(raw.storeRank || {}).sort()
-export const AVAILABLE_DATES = sourceKeys.map(isoFromKey)
+export const COCKPIT_DATES = sourceKeys.map(isoFromKey)
+export const AVAILABLE_DATES = COCKPIT_DATES
 export const DATE_TO_KEY: Record<string, string> = Object.fromEntries(
   sourceKeys.map((key) => [isoFromKey(key), key]),
 )
 
-const sourcePrimary = raw.primaryDate ? isoFromKey(raw.primaryDate) : AVAILABLE_DATES[AVAILABLE_DATES.length - 1]
-const sourceCompare = raw.compareDate ? isoFromKey(raw.compareDate) : AVAILABLE_DATES[0]
+export const OPS_DATES = getOpsAvailableDates()
+export const UNIFIED_DATES = [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
+
+const sourcePrimary = raw.primaryDate ? isoFromKey(raw.primaryDate) : COCKPIT_DATES[COCKPIT_DATES.length - 1]
+const sourceCompare = raw.compareDate ? isoFromKey(raw.compareDate) : COCKPIT_DATES[0]
 
 export type StoreSortBy = 'default' | 'refund_amount' | 'refund_rate' | 'refund_orders' | 'inafter_ratio'
 
@@ -37,6 +42,8 @@ export const useFilterStore = defineStore('filter', () => {
 
   const dataKey = computed(() => DATE_TO_KEY[selectedDate.value] || '')
   const hasData = computed(() => !!dataKey.value)
+  const hasOpsData = computed(() => opsHasData(selectedDate.value))
+  const hasCockpitData = computed(() => hasData.value)
   /** 对照日：另一份 Excel 日期，用于环比，不是编造的昨日 */
   const compareDate = computed(() => {
     if (selectedDate.value === sourcePrimary) return sourceCompare
@@ -116,6 +123,8 @@ export const useFilterStore = defineStore('filter', () => {
     storeSortBy,
     dataKey,
     hasData,
+    hasOpsData,
+    hasCockpitData,
     compareDate,
     compareKey,
     compareLabel,

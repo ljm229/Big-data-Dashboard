@@ -11,32 +11,15 @@
       </div>
     </div>
     <h1 class="header__title">电商经营数据驾驶舱</h1>
-    <div class="header__right">
-      <label class="date-filter">
-        数据日期
-        <input
-          type="date"
-          :value="selectedDate"
-          :min="AVAILABLE_DATES[0]"
-          :max="AVAILABLE_DATES[AVAILABLE_DATES.length - 1]"
-          @change="onDate"
-        />
-      </label>
-      <p class="date-hint">仅有 {{ dateHint }} 两天 Excel 数据</p>
-    </div>
+    <div class="header__right" aria-hidden="true" />
   </header>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useFilterStore, AVAILABLE_DATES } from '../../stores/filter'
 import { nowClock } from '../../utils/format'
 
-const filter = useFilterStore()
-const { selectedDate } = storeToRefs(filter)
 const clock = ref(nowClock())
-const dateHint = AVAILABLE_DATES.map((d) => d.slice(5).replace('-', '/') ).join('、')
 let timer = 0
 
 onMounted(() => {
@@ -45,10 +28,6 @@ onMounted(() => {
   }, 1000)
 })
 onUnmounted(() => clearInterval(timer))
-
-function onDate(e: Event) {
-  filter.setDate((e.target as HTMLInputElement).value)
-}
 </script>
 
 <style scoped lang="scss">
@@ -168,32 +147,6 @@ function onDate(e: Event) {
   }
 }
 .header__right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
   z-index: 1;
-}
-.date-filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-data);
-  color: var(--c-muted);
-  input {
-    background: rgba(8, 24, 56, 0.9);
-    border: 1px solid rgba(94, 200, 255, 0.4);
-    color: #e8f3ff;
-    border-radius: 2px;
-    padding: 6px 10px;
-    font-size: var(--fs-data);
-    outline: none;
-    color-scheme: dark;
-  }
-}
-.date-hint {
-  margin: 0;
-  font-size: var(--fs-axis);
-  color: var(--c-muted);
 }
 </style>

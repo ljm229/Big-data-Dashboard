@@ -34,6 +34,12 @@
       </div>
     </header>
 
+    <div v-if="!hasOpsData" class="ops-empty">
+      <strong>该日期暂无运营看板数据</strong>
+      <p>数据源2 当前仅有 {{ opsDateHint }} 明细。请切换日期，或在大屏查看 {{ cockpitOnlyHint }} 汇总。</p>
+    </div>
+
+    <template v-else>
     <section class="kpi-grid">
       <AssessmentCard v-for="m in metrics" :key="m.key" :metric="m" />
     </section>
@@ -233,15 +239,18 @@
         <div ref="revCatEl" class="chart chart--revcat" />
       </article>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import type { EChartsOption } from 'echarts'
 import AssessmentCard, { type AssessMetric } from './AssessmentCard.vue'
 import { useEcharts } from '../composables/useEcharts'
 import { formatInt, formatMoney, formatPercent } from '../utils/format'
+import { useFilterStore, OPS_DATES, COCKPIT_DATES } from '../stores/filter'
 import {
   fetchActions,
   fetchAssessmentMetrics,
@@ -260,17 +269,27 @@ import {
   listStores,
 } from '../api/opsDashboard'
 
-const cityOptions = listCities()
+const filter = useFilterStore()
+const { selectedDate, hasOpsData, loadingTick } = storeToRefs(filter)
+
 const city = ref('全部')
 const storeId = ref('全部')
-const storeOptions = computed(() => listStores(city.value).filter((s) => s.orders > 0))
+const cityOptions = computed(() => listCities(selectedDate.value))
+const storeOptions = computed(() => listStores(selectedDate.value, city.value).filter((s) => s.orders > 0))
+
+const bizDate = computed(() => formatBizDate(getSourceDate(selectedDate.value)))
+const updatedAt = getUpdatedAt().slice(0, 16)
+const opsDateHint = OPS_DATES.map((d) => d.slice(5).replace('-', '/')).join('、')
+const cockpitOnlyHint = COCKPIT_DATES.map((d) => d.slice(5).replace('-', '/')).join('、')
 
 watch(city, () => {
   storeId.value = '全部'
 })
 
-const bizDate = formatBizDate(getSourceDate())
-const updatedAt = getUpdatedAt().slice(0, 16)
+watch(selectedDate, () => {
+  city.value = '全部'
+  storeId.value = '全部'
+})
 
 const metrics = ref<AssessMetric[]>([])
 const overview = ref<Awaited<ReturnType<typeof fetchOpsOverview>> | null>(null)
@@ -328,14 +347,16 @@ const chartText = '#5a6a7a'
 const axisLine = '#d8e0e8'
 
 async function reload() {
+  if (!hasOpsData.value) return
+  const iso = selectedDate.value
   const c = city.value
   const s = storeId.value
   ;[metrics.value, overview.value, financeStrip.value, problemStores.value, funnel.value] = await Promise.all([
-    fetchAssessmentMetrics(c, s),
-    fetchOpsOverview(c, s),
-    fetchFinanceStrip(c, s),
-    fetchProblemStores(c),
-    fetchFunnel(c, s),
+    fetchAssessmentMetrics(iso, c, s),
+    fetchOpsOverview(iso, c, s),
+    fetchFinanceStrip(iso, c, s),
+    fetchProblemStores(iso, c),
+    fetchFunnel(iso, c, s),
   ])
 
   const f = funnel.value
@@ -486,11 +507,19 @@ async function reload() {
 }
 
 async function loadStatic() {
+  if (!hasOpsData.value) {
+    actions.value = []
+    products.value = null
+    reverse.value = null
+    marketing.value = null
+    return
+  }
+  const iso = selectedDate.value
   ;[actions.value, products.value, reverse.value, marketing.value] = await Promise.all([
-    fetchActions(),
-    fetchProductsBoard(),
-    fetchReverseBoard(),
-    fetchMarketingBoard(),
+    fetchActions(iso),
+    fetchProductsBoard(iso),
+    fetchReverseBoard(iso),
+    fetchMarketingBoard(iso),
   ])
 
   const reasons = (reverse.value?.reasons || []).slice(0, 8)
@@ -607,7 +636,8 @@ async function loadStatic() {
   }
 }
 
-watch([city, storeId], () => {
+watch([city, storeId, selectedDate, loadingTick], () => {
+  void loadStatic()
   void reload()
 })
 
@@ -628,12 +658,32 @@ void reload()
   --bg: #f3f6f9;
   min-height: 100vh;
   padding: 20px 24px 28px;
+  padding-top: 72px;
   background:
     radial-gradient(circle at 12% 0%, rgba(91, 155, 213, 0.16), transparent 36%),
     radial-gradient(circle at 88% 100%, rgba(42, 92, 130, 0.1), transparent 40%),
     var(--bg);
   color: var(--text);
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.ops-empty {
+  margin-top: 14px;
+  padding: 28px 24px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px dashed rgba(42, 92, 130, 0.35);
+  text-align: center;
+  strong {
+    display: block;
+    font-size: 18px;
+    color: var(--primary);
+    margin-bottom: 8px;
+  }
+  p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+  }
 }
 .ops-header {
   display: grid;
