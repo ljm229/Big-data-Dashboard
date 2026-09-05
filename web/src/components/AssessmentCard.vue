@@ -1,14 +1,18 @@
 <template>
-  <article class="assess" :style="{ '--metric': metric.color }">
+  <article class="assess" :style="{ '--metric': metric.color }" :class="[`tier-${metric.tier || 'pass'}`]">
     <i class="assess__top" />
     <div class="assess__head">
       <h3>{{ metric.name }}</h3>
-      <span class="assess__tag" :class="metric.met ? 'met' : 'unmet'">
-        {{ metric.met ? '✅ 达标' : '❌ 未达标' }}
-      </span>
+      <span class="assess__tag" :class="tierClass">{{ tierText }}</span>
     </div>
 
-    <div class="assess__value" :class="metric.met ? 'met' : 'unmet'">{{ valueText }}</div>
+    <div class="assess__value" :class="tierClass">{{ valueText }}</div>
+
+    <div class="assess__score-row" v-if="metric.score != null">
+      <span>单项 {{ metric.score }} 分</span>
+      <span v-if="metric.weight != null">权重 {{ Math.round((metric.weight || 0) * 100) }}%</span>
+      <span v-if="metric.weightedScore != null" class="contrib">贡献 {{ metric.weightedScore.toFixed(1) }}</span>
+    </div>
 
     <div class="bullet">
       <div class="bullet__track">
@@ -17,8 +21,8 @@
         <b class="bullet__line" :style="{ left: standardPct + '%' }" />
       </div>
       <div class="bullet__meta">
-        <span>标准 {{ standardText }}</span>
-        <span :class="gap >= 0 ? 'bad' : 'good'">{{ gap >= 0 ? '超标' : '距达标' }} {{ gapText }}</span>
+        <span>合格线 {{ standardText }}</span>
+        <span :class="gapSide">{{ gapLabel }} {{ gapText }}</span>
       </div>
     </div>
 
@@ -28,11 +32,6 @@
       </span>
       <span class="assess__dir">{{ directionText }}</span>
     </div>
-
-    <svg class="spark" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true">
-      <line class="spark__std" x1="0" :y1="standardY" x2="200" :y2="standardY" />
-      <polyline class="spark__line" :points="trendPoints" />
-    </svg>
   </article>
 </template>
 
@@ -50,9 +49,14 @@ export interface AssessMetric {
   direction: 'up' | 'down'
   met: boolean
   trendGood: boolean
-  trend: number[]
+  trend?: number[]
   /** 默认「环比」，单日数据可改为「距标准」 */
   deltaLabel?: string
+  tier?: 'excellent' | 'pass' | 'warn' | 'fail'
+  tierLabel?: string
+  weight?: number
+  score?: number
+  weightedScore?: number
 }
 
 const props = defineProps<{ metric: AssessMetric }>()
@@ -66,8 +70,8 @@ const valueText = computed(() => {
 
 const standardText = computed(() => {
   const m = props.metric
-  if (m.unit === '%') return m.standard.toFixed(2) + '%'
-  if (m.unit === 'min') return m.standard.toFixed(1) + 'min'
+  if (m.unit === '%') return (m.direction === 'down' ? '≤' : '≥') + m.standard.toFixed(m.standard < 2 ? 1 : 0) + '%'
+  if (m.unit === 'min') return '≤' + m.standard.toFixed(0) + 'min'
   return String(m.standard)
 })
 
@@ -88,6 +92,16 @@ const badWidth = computed(() => {
 const unitSuffix = computed(() => (props.metric.unit === 'min' ? 'min' : 'pp'))
 const gap = computed(() => props.metric.value - props.metric.standard)
 const gapText = computed(() => (gap.value >= 0 ? '+' : '') + gap.value.toFixed(2) + unitSuffix.value)
+const gapSide = computed(() => {
+  const m = props.metric
+  const over = m.direction === 'down' ? gap.value > 0 : gap.value < 0
+  return over ? 'bad' : 'good'
+})
+const gapLabel = computed(() => {
+  const m = props.metric
+  if (m.direction === 'down') return gap.value > 0 ? '超标' : '优于线'
+  return gap.value < 0 ? '距达标' : '优于线'
+})
 const deltaText = computed(
   () => (props.metric.deltaPp >= 0 ? '+' : '') + props.metric.deltaPp.toFixed(2) + unitSuffix.value,
 )
@@ -95,26 +109,15 @@ const deltaArrow = computed(() => (props.metric.deltaPp >= 0 ? '▲' : '▼'))
 const deltaLabel = computed(() => props.metric.deltaLabel || '环比')
 const directionText = computed(() => (props.metric.direction === 'down' ? '越小越好' : '越大越好'))
 
-const trendPoints = computed(() => {
-  const arr = props.metric.trend
-  const min = Math.min(...arr)
-  const maxVal = Math.max(...arr)
-  const range = maxVal - min || 1
-  return arr
-    .map((v, i) => {
-      const x = (i / (arr.length - 1)) * 200
-      const y = 34 - ((v - min) / range) * 28
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
+const tierClass = computed(() => {
+  const t = props.metric.tier
+  if (t === 'excellent' || t === 'pass') return 'met'
+  if (t === 'warn') return 'warn'
+  return 'unmet'
 })
-
-const standardY = computed(() => {
-  const arr = props.metric.trend
-  const min = Math.min(...arr)
-  const maxVal = Math.max(...arr)
-  const range = maxVal - min || 1
-  return String(34 - ((props.metric.standard - min) / range) * 28)
+const tierText = computed(() => {
+  if (props.metric.tierLabel) return props.metric.tierLabel
+  return props.metric.met ? '达标' : '未达标'
 })
 </script>
 
@@ -123,7 +126,7 @@ const standardY = computed(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 14px 14px 12px;
   border-radius: 12px;
   background: #ffffff;
@@ -145,7 +148,7 @@ const standardY = computed(() => {
   h3 {
     margin: 0;
     color: #3d3d3d;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     white-space: nowrap;
   }
@@ -155,9 +158,14 @@ const standardY = computed(() => {
   font-size: 12px;
   padding: 3px 8px;
   border-radius: 999px;
+  font-weight: 700;
   &.met {
     color: #2f7d48;
     background: #e8f5ec;
+  }
+  &.warn {
+    color: #b78000;
+    background: #fff6e0;
   }
   &.unmet {
     color: #c83238;
@@ -165,16 +173,30 @@ const standardY = computed(() => {
   }
 }
 .assess__value {
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 800;
   line-height: 1;
-  font-family: Bahnschrift, 'DIN Alternate', Consolas, monospace;
+  font-family: Rajdhani, Bahnschrift, 'DIN Alternate', Consolas, monospace;
   font-variant-numeric: tabular-nums;
   &.met {
     color: #4caf6e;
   }
+  &.warn {
+    color: #d4a017;
+  }
   &.unmet {
     color: #e5484d;
+  }
+}
+.assess__score-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 12px;
+  color: #8c8c8c;
+  .contrib {
+    color: #2a5c82;
+    font-weight: 700;
   }
 }
 .bullet__track {
@@ -236,23 +258,6 @@ const standardY = computed(() => {
     &.bad {
       color: #e5484d;
     }
-  }
-}
-.spark {
-  width: 100%;
-  height: 40px;
-  display: block;
-  .spark__std {
-    stroke: #b9b3aa;
-    stroke-width: 1;
-    stroke-dasharray: 4 4;
-  }
-  .spark__line {
-    fill: none;
-    stroke: var(--metric);
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 }
 </style>

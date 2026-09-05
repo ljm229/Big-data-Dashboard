@@ -2,7 +2,7 @@
   <Panel
     class="cost-panel"
     :class="{ 'is-flash': flashing }"
-    title="💰 成本&优惠结构"
+    title="成本&优惠结构"
     :updated-at="time"
     :loading="loading && !items.length"
     clickable
@@ -66,11 +66,11 @@ type CostItem = {
   amount: number
   rate: number
   color: string
-  key: 'purchase' | 'discount' | 'marketing' | 'platform_delivery' | 'commission' | 'self_delivery'
+  key: string
 }
 
 const filter = useFilterStore()
-const { dataKey, cityName, loadingTick, updatedAt, costFlashTick } = storeToRefs(filter)
+const { dataKey, cityName, channel, loadingTick, updatedAt, costFlashTick } = storeToRefs(filter)
 const loading = ref(true)
 const items = ref<CostItem[]>([])
 const activities = ref<{ name: string; cost: number; store: string; paid?: number }[]>([])
@@ -103,14 +103,14 @@ async function onItemClick(item: CostItem) {
 async function load(showLoading = false) {
   if (showLoading) loading.value = true
   try {
-    const data = await fetchCost(dataKey.value, cityName.value)
+    const data = await fetchCost(dataKey.value, cityName.value, channel.value)
     items.value = data.items as CostItem[]
   } finally {
     loading.value = false
   }
 }
 
-watch([dataKey, cityName, loadingTick], () => {
+watch([dataKey, cityName, channel, loadingTick], () => {
   void load(true)
   void loadActivities()
 }, { immediate: true })

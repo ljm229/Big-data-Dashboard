@@ -1,144 +1,139 @@
 <template>
   <div class="date-bar" :class="{ light: variant === 'light' }">
-    <label class="date-bar__field">
-      <span>数据日期</span>
-      <input
-        type="date"
-        :value="selectedDate"
-        :min="pickerDates[0]"
-        :max="pickerDates[pickerDates.length - 1]"
-        @change="onDate"
-      />
-    </label>
-    <div class="date-bar__tags">
-      <span v-if="scope === 'cockpit' || (scope === 'unified' && hasCockpitData)" class="tag tag--cockpit">数据源</span>
-      <span v-if="scope === 'ops' || (scope === 'unified' && hasOpsData)" class="tag tag--ops">数据源2</span>
-      <span v-if="scope === 'unified' && !hasCockpitData && !hasOpsData" class="tag tag--empty">无数据</span>
+    <div v-if="scope === 'cockpit' || scope === 'ops'" class="seg">
+      <button type="button" :class="{ active: periodMode === 'day' }" @click="filter.setPeriodMode('day')">
+        按日
+      </button>
+      <button type="button" :class="{ active: periodMode === 'week' }" @click="filter.setPeriodMode('week')">
+        按周
+      </button>
     </div>
-    <p class="date-bar__hint">{{ hint }}</p>
+
+    <input
+      v-if="scope === 'unified' || periodMode === 'day'"
+      type="date"
+      class="ctrl"
+      :value="selectedDate"
+      :min="pickerDates[0]"
+      :max="pickerDates[pickerDates.length - 1]"
+      @change="onDate"
+    />
+
+    <select v-else class="ctrl" :value="selectedWeekId" @change="onWeek">
+      <option v-for="w in COCKPIT_WEEKS" :key="w.id" :value="w.id">{{ w.label }}</option>
+    </select>
+
+    <select v-if="scope === 'cockpit'" class="ctrl ctrl--channel" :value="channel" @change="onChannel">
+      <option v-for="c in COCKPIT_CHANNELS" :key="c" :value="c">{{ c === '全部' ? '全部渠道' : c }}</option>
+    </select>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useFilterStore, COCKPIT_DATES, OPS_DATES } from '../stores/filter'
+import {
+  useFilterStore,
+  COCKPIT_DATES,
+  COCKPIT_WEEKS,
+  COCKPIT_CHANNELS,
+  OPS_DATES,
+} from '../stores/filter'
 
 const props = withDefaults(
   defineProps<{
     variant?: 'dark' | 'light'
-    /** cockpit=仅数据源日期；ops=仅数据源2；unified=合并（默认） */
     scope?: 'cockpit' | 'ops' | 'unified'
   }>(),
   { variant: 'dark', scope: 'unified' },
 )
 
 const filter = useFilterStore()
-const { selectedDate, hasCockpitData, hasOpsData } = storeToRefs(filter)
-
-const fmt = (iso: string) => iso.slice(5).replace('-', '/')
+const { selectedDate, selectedWeekId, periodMode, channel } = storeToRefs(filter)
 
 const pickerDates = computed(() => {
-  if (props.scope === 'cockpit') return COCKPIT_DATES
-  if (props.scope === 'ops') return OPS_DATES.length ? OPS_DATES : COCKPIT_DATES
+  // 营运考核按周落在大屏日期内；运营明细仅个别日有
+  if (props.scope === 'cockpit' || props.scope === 'ops') return COCKPIT_DATES
   return [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
-})
-
-const hint = computed(() => {
-  if (props.scope === 'cockpit') {
-    return `数据源 · ${COCKPIT_DATES.map(fmt).join('、')} · 城市/门店联动筛选`
-  }
-  if (props.scope === 'ops') {
-    const ops = OPS_DATES.map(fmt).join('、') || '暂无'
-    return `数据源2 · ${ops} · 城市/门店联动筛选`
-  }
-  const cockpit = COCKPIT_DATES.map(fmt).join('、')
-  const ops = OPS_DATES.map(fmt).join('、') || '暂无'
-  return `大屏 ${cockpit} · 看板 ${ops} · 切换视图日期联动`
 })
 
 function onDate(e: Event) {
   filter.setDate((e.target as HTMLInputElement).value)
+}
+function onWeek(e: Event) {
+  filter.setWeek((e.target as HTMLSelectElement).value)
+}
+function onChannel(e: Event) {
+  filter.setChannel((e.target as HTMLSelectElement).value)
 }
 </script>
 
 <style scoped lang="scss">
 .date-bar {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
   min-width: 0;
 }
-.date-bar__field {
+.seg {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-data, 13px);
-  color: var(--c-muted, #9eb6d0);
-  span {
-    white-space: nowrap;
-  }
-  input {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(94, 200, 255, 0.45);
-    color: #e8f3ff;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: var(--fs-data, 13px);
-    outline: none;
-    color-scheme: dark;
-  }
-}
-.date-bar__tags {
-  display: flex;
-  gap: 6px;
-}
-.tag {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-weight: 700;
-  &--cockpit {
-    color: #04122a;
-    background: linear-gradient(135deg, #9adfff, #3aa0ff);
-  }
-  &--ops {
-    color: #fff;
-    background: rgba(42, 92, 130, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-  }
-  &--empty {
-    color: #ffc53d;
-    background: rgba(255, 197, 61, 0.12);
-    border: 1px solid rgba(255, 197, 61, 0.35);
-  }
-}
-.date-bar__hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--c-muted, #9eb6d0);
-  text-align: right;
-  max-width: 280px;
-  line-height: 1.35;
-}
-.date-bar.light {
-  .date-bar__field {
-    color: #2a5c82;
-    input {
-      background: rgba(255, 255, 255, 0.95);
-      border: 1px solid rgba(42, 92, 130, 0.22);
-      color: #2a5c82;
-      color-scheme: light;
+  border: 1px solid rgba(94, 200, 255, 0.4);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  button {
+    border: 0;
+    background: transparent;
+    color: #9eb6d0;
+    padding: 6px 11px;
+    font-size: 12px;
+    cursor: pointer;
+    &.active {
+      color: #04122a;
+      background: linear-gradient(135deg, #9adfff, #3aa0ff);
+      font-weight: 700;
     }
   }
-  .date-bar__hint {
-    color: #8c8c8c;
+}
+.ctrl {
+  background: rgba(8, 24, 56, 0.85);
+  border: 1px solid rgba(94, 200, 255, 0.4);
+  color: #e8f3ff;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  outline: none;
+  color-scheme: dark;
+  height: 30px;
+  box-sizing: border-box;
+  max-width: 148px;
+}
+.ctrl--channel {
+  max-width: 118px;
+}
+select.ctrl option {
+  background: #0a1e3c;
+  color: #e8f3ff;
+}
+
+.date-bar.light {
+  .seg {
+    border-color: rgba(42, 92, 130, 0.25);
+    button {
+      color: #5a6a7a;
+      &.active {
+        color: #fff;
+        background: #2a5c82;
+      }
+    }
   }
-  .tag--ops {
-    color: #fff;
-    background: #2a5c82;
-    border-color: transparent;
+  .ctrl {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(42, 92, 130, 0.22);
+    color: #2a5c82;
+    color-scheme: light;
   }
 }
 </style>

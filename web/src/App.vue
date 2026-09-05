@@ -1,16 +1,8 @@
 <template>
-  <div class="global-toolbar" :class="{ 'global-toolbar--ops': activeView === 'ops' }">
-    <div class="view-switch">
-      <button type="button" :class="{ active: activeView === 'cockpit' }" @click="activeView = 'cockpit'">数据大屏</button>
-      <button type="button" :class="{ active: activeView === 'ops' }" @click="activeView = 'ops'">门店运营看板</button>
-    </div>
-    <DateFilterBar :variant="activeView === 'ops' ? 'light' : 'dark'" :scope="activeView === 'cockpit' ? 'cockpit' : 'ops'" />
-  </div>
-
   <div v-if="activeView === 'cockpit'" class="screen-root">
     <div class="screen-spacer" :style="wrapperStyle">
       <div class="screen" :style="style">
-        <div class="screen__bg" :style="{ '--bg-image': bgImage }" aria-hidden="true" />
+        <div class="screen__bg" aria-hidden="true" />
         <div class="screen__grid" aria-hidden="true" />
         <div class="screen__rotors" aria-hidden="true">
           <i class="rotor rotor--a" />
@@ -26,14 +18,27 @@
           <i class="frame-corner br" />
         </div>
 
-        <AppHeader />
-        <KpiBand />
+        <section class="top-stage">
+          <AppHeader>
+            <template #filters>
+              <DateFilterBar variant="dark" scope="cockpit" />
+            </template>
+            <template #nav>
+              <div class="view-switch view-switch--in-header">
+                <button type="button" class="active">数据大屏</button>
+                <button type="button" @click="activeView = 'ops'">门店运营看板</button>
+              </div>
+            </template>
+          </AppHeader>
+          <KpiBand />
+        </section>
 
         <main class="body">
           <div class="body-main">
             <section class="col left">
-              <L1Trend />
-              <R4Orders />
+              <StoreLaunchPanorama />
+              <ChannelMix />
+              <L3Cost class="col-tail" />
             </section>
 
             <section class="col middle">
@@ -41,16 +46,11 @@
             </section>
 
             <section class="col right">
-              <HealthBoard class="health" />
               <R2StoreRank />
+              <CityContribution />
+              <DayTrend class="col-tail" />
             </section>
           </div>
-
-          <section class="body-bottom">
-            <L3Cost />
-            <R3Reverse />
-            <C4Product />
-          </section>
         </main>
 
         <DetailDrawer />
@@ -58,75 +58,56 @@
     </div>
   </div>
 
-  <StoreOpsDashboard v-else />
+  <StoreOpsDashboard v-else @switch-view="activeView = 'cockpit'" />
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useScreenScale } from './composables/useScale'
-import { useFilterStore, COCKPIT_DATES, OPS_DATES } from './stores/filter'
-import { hasOpsData as checkOpsData } from './api/opsDashboard'
+import { useFilterStore, COCKPIT_DATES } from './stores/filter'
+import { hasAssessment } from './api/dashboard'
 import AppHeader from './components/modules/AppHeader.vue'
 import KpiBand from './components/modules/KpiBand.vue'
-import L1Trend from './components/modules/L1Trend.vue'
+import StoreLaunchPanorama from './components/modules/StoreLaunchPanorama.vue'
+import ChannelMix from './components/modules/ChannelMix.vue'
 import L3Cost from './components/modules/L3Cost.vue'
 import C1Map from './components/modules/C1Map.vue'
-import C4Product from './components/modules/C4Product.vue'
-import HealthBoard from './components/modules/HealthBoard.vue'
+import DayTrend from './components/modules/DayTrend.vue'
+import CityContribution from './components/modules/CityContribution.vue'
 import R2StoreRank from './components/modules/R2StoreRank.vue'
-import R3Reverse from './components/modules/R3Reverse.vue'
-import R4Orders from './components/modules/R4Orders.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import StoreOpsDashboard from './components/StoreOpsDashboard.vue'
 import DateFilterBar from './components/DateFilterBar.vue'
-import bgUrl from './assets/beijing.png'
 
 const activeView = ref<'cockpit' | 'ops'>('cockpit')
 const filter = useFilterStore()
-const { style, wrapperStyle } = useScreenScale(1920, 1760)
-const bgImage = `url(${bgUrl})`
+const { style, wrapperStyle } = useScreenScale(1920, 1280)
 
-/** 切换视图时把日期收敛到当前视图可用范围，避免大屏读到无效日期 */
 watch(activeView, (view) => {
   const iso = filter.selectedDate
   if (view === 'cockpit' && !COCKPIT_DATES.includes(iso)) {
     filter.setDate(COCKPIT_DATES[COCKPIT_DATES.length - 1] || iso)
   }
-  if (view === 'ops' && !checkOpsData(iso)) {
-    const fallback = OPS_DATES[OPS_DATES.length - 1] || COCKPIT_DATES[COCKPIT_DATES.length - 1]
+  if (view === 'ops' && !hasAssessment(iso) && !COCKPIT_DATES.includes(iso)) {
+    const fallback = COCKPIT_DATES[COCKPIT_DATES.length - 1]
     if (fallback) filter.setDate(fallback)
   }
 })
 </script>
 
 <style scoped lang="scss">
-.global-toolbar {
-  position: fixed;
-  top: 14px;
-  right: 18px;
-  z-index: 20;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-}
 .view-switch {
   display: flex;
   gap: 8px;
-  padding: 0;
   button {
-    border: 0;
-    border-radius: 7px;
-    padding: 8px 12px;
+    border: 1px solid rgba(94, 200, 255, 0.35);
+    border-radius: 6px;
+    padding: 6px 12px;
     color: #cfe0f6;
     background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(94, 200, 255, 0.28);
     cursor: pointer;
-    font-size: var(--fs-axis);
+    font-size: 12px;
+    white-space: nowrap;
     &.active {
       color: #04122a;
       background: linear-gradient(135deg, #9adfff, #3aa0ff);
@@ -135,17 +116,8 @@ watch(activeView, (view) => {
     }
   }
 }
-.global-toolbar--ops {
-  .view-switch button {
-    color: #5a6a7a;
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(42, 92, 130, 0.18);
-    &.active {
-      color: #fff;
-      background: linear-gradient(135deg, #2a5c82, #5b9bd5);
-      border-color: transparent;
-    }
-  }
+.view-switch--in-header {
+  flex-shrink: 0;
 }
 
 .screen-root {
@@ -153,8 +125,9 @@ watch(activeView, (view) => {
   min-height: 100vh;
   overflow: visible;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(20, 70, 150, 0.45), transparent 55%),
-    linear-gradient(180deg, #020b22 0%, #041433 48%, #020816 100%);
+    radial-gradient(ellipse 80% 55% at 50% 28%, rgba(28, 78, 160, 0.38), transparent 62%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(12, 40, 90, 0.35), transparent 55%),
+    linear-gradient(180deg, #061a42 0%, #04122f 42%, #020a1c 100%);
 }
 .screen-spacer {
   position: relative;
@@ -164,10 +137,10 @@ watch(activeView, (view) => {
   left: 0;
   top: 0;
   box-sizing: border-box;
-  padding: 14px 24px 22px;
+  padding: 10px 20px 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   color: #e8f3ff;
   overflow: hidden;
   background: transparent;
@@ -179,9 +152,8 @@ watch(activeView, (view) => {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(2, 10, 30, 0.28), rgba(2, 10, 30, 0.42)),
-    var(--bg-image) center / cover no-repeat;
-  opacity: 0.92;
+    radial-gradient(ellipse 70% 50% at 50% 35%, rgba(36, 90, 170, 0.22), transparent 65%),
+    linear-gradient(180deg, #071c48 0%, #041330 50%, #020914 100%);
 }
 
 .screen__grid {
@@ -189,12 +161,13 @@ watch(activeView, (view) => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  opacity: 0.55;
   background-image:
-    linear-gradient(rgba(94, 200, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(94, 200, 255, 0.045) 1px, transparent 1px);
-  background-size: 48px 48px;
-  -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), transparent 78%);
-  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), transparent 78%);
+    linear-gradient(rgba(70, 160, 230, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(70, 160, 230, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.85), transparent 76%);
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.85), transparent 76%);
 }
 
 .screen__rotors {
@@ -211,10 +184,11 @@ watch(activeView, (view) => {
   pointer-events: none;
   mix-blend-mode: screen;
   will-change: rotate;
-  --ring-color: rgba(94, 200, 255, 0.3);
-  --glow-color: rgba(40, 140, 255, 0.28);
-  --inner-color: rgba(0, 255, 228, 0.18);
-  --sweep-color: rgba(94, 200, 255, 0.5);
+  opacity: 0.45;
+  --ring-color: rgba(70, 170, 255, 0.22);
+  --glow-color: rgba(30, 110, 220, 0.16);
+  --inner-color: rgba(0, 220, 240, 0.12);
+  --sweep-color: rgba(80, 190, 255, 0.35);
   border: 2px solid var(--ring-color);
   box-shadow:
     inset 0 0 34px var(--glow-color),
@@ -350,26 +324,50 @@ watch(activeView, (view) => {
   &.tl {
     left: -1px;
     top: -1px;
-    &::before { left: 0; top: 0; }
-    &::after { left: 0; top: 0; }
+    &::before {
+      left: 0;
+      top: 0;
+    }
+    &::after {
+      left: 0;
+      top: 0;
+    }
   }
   &.tr {
     right: -1px;
     top: -1px;
-    &::before { right: 0; top: 0; }
-    &::after { right: 0; top: 0; }
+    &::before {
+      right: 0;
+      top: 0;
+    }
+    &::after {
+      right: 0;
+      top: 0;
+    }
   }
   &.bl {
     left: -1px;
     bottom: -1px;
-    &::before { left: 0; bottom: 0; }
-    &::after { left: 0; bottom: 0; }
+    &::before {
+      left: 0;
+      bottom: 0;
+    }
+    &::after {
+      left: 0;
+      bottom: 0;
+    }
   }
   &.br {
     right: -1px;
     bottom: -1px;
-    &::before { right: 0; bottom: 0; }
-    &::after { right: 0; bottom: 0; }
+    &::before {
+      right: 0;
+      bottom: 0;
+    }
+    &::after {
+      right: 0;
+      bottom: 0;
+    }
   }
 }
 
@@ -377,52 +375,70 @@ watch(activeView, (view) => {
   position: relative;
   z-index: 1;
 }
+.top-stage {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: transparent;
+}
 .body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
 }
 .body-main {
-  flex: 1.35;
+  flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(420px, 28%) 1fr minmax(420px, 28%);
-  gap: 14px;
-}
-.body-bottom {
-  flex: 1;
-  min-height: 280px;
-  display: grid;
-  grid-template-columns: 38% 24% 38%;
-  gap: 14px;
-  > * {
-    min-height: 0;
-    min-width: 0;
-    overflow: hidden;
-  }
+  grid-template-columns: minmax(380px, 26%) 1fr minmax(380px, 26%);
+  gap: 10px;
+  padding-bottom: 0;
 }
 .col {
   min-height: 0;
   min-width: 0;
   display: grid;
-  gap: 14px;
+  gap: 8px;
+  align-content: stretch;
 }
-.left {
-  grid-template-rows: 1fr 1.15fr;
+.left,
+.right {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(140px, 1.05fr);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 180, 255, 0.35) transparent;
 }
 .middle {
-  grid-template-rows: 1fr;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
 }
-.right {
-  grid-template-rows: 1.1fr 1fr;
+.c1 {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .left > *,
-.middle > *,
 .right > * {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+.col-tail {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 180, 255, 0.35) transparent;
+}
+.middle > * {
+  min-height: 0;
+  min-width: 0;
 }
 </style>

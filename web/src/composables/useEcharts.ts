@@ -3,7 +3,7 @@ import type { EChartsOption } from 'echarts'
 import { nextTick, onMounted, onUnmounted, shallowRef, watch, type Ref } from 'vue'
 
 const chartBase = {
-  textStyle: { fontFamily: 'PingFang SC', color: '#8FA3BF', fontSize: 12 },
+  textStyle: { fontFamily: 'PingFang SC, Noto Sans SC, sans-serif', color: '#9bb0cc', fontSize: 12 },
 }
 
 function applyAxisBase(axis: Record<string, unknown> | undefined) {
@@ -12,16 +12,20 @@ function applyAxisBase(axis: Record<string, unknown> | undefined) {
   return {
     ...axis,
     axisLabel: {
-      color: '#8FA3BF',
+      color: '#9bb0cc',
       fontSize: 12,
-      fontFamily: 'PingFang SC',
+      fontFamily: 'PingFang SC, Noto Sans SC, sans-serif',
       ...label,
     },
   }
 }
 
 function cloneOption(opt: EChartsOption): EChartsOption {
-  // 断开 Vue 响应式，避免 ECharts 内部改 option 触发 watch 死循环
+  // 3D / GL 配置不能 structuredClone / JSON 深拷贝，否则会丢内部引用并报 model not found
+  const raw = opt as Record<string, unknown>
+  if (raw.geo3D || raw.grid3D || raw.globe) {
+    return { ...opt }
+  }
   try {
     return structuredClone(opt)
   } catch {
@@ -41,9 +45,9 @@ function withChartBase(opt: EChartsOption): EChartsOption {
   if (raw.legend && !Array.isArray(raw.legend)) {
     const legend = { ...(raw.legend as Record<string, unknown>) }
     legend.textStyle = {
-      color: '#8FA3BF',
+      color: '#9bb0cc',
       fontSize: 12,
-      fontFamily: 'PingFang SC',
+      fontFamily: 'PingFang SC, Noto Sans SC, sans-serif',
       ...((legend.textStyle as Record<string, unknown> | undefined) || {}),
     }
     merged.legend = legend
@@ -51,15 +55,19 @@ function withChartBase(opt: EChartsOption): EChartsOption {
 
   if (raw.tooltip && !Array.isArray(raw.tooltip)) {
     const tooltip = { ...(raw.tooltip as Record<string, unknown>) }
-    // 白底黑字，避免浅色字在浅色浮层上看不清
-    if (tooltip.backgroundColor == null) tooltip.backgroundColor = 'rgba(255, 255, 255, 0.96)'
-    if (tooltip.borderColor == null) tooltip.borderColor = '#d0d7de'
-    if (tooltip.borderWidth == null) tooltip.borderWidth = 1
+    const userBg = tooltip.backgroundColor != null
+    // 未指定背景时给默认白底；指定了则尊重业务侧深色大屏样式
+    if (!userBg) {
+      tooltip.backgroundColor = 'rgba(255, 255, 255, 0.96)'
+      if (tooltip.borderColor == null) tooltip.borderColor = '#d0d7de'
+      if (tooltip.borderWidth == null) tooltip.borderWidth = 1
+    }
+    const prevTs = (tooltip.textStyle as Record<string, unknown> | undefined) || {}
     tooltip.textStyle = {
       fontSize: 14,
       fontFamily: 'PingFang SC',
-      ...((tooltip.textStyle as Record<string, unknown> | undefined) || {}),
-      color: '#1a1a1a',
+      color: userBg ? '#e8f3ff' : '#1a1a1a',
+      ...prevTs,
     }
     merged.tooltip = tooltip
   }

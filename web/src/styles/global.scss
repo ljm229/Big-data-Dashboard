@@ -13,35 +13,56 @@ body,
   padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #020814;
-  color: #e6f1ff;
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  background: #04122f;
+  color: #e8f3ff;
+  font-family: var(--font-cn);
+  font-size: var(--fs-data);
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 :root {
-  --bg: #041433;
-  --panel: rgba(8, 28, 64, 0.45);
-  --primary: #5ec8ff;
+  --bg: #04122f;
+  --panel: rgba(8, 28, 64, 0.48);
+  --primary: #4ec8ff;
   --primary-2: #9adfff;
   --accent: #ffc53d;
   --danger: #ff4d4f;
   --warn: #faad14;
   --text: #f2f7ff;
-  --muted: #8fa3bf;
-  --font-num: 'DIN Alternate', Bahnschrift, 'Roboto Mono', Consolas, monospace;
-  --fs-kpi: 40px;
+  --muted: #9bb0cc;
+
+  /* 中文：屏显清晰；数字：等宽表格感 */
+  --font-cn: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-num: 'Rajdhani', 'DIN Alternate', Bahnschrift, 'Roboto Mono', Consolas, monospace;
+
+  /* 字号阶梯：标题更醒目，正文/轴标签可读 */
+  --fs-kpi: 32px;
   --fw-kpi: 700;
   --fs-title: 18px;
   --fw-title: 700;
-  --fs-sub: 16px;
-  --fw-sub: 500;
+  --fs-sub: 15px;
+  --fw-sub: 600;
   --fs-data: 14px;
   --fs-axis: 12px;
+  --fs-tiny: 11px;
+
   --c-primary: #ffffff;
-  --c-normal: #e6f1ff;
-  --c-muted: #8fa3bf;
-  --font-cn: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --c-normal: #e8f3ff;
+  --c-muted: #9bb0cc;
+  --c-num: #ffffff;
+  --c-num-accent: #f3f120;
+}
+
+/* 全局数字默认用数字字体 + 等宽 */
+.num,
+[data-num],
+.kpi__num,
+.panel__time {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 ul,
@@ -54,15 +75,16 @@ ol {
 button,
 select {
   font-family: inherit;
+  font-size: inherit;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 212, 255, 0.4);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);

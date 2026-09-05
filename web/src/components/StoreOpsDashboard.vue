@@ -1,15 +1,22 @@
 <template>
   <div class="ops-page">
     <header class="ops-header">
-      <div class="brand">
-        <div class="brand__mark">运</div>
-        <div>
-          <h1>门店运营看板</h1>
-          <p>数据源2 · {{ bizDate }} · 人货场财 + 逆向闭环</p>
+      <div class="ops-header__left">
+        <div class="view-switch">
+          <button type="button" @click="emit('switch-view')">数据大屏</button>
+          <button type="button" class="active">门店运营看板</button>
+        </div>
+        <div class="brand">
+          <div class="brand__mark">运</div>
+          <div>
+            <h1>营运核心考核</h1>
+            <p>{{ assessWeekLabel }} · {{ storeCntText }}</p>
+          </div>
         </div>
       </div>
 
-      <div class="filters">
+      <div class="ops-header__mid">
+        <DateFilterBar variant="light" scope="ops" />
         <label class="filter">
           <span>城市</span>
           <select v-model="city">
@@ -25,624 +32,292 @@
         </label>
       </div>
 
-      <div class="health" :class="health.score >= 60 ? 'ok' : 'warn'">
-        <strong>{{ health.score }}</strong>
+      <div class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
+        <div class="health__grade" :style="{ color: health.grade.color }">{{ health.grade.grade }}</div>
+        <strong>{{ headerScore }}</strong>
         <div>
-          <b>运营健康分</b>
-          <span>{{ health.met }}/{{ health.total }} 项达标 · 更新 {{ updatedAt }}</span>
+          <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
+          <span
+            >合格门店 {{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} · 指标
+            {{ health.met }}/{{ health.total }} 项过线 · {{ updatedHint || '—' }}</span
+          >
         </div>
       </div>
     </header>
 
-    <div v-if="!hasOpsData" class="ops-empty">
-      <strong>该日期暂无运营看板数据</strong>
-      <p>数据源2 当前仅有 {{ opsDateHint }} 明细。请切换日期，或在大屏查看 {{ cockpitOnlyHint }} 汇总。</p>
+    <div v-if="!hasAssessData" class="ops-empty">
+      <strong>该周期暂无营运考核数据</strong>
+      <p>请切换到 8.21–8.27 或 8.28–9.3 考核周。</p>
     </div>
 
     <template v-else>
-    <section class="kpi-grid">
-      <AssessmentCard v-for="m in metrics" :key="m.key" :metric="m" />
-    </section>
-
-    <section class="strip">
-      <div v-for="item in financeStrip" :key="item.label" class="strip__item">
-        <span>{{ item.label }}</span>
-        <b>{{ formatStrip(item) }}</b>
-      </div>
-    </section>
-
-    <div class="content-grid">
-      <section class="left">
-        <article class="card">
-          <header class="card__head">
-            <div>
-              <h2>一、流量漏斗</h2>
-              <p>曝光 → 进店 → 下单，定位流失环节</p>
-            </div>
-          </header>
-          <div class="funnel">
-            <div v-for="step in funnelSteps" :key="step.label" class="funnel__step">
-              <em>{{ step.label }}</em>
-              <b>{{ formatInt(step.value) }}</b>
-              <span v-if="step.rate != null">转化 {{ formatPercent(step.rate) }}</span>
-            </div>
-          </div>
-          <div ref="funnelEl" class="chart chart--funnel" />
-        </article>
-
-        <article class="card">
-          <header class="card__head">
-            <div>
-              <h2>三、履约与服务</h2>
-              <p>及时送达 / 仓配时长 / 拣货及时</p>
-            </div>
-          </header>
-          <div class="metric-row">
-            <div class="metric-pill">
-              <span>平均接单</span>
-              <b>{{ (overview?.accept_t ?? 0).toFixed(2) }} min</b>
-            </div>
-            <div class="metric-pill">
-              <span>平均出货</span>
-              <b>{{ (overview?.pick_t ?? 0).toFixed(1) }} min</b>
-            </div>
-            <div class="metric-pill">
-              <span>平均配送</span>
-              <b>{{ (overview?.delivery_t ?? 0).toFixed(1) }} min</b>
-            </div>
-            <div class="metric-pill warn">
-              <span>缺货流失单</span>
-              <b>{{ formatInt(overview?.stockout_lost) }}</b>
-            </div>
-          </div>
-          <div ref="fulfillEl" class="chart chart--fulfill" />
-        </article>
-
-        <article class="card">
-          <header class="card__head">
-            <div>
-              <h2>五、逆向原因 Top</h2>
-              <p>回答「钱亏在哪里」——原因与品类</p>
-            </div>
-          </header>
-          <div ref="reasonEl" class="chart chart--reason" />
-        </article>
+      <section class="kpi-grid">
+        <AssessmentCard v-for="m in metrics" :key="m.key" :metric="m" />
       </section>
 
-      <aside class="right">
-        <article class="card">
-          <header class="card__head">
-            <div>
-              <h2>今日行动清单</h2>
-              <p>由真实异常自动生成，可直接派活</p>
-            </div>
-          </header>
-          <div class="todo-list">
-            <div v-for="item in actions" :key="item.title" class="todo">
-              <i class="todo__icon" :class="item.level" />
-              <div class="todo__body">
-                <div class="todo__title">
-                  <b>{{ item.title }}</b>
-                  <em>{{ item.module }}</em>
-                </div>
-                <p>{{ item.desc }}</p>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="card">
-          <header class="card__head">
-            <div>
-              <h2>问题门店辅导</h2>
-              <p>履约 / 逆向双差门店（订单≥10）</p>
-            </div>
-          </header>
-          <div class="problem-list">
-            <div v-for="s in problemStores" :key="String(s.id)" class="problem">
-              <div class="problem__head">
-                <b>{{ s.name }}</b>
-                <span>{{ s.city }} · {{ s.orders }}单</span>
-              </div>
-              <div class="problem__tags">
-                <em v-for="issue in (s.issues as string[])" :key="issue">{{ issue }}</em>
-              </div>
-            </div>
-            <p v-if="!problemStores.length" class="empty">当前筛选下暂无问题门店</p>
-          </div>
-        </article>
-
-        <article class="card">
-          <header class="card__head">
-            <div>
-              <h2>二、商品缺货预警</h2>
-              <p>
-                动销缺货率 {{ formatPercent(products?.stockout_rate) }} · 预计损失 ¥{{
-                  formatMoney(products?.stockout_loss)
-                }}
-              </p>
-            </div>
-          </header>
-          <table class="stockout-table">
-            <thead>
-              <tr>
-                <th>商品</th>
-                <th>品类</th>
-                <th>缺货</th>
-                <th>流失</th>
-                <th>损失</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in products?.stockouts?.slice(0, 8) || []" :key="row.fullName || row.name">
-                <td :title="row.fullName">{{ row.name }}</td>
-                <td>{{ row.cat }}</td>
-                <td>{{ row.times }}</td>
-                <td>{{ row.lost }}</td>
-                <td class="loss">¥{{ formatMoney(row.loss) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </article>
-      </aside>
-    </div>
-
-    <div class="bottom-grid">
-      <article class="card">
-        <header class="card__head">
-          <div>
-            <h2>品类结构（实付销售额）</h2>
-            <p>动销 {{ formatInt(products?.sku_active) }} / 在架 {{ formatInt(products?.sku_total) }}</p>
-          </div>
-        </header>
-        <div ref="catEl" class="chart chart--cat" />
-      </article>
-
-      <article class="card">
-        <header class="card__head">
-          <div>
-            <h2>四、用户与营销</h2>
-            <p>
-              活动 ROI {{ (marketing?.overview?.roi ?? 0).toFixed(1) }} · 新客
-              {{ formatInt(marketing?.overview?.new_users) }} · 活动订单占比
-              {{ formatPercent(marketing?.overview?.activity_order_rate) }}
-            </p>
-          </div>
-        </header>
-        <div class="market-kpis">
-          <div>
-            <span>新客笔单价</span>
-            <b>¥{{ formatMoney(marketing?.overview?.new_aov) }}</b>
-          </div>
-          <div>
-            <span>老客笔单价</span>
-            <b>¥{{ formatMoney(marketing?.overview?.old_aov) }}</b>
-          </div>
-          <div>
-            <span>商家补贴</span>
-            <b>¥{{ formatMoney(marketing?.overview?.subsidy_merchant) }}</b>
-          </div>
+      <section class="grade-strip">
+        <div v-for="g in gradeDist" :key="g.grade" class="grade-pill" :style="{ '--g': g.color }">
+          <b>{{ g.grade }}</b>
+          <span>{{ g.label }}</span>
+          <em>{{ g.count }}</em>
         </div>
-        <div ref="marketEl" class="chart chart--market" />
-      </article>
+        <p class="grade-hint">
+          权重：售罄 40% · 错漏拣 20% · 仓T 10% · 商责 20% · IM 10%｜分档 100/80/60/0｜多店顶栏取综合分中位数
+        </p>
+      </section>
 
-      <article class="card">
-        <header class="card__head">
-          <div>
-            <h2>逆向品类 / 类型</h2>
-            <p>
-              逆向行 {{ formatInt(reverse?.line_cnt) }} · 涉及订单
-              {{ formatInt(reverse?.order_cnt) }} · 金额 ¥{{ formatMoney(reverse?.amount) }}
-            </p>
+      <div class="main-grid">
+        <article class="card assess-rank">
+          <header class="card__head">
+            <div>
+              <h2>门店考核榜</h2>
+              <p>五维指标 + 加权综合分 · 不合格项标红</p>
+            </div>
+          </header>
+          <div class="rank-wrap" @mouseenter="rankPaused = true" @mouseleave="rankPaused = false">
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th>门店</th>
+                  <th>城市</th>
+                  <th>售罄率</th>
+                  <th>错漏拣</th>
+                  <th>仓T</th>
+                  <th>商责单</th>
+                  <th>IM回复</th>
+                  <th>综合分</th>
+                  <th>等级</th>
+                </tr>
+              </thead>
+              <tbody :style="rankScrollStyle">
+                <tr v-for="(row, idx) in rankLoop" :key="row.shortName + '-' + idx">
+                  <td class="name">{{ row.shortName }}</td>
+                  <td>{{ row.city?.replace(/市$/, '') || '—' }}</td>
+                  <td :class="{ bad: !partPass(row, 'sellout_rate') }">{{ fmtPart(row, 'sellout_rate') }}</td>
+                  <td :class="{ bad: !partPass(row, 'pick_error_rate') }">{{ fmtPart(row, 'pick_error_rate') }}</td>
+                  <td :class="{ bad: !partPass(row, 'warehouse_t') }">{{ fmtPart(row, 'warehouse_t') }}</td>
+                  <td :class="{ bad: !partPass(row, 'merchant_issue_rate') }">
+                    {{ fmtPart(row, 'merchant_issue_rate') }}
+                  </td>
+                  <td :class="{ bad: !partPass(row, 'im_reply_rate') }">{{ fmtPart(row, 'im_reply_rate') }}</td>
+                  <td class="score">{{ row.composite.toFixed(1) }}</td>
+                  <td>
+                    <em class="grade-tag" :style="{ background: row.grade.color }">{{ row.grade.grade }}</em>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="!assessRows.length" class="empty">当前筛选下暂无门店</p>
           </div>
-        </header>
-        <div ref="revCatEl" class="chart chart--revcat" />
-      </article>
-    </div>
+        </article>
+
+        <div class="side-col">
+          <article class="card notice-card">
+            <header class="card__head">
+              <div>
+                <h2>本周重要事项</h2>
+                <p>周维度 · 运营群重点通知清单（内容待录入）</p>
+              </div>
+              <div class="notice-tabs" aria-hidden="true">
+                <button type="button" class="active">全部</button>
+                <button type="button">P0</button>
+                <button type="button">P1</button>
+                <button type="button">P2</button>
+              </div>
+            </header>
+
+            <div class="notice-schema">
+              <span>优先级</span>
+              <span>事项标题</span>
+              <span>负责人</span>
+              <span>截止</span>
+              <span>状态</span>
+            </div>
+
+            <div class="notice-empty">
+              <strong>结构已预留，本周暂不填写内容</strong>
+              <p>
+                用途：同步群里本周必须跟进的通知（考核整改、活动节点、红线门店、临时制度等）。建议每条含优先级 /
+                标题 / 负责人 / 截止日期 / 状态；按考核周切换，不按自然日碎片化。
+              </p>
+              <ul>
+                <li>P0 · 红线 / 当日必须闭环</li>
+                <li>P1 · 本周必须完成</li>
+                <li>P2 · 周知 / 跟踪即可</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="card">
+            <header class="card__head">
+              <div>
+                <h2>需关注门店</h2>
+                <p>综合分 &lt; 60（C/D）· 来自考核表</p>
+              </div>
+            </header>
+            <div class="problem-list">
+              <div v-for="s in watchStores" :key="s.shortName" class="problem">
+                <div class="problem__head">
+                  <b>{{ s.shortName }}</b>
+                  <span>{{ s.city?.replace(/市$/, '') || '—' }} · {{ s.composite.toFixed(0) }}分 · {{ s.grade.grade }}</span>
+                </div>
+                <div class="problem__tags">
+                  <em v-for="tag in failTags(s)" :key="tag">{{ tag }}</em>
+                </div>
+              </div>
+              <p v-if="!watchStores.length" class="empty">当前筛选下暂无 C/D 门店</p>
+            </div>
+          </article>
+        </div>
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import type { EChartsOption } from 'echarts'
 import AssessmentCard, { type AssessMetric } from './AssessmentCard.vue'
-import { useEcharts } from '../composables/useEcharts'
-import { formatInt, formatMoney, formatPercent } from '../utils/format'
-import { useFilterStore, OPS_DATES, COCKPIT_DATES } from '../stores/filter'
+import DateFilterBar from './DateFilterBar.vue'
+import { useFilterStore, COCKPIT_WEEKS } from '../stores/filter'
 import {
-  fetchActions,
-  fetchAssessmentMetrics,
-  fetchFinanceStrip,
-  fetchFunnel,
-  fetchMarketingBoard,
-  fetchOpsOverview,
-  fetchProblemStores,
-  fetchProductsBoard,
-  fetchReverseBoard,
-  formatBizDate,
-  getSourceDate,
-  getUpdatedAt,
-  healthFromMetrics,
-  listCities,
-  listStores,
-} from '../api/opsDashboard'
+  fetchAssessmentCityOptions,
+  fetchAssessmentStoreOptions,
+  hasAssessment,
+} from '../api/dashboard'
+import dashRaw from '../data/dashboard.json'
+import { fetchAssessmentBoard, healthFromMetrics, type AssessBoard } from '../api/opsDashboard'
+import { GRADE_RULES, type AssessKey } from '../utils/opsAssessment'
+
+const emit = defineEmits<{ 'switch-view': [] }>()
 
 const filter = useFilterStore()
-const { selectedDate, hasOpsData, loadingTick } = storeToRefs(filter)
+const { selectedDate, dataKey, loadingTick } = storeToRefs(filter)
 
 const city = ref('全部')
 const storeId = ref('全部')
-const cityOptions = computed(() => listCities(selectedDate.value))
-const storeOptions = computed(() => listStores(selectedDate.value, city.value).filter((s) => s.orders > 0))
+const cityOptions = ref<string[]>(['全部'])
+const storeOptions = ref<Array<{ id: string; shortName: string }>>([])
 
-const bizDate = computed(() => formatBizDate(getSourceDate(selectedDate.value)))
-const updatedAt = getUpdatedAt().slice(0, 16)
-const opsDateHint = OPS_DATES.map((d) => d.slice(5).replace('-', '/')).join('、')
-const cockpitOnlyHint = COCKPIT_DATES.map((d) => d.slice(5).replace('-', '/')).join('、')
+const assessKey = computed(() => dataKey.value || selectedDate.value)
+const hasAssessData = computed(() => hasAssessment(assessKey.value))
+const updatedHint = String((dashRaw as { updated_at?: string }).updated_at || '').slice(0, 16)
+
+const assessWeekLabel = computed(() => {
+  const key = assessKey.value
+  const weekId = key.startsWith('W:')
+    ? key.slice(2)
+    : COCKPIT_WEEKS.find((w) => w.days.includes(selectedDate.value))?.id
+  const w = COCKPIT_WEEKS.find((x) => x.id === weekId)
+  return w?.label || weekId || selectedDate.value
+})
+const storeCntText = computed(() => (assessBoard.value ? `${assessBoard.value.storeCnt} 家门店` : ''))
 
 watch(city, () => {
   storeId.value = '全部'
 })
-
-watch(selectedDate, () => {
+watch([selectedDate, dataKey], () => {
   city.value = '全部'
   storeId.value = '全部'
 })
 
+const assessBoard = ref<AssessBoard | null>(null)
 const metrics = ref<AssessMetric[]>([])
-const overview = ref<Awaited<ReturnType<typeof fetchOpsOverview>> | null>(null)
-const financeStrip = ref<Awaited<ReturnType<typeof fetchFinanceStrip>>>([])
-const actions = ref<Awaited<ReturnType<typeof fetchActions>>>([])
-const problemStores = ref<Awaited<ReturnType<typeof fetchProblemStores>>>([])
-const products = ref<Awaited<ReturnType<typeof fetchProductsBoard>> | null>(null)
-const reverse = ref<Awaited<ReturnType<typeof fetchReverseBoard>> | null>(null)
-const marketing = ref<Awaited<ReturnType<typeof fetchMarketingBoard>> | null>(null)
-const funnel = ref<Awaited<ReturnType<typeof fetchFunnel>> | null>(null)
+const assessRows = computed(() => assessBoard.value?.rows || [])
 
-const health = computed(() => healthFromMetrics(metrics.value))
+const isSingleStore = computed(() => storeId.value !== '全部' || (assessBoard.value?.storeCnt || 0) <= 1)
+const headerScore = computed(() => {
+  if (!assessBoard.value) return 0
+  return Math.round(isSingleStore.value ? assessBoard.value.composite : assessBoard.value.medianComposite)
+})
+const scoreLabel = computed(() => (isSingleStore.value ? '综合分' : '门店中位分'))
 
-const funnelSteps = computed(() => {
-  const f = funnel.value
-  if (!f) return []
-  return [
-    { label: '曝光 UV', value: f.expose, rate: null as number | null },
-    { label: '进店人数', value: f.enter, rate: f.enter_rate },
-    { label: '下单人数', value: f.order_users, rate: f.order_rate },
-  ]
+const health = computed(() => healthFromMetrics(metrics.value, headerScore.value))
+
+const gradeDist = computed(() =>
+  GRADE_RULES.map((g) => ({
+    ...g,
+    count: assessRows.value.filter((r) => r.grade.grade === g.grade).length,
+  })),
+)
+
+const watchStores = computed(() => assessRows.value.filter((r) => r.composite < 60).slice(0, 8))
+
+function failTags(row: AssessBoard['rows'][number]) {
+  return row.parts.filter((p) => !p.pass).map((p) => p.shortName)
+}
+
+function partPass(row: AssessBoard['rows'][number], key: AssessKey) {
+  return row.parts.find((p) => p.key === key)?.pass ?? true
+}
+function fmtPart(row: AssessBoard['rows'][number], key: AssessKey) {
+  const p = row.parts.find((x) => x.key === key)
+  if (!p) return '—'
+  if (p.unit === 'min') return p.value.toFixed(1)
+  return p.value.toFixed(2) + '%'
+}
+
+const rankPaused = ref(false)
+const rankOffset = ref(0)
+let rankTimer: ReturnType<typeof setInterval> | null = null
+const rankLoop = computed(() => {
+  const rows = assessRows.value
+  if (rows.length <= 8) return rows
+  return [...rows, ...rows]
+})
+const rankScrollStyle = computed(() => {
+  if (assessRows.value.length <= 8) return {}
+  return {
+    transform: `translateY(-${rankOffset.value}px)`,
+    transition: rankPaused.value ? 'none' : 'transform 0.6s ease-in-out',
+  }
 })
 
-function formatStrip(item: { value: number; kind: string }) {
-  if (item.kind === 'money') return '¥' + formatMoney(item.value)
-  if (item.kind === 'pct') return formatPercent(item.value)
-  return formatInt(item.value)
+function startRankScroll() {
+  if (rankTimer) clearInterval(rankTimer)
+  rankTimer = setInterval(() => {
+    if (rankPaused.value || assessRows.value.length <= 8) return
+    const rowH = 40
+    rankOffset.value += rowH
+    if (rankOffset.value >= assessRows.value.length * rowH) rankOffset.value = 0
+  }, 2000)
 }
+onUnmounted(() => {
+  if (rankTimer) clearInterval(rankTimer)
+})
 
-const funnelEl = ref<HTMLElement | null>(null)
-const funnelOption = ref<EChartsOption | null>(null)
-useEcharts(funnelEl, funnelOption as any)
-
-const fulfillEl = ref<HTMLElement | null>(null)
-const fulfillOption = ref<EChartsOption | null>(null)
-useEcharts(fulfillEl, fulfillOption as any)
-
-const reasonEl = ref<HTMLElement | null>(null)
-const reasonOption = ref<EChartsOption | null>(null)
-useEcharts(reasonEl, reasonOption as any)
-
-const catEl = ref<HTMLElement | null>(null)
-const catOption = ref<EChartsOption | null>(null)
-useEcharts(catEl, catOption as any)
-
-const marketEl = ref<HTMLElement | null>(null)
-const marketOption = ref<EChartsOption | null>(null)
-useEcharts(marketEl, marketOption as any)
-
-const revCatEl = ref<HTMLElement | null>(null)
-const revCatOption = ref<EChartsOption | null>(null)
-useEcharts(revCatEl, revCatOption as any)
-
-const chartText = '#5a6a7a'
-const axisLine = '#d8e0e8'
+async function reloadFilters() {
+  const key = assessKey.value
+  cityOptions.value = await fetchAssessmentCityOptions(key)
+  if (!cityOptions.value.includes(city.value)) city.value = '全部'
+  storeOptions.value = await fetchAssessmentStoreOptions(key, city.value)
+  if (storeId.value !== '全部' && !storeOptions.value.some((s) => s.id === storeId.value)) {
+    storeId.value = '全部'
+  }
+}
 
 async function reload() {
-  if (!hasOpsData.value) return
-  const iso = selectedDate.value
-  const c = city.value
-  const s = storeId.value
-  ;[metrics.value, overview.value, financeStrip.value, problemStores.value, funnel.value] = await Promise.all([
-    fetchAssessmentMetrics(iso, c, s),
-    fetchOpsOverview(iso, c, s),
-    fetchFinanceStrip(iso, c, s),
-    fetchProblemStores(iso, c),
-    fetchFunnel(iso, c, s),
-  ])
-
-  const f = funnel.value
-  if (f) {
-    const steps = [
-      { name: '曝光 UV', value: f.expose, rate: null as number | null, color: '#2A5C82' },
-      { name: '进店人数', value: f.enter, rate: f.enter_rate, color: '#5B9BD5' },
-      { name: '下单人数', value: f.order_users, rate: f.order_rate, color: '#70AD47' },
-    ]
-    funnelOption.value = {
-      tooltip: {
-        trigger: 'item',
-        formatter: (p: unknown) => {
-          const d = p as { name: string; value: number; dataIndex: number }
-          const rate = steps[d.dataIndex]?.rate
-          const rateText = rate == null ? '漏斗起点' : `环节转化 ${formatPercent(rate)}`
-          return `${d.name}<br/>人数：${formatInt(d.value)}<br/>${rateText}`
-        },
-      },
-      series: [
-        {
-          type: 'funnel',
-          name: '流量漏斗',
-          left: '6%',
-          top: 8,
-          bottom: 8,
-          width: '52%',
-          min: 0,
-          max: Math.max(f.expose, 1),
-          minSize: '18%',
-          maxSize: '100%',
-          sort: 'descending',
-          gap: 6,
-          orient: 'vertical',
-          funnelAlign: 'center',
-          label: {
-            show: true,
-            position: 'inside',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: 13,
-            formatter: (p: unknown) => {
-              const d = p as { name: string; value: number }
-              return `${d.name}\n${formatInt(d.value)}`
-            },
-          },
-          labelLine: { show: false },
-          itemStyle: {
-            borderColor: '#fff',
-            borderWidth: 2,
-            shadowBlur: 8,
-            shadowColor: 'rgba(42, 92, 130, 0.25)',
-          },
-          emphasis: {
-            label: { fontSize: 14 },
-          },
-          data: steps.map((s) => ({
-            name: s.name,
-            value: s.value,
-            itemStyle: { color: s.color },
-          })),
-        },
-        {
-          type: 'funnel',
-          name: '转化标注',
-          left: '6%',
-          top: 8,
-          bottom: 8,
-          width: '52%',
-          min: 0,
-          max: Math.max(f.expose, 1),
-          minSize: '18%',
-          maxSize: '100%',
-          sort: 'descending',
-          gap: 6,
-          funnelAlign: 'center',
-          silent: true,
-          label: {
-            show: true,
-            position: 'right',
-            color: '#2A5C82',
-            fontSize: 12,
-            fontWeight: 700,
-            formatter: (p: unknown) => {
-              const d = p as { dataIndex: number }
-              const rate = steps[d.dataIndex]?.rate
-              if (rate == null) return '100%'
-              return `转化 ${formatPercent(rate)}`
-            },
-          },
-          labelLine: {
-            show: true,
-            length: 16,
-            lineStyle: { color: '#9eb6d0', width: 1 },
-          },
-          itemStyle: {
-            color: 'transparent',
-            borderWidth: 0,
-          },
-          data: steps.map((s) => ({ name: s.name, value: s.value })),
-        },
-      ],
-    }
-  }
-
-  const ov = overview.value
-  if (ov) {
-    fulfillOption.value = {
-      tooltip: { trigger: 'axis' },
-      legend: { data: ['及时送达率', '拣货及时率'], textStyle: { color: chartText }, top: 0 },
-      grid: { left: 44, right: 16, top: 36, bottom: 28 },
-      xAxis: {
-        type: 'category',
-        data: ['当前筛选'],
-        axisLabel: { color: chartText },
-        axisLine: { lineStyle: { color: axisLine } },
-      },
-      yAxis: {
-        type: 'value',
-        max: 1,
-        axisLabel: { color: chartText, formatter: (v: number) => `${(v * 100).toFixed(0)}%` },
-        splitLine: { lineStyle: { color: '#eef2f6' } },
-      },
-      series: [
-        {
-          name: '及时送达率',
-          type: 'bar',
-          data: [Number(ov.ontime_rate.toFixed(4))],
-          barWidth: 36,
-          itemStyle: { color: '#5B9BD5', borderRadius: [6, 6, 0, 0] },
-          markLine: {
-            silent: true,
-            data: [{ yAxis: 0.9, name: '标准90%' }],
-            lineStyle: { color: '#FFC000', type: 'dashed' },
-            label: { formatter: '90%', color: '#FFC000' },
-          },
-        },
-        {
-          name: '拣货及时率',
-          type: 'bar',
-          data: [Number(ov.pick_ontime_rate.toFixed(4))],
-          barWidth: 36,
-          itemStyle: { color: '#70AD47', borderRadius: [6, 6, 0, 0] },
-        },
-      ],
-    }
-  }
-}
-
-async function loadStatic() {
-  if (!hasOpsData.value) {
-    actions.value = []
-    products.value = null
-    reverse.value = null
-    marketing.value = null
+  if (!hasAssessData.value) {
+    assessBoard.value = null
+    metrics.value = []
     return
   }
-  const iso = selectedDate.value
-  ;[actions.value, products.value, reverse.value, marketing.value] = await Promise.all([
-    fetchActions(iso),
-    fetchProductsBoard(iso),
-    fetchReverseBoard(iso),
-    fetchMarketingBoard(iso),
-  ])
-
-  const reasons = (reverse.value?.reasons || []).slice(0, 8)
-  const total = reasons.reduce((a: number, r: { value: number }) => a + r.value, 0) || 1
-  reasonOption.value = {
-    tooltip: {
-      formatter: (p: unknown) => {
-        const d = p as { name: string; value: number }
-        return `${d.name}<br/>${d.value} 行（${((d.value / total) * 100).toFixed(1)}%）`
-      },
-    },
-    grid: { left: 150, right: 56, top: 8, bottom: 8 },
-    xAxis: { type: 'value', show: false },
-    yAxis: {
-      type: 'category',
-      data: reasons.map((r: { name: string }) => r.name).reverse(),
-      axisLabel: { color: '#3d3d3d', fontSize: 12, width: 140, overflow: 'truncate' },
-      axisLine: { show: false },
-      axisTick: { show: false },
-    },
-    series: [
-      {
-        type: 'bar',
-        data: reasons
-          .map((r: { value: number }, i: number) => ({
-            value: r.value,
-            itemStyle: {
-              color: i === 0 ? '#E74C3C' : i < 3 ? '#FFC000' : '#5B9BD5',
-              borderRadius: [0, 6, 6, 0],
-            },
-          }))
-          .reverse(),
-        barWidth: 12,
-        label: { show: true, position: 'right', color: '#3d3d3d', fontWeight: 700 },
-      },
-    ],
-  }
-
-  const cats = (products.value?.categories || []).slice(0, 8)
-  catOption.value = {
-    tooltip: { trigger: 'item', formatter: '{b}<br/>¥{c} ({d}%)' },
-    series: [
-      {
-        type: 'pie',
-        radius: ['42%', '68%'],
-        center: ['50%', '52%'],
-        data: cats.map((c: { name: string; amount: number }) => ({ name: c.name, value: c.amount })),
-        label: { color: '#3d3d3d', formatter: '{b}\n{d}%' },
-        color: ['#2A5C82', '#5B9BD5', '#70AD47', '#FFC000', '#E74C3C', '#8FAADC', '#A9D08E', '#F4B183'],
-      },
-    ],
-  }
-
-  const acts = (marketing.value?.activities || []) as Array<{
-    shortStore: string
-    roi: number
-    new_users: number
-    paid: number
-  }>
-  marketOption.value = {
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['ROI', '新客数'], textStyle: { color: chartText } },
-    grid: { left: 40, right: 40, top: 36, bottom: 48 },
-    xAxis: {
-      type: 'category',
-      data: acts.map((a) => a.shortStore),
-      axisLabel: { color: chartText, rotate: 30, fontSize: 11 },
-    },
-    yAxis: [
-      { type: 'value', name: 'ROI', axisLabel: { color: chartText }, splitLine: { lineStyle: { color: '#eef2f6' } } },
-      { type: 'value', name: '新客', axisLabel: { color: chartText }, splitLine: { show: false } },
-    ],
-    series: [
-      {
-        name: 'ROI',
-        type: 'bar',
-        data: acts.map((a) => a.roi),
-        itemStyle: { color: '#5B9BD5', borderRadius: [4, 4, 0, 0] },
-      },
-      {
-        name: '新客数',
-        type: 'line',
-        yAxisIndex: 1,
-        data: acts.map((a) => a.new_users),
-        itemStyle: { color: '#FFC000' },
-        lineStyle: { width: 2 },
-      },
-    ],
-  }
-
-  const revCats = (reverse.value?.categories || []).slice(0, 6)
-  const types = (reverse.value?.types || []).slice(0, 4)
-  revCatOption.value = {
-    tooltip: { trigger: 'item' },
-    legend: { bottom: 0, textStyle: { color: chartText, fontSize: 11 } },
-    series: [
-      {
-        type: 'pie',
-        radius: ['0%', '42%'],
-        center: ['32%', '46%'],
-        data: types.map((t: { name: string; value: number }) => ({ name: t.name, value: t.value })),
-        label: { show: false },
-        color: ['#E74C3C', '#FFC000', '#5B9BD5', '#70AD47'],
-      },
-      {
-        type: 'pie',
-        radius: ['48%', '68%'],
-        center: ['68%', '46%'],
-        data: revCats.map((t: { name: string; value: number }) => ({ name: t.name, value: t.value })),
-        label: { formatter: '{b}', color: '#3d3d3d', fontSize: 11 },
-        color: ['#2A5C82', '#5B9BD5', '#8FAADC', '#70AD47', '#A9D08E', '#F4B183'],
-      },
-    ],
-  }
+  const board = await fetchAssessmentBoard(assessKey.value, city.value, storeId.value)
+  assessBoard.value = board
+  metrics.value = board?.metrics || []
+  rankOffset.value = 0
+  startRankScroll()
 }
 
-watch([city, storeId, selectedDate, loadingTick], () => {
-  void loadStatic()
+watch([city, storeId, selectedDate, dataKey, loadingTick], async () => {
+  await reloadFilters()
   void reload()
 })
 
-void loadStatic()
-void reload()
+void (async () => {
+  await reloadFilters()
+  void reload()
+})()
 </script>
 
 <style scoped lang="scss">
@@ -657,14 +332,13 @@ void reload()
   --card: #ffffff;
   --bg: #f3f6f9;
   min-height: 100vh;
-  padding: 20px 24px 28px;
-  padding-top: 72px;
+  padding: 16px 20px 28px;
   background:
     radial-gradient(circle at 12% 0%, rgba(91, 155, 213, 0.16), transparent 36%),
     radial-gradient(circle at 88% 100%, rgba(42, 92, 130, 0.1), transparent 40%),
     var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 .ops-empty {
   margin-top: 14px;
@@ -682,28 +356,59 @@ void reload()
   p {
     margin: 0;
     color: var(--muted);
-    line-height: 1.6;
   }
 }
 .ops-header {
   display: grid;
-  grid-template-columns: 1.2fr auto 1fr;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(420px, 1.4fr) minmax(240px, 0.9fr);
   align-items: center;
-  gap: 16px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: 12px 14px;
   border-radius: 14px;
   background: linear-gradient(135deg, #2a5c82, #3d7aa8 55%, #5b9bd5);
   color: #fff;
   box-shadow: 0 8px 24px rgba(42, 92, 130, 0.28);
 }
+.ops-header__left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.ops-header__mid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.view-switch {
+  display: flex;
+  gap: 6px;
+  button {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    font-size: 12px;
+    &.active {
+      color: #2a5c82;
+      background: #fff;
+      border-color: transparent;
+      font-weight: 800;
+    }
+  }
+}
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   &__mark {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
     display: grid;
     place-items: center;
     font-weight: 800;
@@ -712,33 +417,28 @@ void reload()
   }
   h1 {
     margin: 0;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 800;
-    letter-spacing: 1px;
   }
   p {
-    margin: 4px 0 0;
+    margin: 2px 0 0;
     font-size: 12px;
     opacity: 0.86;
   }
 }
-.filters {
-  display: flex;
-  gap: 10px;
-}
 .filter {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 12px;
   span {
-    opacity: 0.85;
+    opacity: 0.9;
   }
   select {
-    min-width: 120px;
+    min-width: 108px;
     border: 0;
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 7px 9px;
     background: rgba(255, 255, 255, 0.95);
     color: var(--primary);
     font-weight: 600;
@@ -748,22 +448,36 @@ void reload()
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 8px 12px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.16);
+  max-width: 100%;
+  &__grade {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    font-weight: 900;
+    background: rgba(255, 255, 255, 0.14);
+    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+  }
   strong {
-    font-size: 34px;
-    font-family: Bahnschrift, Consolas, monospace;
+    font-size: 30px;
+    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
     line-height: 1;
   }
   b {
     display: block;
-    font-size: 14px;
+    font-size: 13px;
   }
   span {
-    font-size: 12px;
+    display: block;
+    font-size: 11px;
     opacity: 0.85;
+    line-height: 1.35;
   }
   &.ok strong {
     color: #b7f0c4;
@@ -778,45 +492,60 @@ void reload()
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
-.strip {
+.grade-strip {
   margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.grade-pill {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  &__item {
-    background: var(--card);
-    border-radius: 10px;
-    padding: 10px 12px;
-    box-shadow: 0 2px 8px rgba(42, 92, 130, 0.06);
-    span {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    b {
-      display: block;
-      margin-top: 4px;
-      font-size: 16px;
-      color: var(--primary);
-      font-variant-numeric: tabular-nums;
-    }
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--g) 35%, #e8eef5);
+  b {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--g);
+    color: #04122a;
+    font-size: 13px;
+  }
+  span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  em {
+    font-style: normal;
+    font-weight: 800;
+    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+    color: var(--primary);
+    font-size: 18px;
   }
 }
-.content-grid {
+.grade-hint {
+  margin: 0;
+  flex: 1 1 280px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.main-grid {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.9fr);
   gap: 12px;
+  align-items: start;
 }
-.left,
-.right,
-.bottom-grid {
+.side-col {
   display: grid;
   gap: 12px;
-}
-.bottom-grid {
-  margin-top: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .card {
   background: var(--card);
@@ -828,6 +557,10 @@ void reload()
 }
 .card__head {
   margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
   h2 {
     margin: 0;
     font-size: 16px;
@@ -839,127 +572,121 @@ void reload()
     color: var(--muted);
   }
 }
-.chart {
+.rank-wrap {
+  max-height: 420px;
+  overflow: hidden;
+}
+.rank-table {
   width: 100%;
-  &--funnel {
-    height: 220px;
-  }
-  &--fulfill {
-    height: 180px;
-  }
-  &--reason {
-    height: 260px;
-  }
-  &--cat,
-  &--market,
-  &--revcat {
-    height: 260px;
-  }
-}
-.funnel {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 6px;
-  &__step {
+  border-collapse: collapse;
+  font-size: 13px;
+  thead th {
     background: #f5f8fb;
-    border-radius: 10px;
-    padding: 10px;
-    em {
-      display: block;
-      font-style: normal;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    b {
-      display: block;
-      margin-top: 4px;
-      font-size: 20px;
-      color: var(--primary);
-      font-variant-numeric: tabular-nums;
-    }
-    span {
-      font-size: 12px;
-      color: var(--accent);
-    }
-  }
-}
-.metric-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.metric-pill {
-  background: #f5f8fb;
-  border-radius: 10px;
-  padding: 8px 10px;
-  span {
-    display: block;
-    font-size: 12px;
     color: var(--muted);
+    font-weight: 600;
+    padding: 8px 6px;
+    text-align: left;
   }
-  b {
-    font-size: 16px;
-    color: var(--primary);
+  tbody {
+    display: block;
   }
-  &.warn b {
-    color: var(--bad);
+  thead,
+  tbody tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+  td {
+    padding: 8px 6px;
+    border-bottom: 1px solid #eef2f6;
+    font-variant-numeric: tabular-nums;
+    &.name {
+      font-weight: 700;
+      color: var(--primary);
+    }
+    &.score {
+      font-weight: 800;
+      color: var(--primary);
+    }
+    &.bad {
+      color: var(--bad);
+      font-weight: 700;
+    }
   }
 }
-.todo-list,
+.grade-tag {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #04122a;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 12px;
+}
+.notice-tabs {
+  display: flex;
+  gap: 4px;
+  button {
+    border: 1px solid #d7e2ec;
+    background: #f7fafc;
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 11px;
+    cursor: default;
+    &.active {
+      background: #2a5c82;
+      border-color: #2a5c82;
+      color: #fff;
+      font-weight: 700;
+    }
+  }
+}
+.notice-schema {
+  display: grid;
+  grid-template-columns: 56px 1.4fr 72px 72px 64px;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: #f5f8fb;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.notice-empty {
+  padding: 16px 12px 8px;
+  border: 1px dashed rgba(42, 92, 130, 0.28);
+  border-radius: 10px;
+  background: #fafcfe;
+  strong {
+    display: block;
+    color: var(--primary);
+    font-size: 14px;
+  }
+  p {
+    margin: 8px 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  ul {
+    margin: 0;
+    padding-left: 18px;
+    color: #5a6a7a;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
 .problem-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
   max-height: 280px;
   overflow: auto;
-}
-.todo {
-  display: flex;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 10px;
-  background: #f7fafc;
-  &__icon {
-    width: 10px;
-    height: 10px;
-    margin-top: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    &.red {
-      background: var(--bad);
-    }
-    &.yellow {
-      background: var(--warn);
-    }
-    &.green {
-      background: var(--good);
-    }
-  }
-  &__title {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    b {
-      font-size: 13px;
-    }
-    em {
-      font-style: normal;
-      font-size: 11px;
-      color: var(--accent);
-      background: rgba(91, 155, 213, 0.12);
-      padding: 2px 6px;
-      border-radius: 999px;
-      height: fit-content;
-    }
-  }
-  p {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.45;
-  }
 }
 .problem {
   padding: 10px;
@@ -975,6 +702,7 @@ void reload()
     span {
       font-size: 12px;
       color: var(--muted);
+      white-space: nowrap;
     }
   }
   &__tags {
@@ -992,51 +720,6 @@ void reload()
     }
   }
 }
-.stockout-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  th,
-  td {
-    padding: 7px 6px;
-    border-bottom: 1px solid #eef2f6;
-    text-align: left;
-  }
-  th {
-    color: var(--muted);
-    font-weight: 600;
-  }
-  td:first-child {
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .loss {
-    color: var(--bad);
-    font-weight: 700;
-  }
-}
-.market-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 4px;
-  div {
-    background: #f5f8fb;
-    border-radius: 10px;
-    padding: 8px 10px;
-  }
-  span {
-    display: block;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  b {
-    color: var(--primary);
-    font-size: 16px;
-  }
-}
 .empty {
   margin: 0;
   padding: 16px;
@@ -1046,21 +729,17 @@ void reload()
 }
 
 @media (max-width: 1280px) {
-  .kpi-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .content-grid,
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
   .ops-header {
     grid-template-columns: 1fr;
   }
   .health {
     justify-self: start;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .main-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

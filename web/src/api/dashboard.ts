@@ -1,28 +1,45 @@
 /**
  * 只从 Excel 转换后的 JSON 取值，不做分时/订单流等推演。
- * 源文件：数据源/8.21、8.28 下「门店排行」「经营分析-城市/门店」「门店清单」
+ * 源：数据源周包 → dashboard.json（按日 / 按周键，毛利含后返）
  */
 import raw from '../data/dashboard.json'
 import { isAbnormalStore } from '../utils/health'
-
-const CITY_COORDS: Record<string, [number, number]> = {
-  杭州市: [120.15, 30.28],
-  苏州市: [120.62, 31.32],
-  上海市: [121.47, 31.23],
-  金华市: [119.65, 29.08],
-  无锡市: [120.31, 31.59],
-  武汉市: [114.31, 30.52],
-  南通市: [120.86, 32.01],
-  淮安市: [119.02, 33.61],
-  济南市: [117.0, 36.65],
-  郑州市: [113.65, 34.76],
-}
+import { cityCoord, storeCoord, resolveProvince, normCityName } from '../data/geoMeta'
 
 type StoreListRow = { city: string; name: string; shortName: string }
 
+type DashRaw = {
+  overview?: Record<string, Record<string, number | string>>
+  storeRank?: Record<string, StoreRow[]>
+  cities?: Record<string, CityRow[]>
+  storeList?: Record<string, StoreListRow[]>
+  channelStores?: Record<string, StoreRow[]>
+  costs?: Record<string, unknown>
+  reverse?: Record<string, unknown>
+  assessment?: Record<
+    string,
+    Array<{
+      name: string
+      shortName: string
+      code?: string
+      sellout_rate: number
+      pick_error_rate: number
+      warehouse_t: number
+      im_reply_rate: number
+      merchant_issue_rate: number
+      shop_score?: number
+    }>
+  >
+  weeks?: Array<{ id: string; days: string[]; start?: string; end?: string }>
+  days?: string[]
+  updated_at?: string
+  schemaVersion?: number
+}
+
+const data = raw as DashRaw
+
 function storeListRows(dateKey: string): StoreListRow[] {
-  return ((raw as { storeList?: Record<string, StoreListRow[]> }).storeList?.[dateKey] ||
-    []) as StoreListRow[]
+  return (data.storeList?.[dateKey] || []) as StoreListRow[]
 }
 
 function coverageByCity(dateKey: string) {
@@ -76,11 +93,15 @@ type StoreRow = Record<string, unknown>
 type CityRow = Record<string, unknown>
 
 function storeRows(dateKey: string): StoreRow[] {
-  return ((raw.storeRank as Record<string, StoreRow[]>)[dateKey] || []) as StoreRow[]
+  return (data.storeRank?.[dateKey] || []) as StoreRow[]
 }
 
 function cityRows(dateKey: string): CityRow[] {
-  return ((raw.cities as Record<string, CityRow[]>)[dateKey] || []).filter((r) => r['城市']) as CityRow[]
+  return ((data.cities?.[dateKey] || []) as CityRow[]).filter((r) => r['城市'])
+}
+
+function channelRows(dateKey: string): StoreRow[] {
+  return (data.channelStores?.[dateKey] || []) as StoreRow[]
 }
 
 function filterStores(dateKey: string, cityName: string) {
@@ -93,68 +114,114 @@ function filterCities(dateKey: string, cityName: string) {
   return all.filter((r) => matchCity(String(r['城市'] || ''), cityName))
 }
 
+function filterChannelStores(dateKey: string, cityName: string, channel: string) {
+  return channelRows(dateKey).filter((r) => {
+    if (channel && channel !== '全部' && String(r['渠道'] || '') !== channel) return false
+    return matchCity(String(r['城市名称'] || ''), cityName)
+  })
+}
+
 function wait<T>(data: T): Promise<T> {
   return Promise.resolve(structuredClone(data))
 }
 
-export function availableDates() {
-  return Object.keys(raw.storeRank || {}).map((k) => {
-    const [m, d] = k.split('.')
-    return `2026-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-  })
-}
-
-export async function fetchOverview(dateKey: string, cityName = '全国') {
-  if (!dateKey) return null
-  const ranks = filterStores(dateKey, cityName)
+function overviewFromRanks(ranks: StoreRow[]) {
   if (!ranks.length) return null
-  const cityAgg = filterCities(dateKey, cityName)
   const sum = (k: string) => ranks.reduce((a, r) => a + toNum(r[k]), 0)
-  const citySum = (k: string) => cityAgg.reduce((a, r) => a + toNum(r[k]), 0)
   const total_gmv = sum('总营业额')
-  const discount_amount = sum('总优惠金额')
   const paid_amount = sum('用户实付营业额')
   const paid_orders = sum('用户实付订单量')
-  const effective_orders = citySum('有效订单量') || paid_orders
   const buyer_cnt = sum('交易用户数')
   const est_profit = sum('预计毛利')
-  const online_income = sum('预计线上收入') || citySum('预计线上收入')
-  const profit_rate =
-    ranks.length === 1
-      ? toNum(ranks[0]['毛利率'])
-      : cityAgg.length === 1
-        ? toNum(cityAgg[0]['毛利率'])
-        : paid_amount
-          ? est_profit / paid_amount
-          : 0
   return {
     total_gmv,
-    discount_amount,
-    discount_rate: total_gmv ? discount_amount / total_gmv : 0,
+    discount_amount: sum('总优惠金额') || Math.max(0, total_gmv - paid_amount),
+    discount_rate: total_gmv ? Math.max(0, total_gmv - paid_amount) / total_gmv : 0,
     paid_amount,
     paid_orders,
-    effective_orders,
+    effective_orders: paid_orders,
     buyer_cnt,
-    arpu: buyer_cnt ? paid_amount / buyer_cnt : 0,
-    avg_item_price: sum('商品销量') ? paid_amount / sum('商品销量') : 0,
-    orders_per_store_day: ranks.length ? effective_orders / ranks.length : 0,
+    arpu: buyer_cnt ? paid_amount / buyer_cnt : paid_orders ? paid_amount / paid_orders : 0,
     est_profit,
-    profit_rate,
-    online_income,
+    profit_rate: total_gmv ? est_profit / total_gmv : 0,
+    online_income: sum('预计线上收入'),
     est_expense: sum('预计线上支出'),
-    purchase_cost: sum('采购成本'),
-    self_delivery_cost: sum('商家自配送费用'),
-    active_sku_cnt: sum('动销商品数'),
-    sku_sales: sum('商品销量'),
-    return_qty: sum('商品退货数量'),
-    return_rate: sum('商品销量') ? sum('商品退货数量') / sum('商品销量') : 0,
-    store_cnt: fetchCoverageStoreCnt(dateKey, cityName) || ranks.length,
-    active_store_cnt: ranks.filter((r) => toNum(r['用户实付订单量']) > 0).length,
+    purchase_cost: sum('采购成本') || sum('商品成本'),
+    self_delivery_cost: sum('商家自配送费用') || sum('自配送费用'),
     refund_orders: sum('退款订单量'),
     refund_amount: sum('退款金额'),
-    refund_rate: effective_orders ? sum('退款订单量') / effective_orders : 0,
-    updated_at: String((raw as { updated_at?: string }).updated_at || ''),
+    refund_rate: paid_orders ? sum('退款订单量') / paid_orders : 0,
+    store_cnt: ranks.length,
+    active_store_cnt: ranks.filter((r) => toNum(r['用户实付订单量']) > 0).length,
+    rebate: sum('平台后返'),
+    marketing_cost: sum('营销活动费用'),
   }
+}
+
+export function availableDates() {
+  const days = (raw as { days?: string[] }).days
+  if (days?.length) return days
+  return Object.keys(data.storeRank || {})
+    .filter((k) => !k.startsWith('W:'))
+    .sort()
+}
+
+export async function fetchOverview(dateKey: string, cityName = '全国', channel = '全部') {
+  if (!dateKey) return null
+
+  if (channel && channel !== '全部') {
+    const ranks = filterChannelStores(dateKey, cityName, channel)
+    const ov = overviewFromRanks(ranks)
+    return ov ? { ...ov, updated_at: data.updated_at || '' } : null
+  }
+
+  if (cityName && cityName !== '全国') {
+    const cityAgg = filterCities(dateKey, cityName)
+    const ranks = filterStores(dateKey, cityName)
+    if (cityAgg.length) {
+      const sum = (k: string) => cityAgg.reduce((a, r) => a + toNum(r[k]), 0)
+      const total_gmv = sum('总营业额')
+      const paid_amount = sum('有效订单金额（实付）') || ranks.reduce((a, r) => a + toNum(r['用户实付营业额']), 0)
+      const effective_orders = sum('有效订单量')
+      const est_profit = sum('预计毛利(含平台后返)') || sum('预计毛利')
+      const buyer_cnt = sum('有效买家数')
+      return {
+        total_gmv,
+        paid_amount,
+        paid_orders: effective_orders,
+        effective_orders,
+        buyer_cnt,
+        arpu: buyer_cnt ? paid_amount / buyer_cnt : effective_orders ? paid_amount / effective_orders : 0,
+        est_profit,
+        profit_rate: total_gmv ? est_profit / total_gmv : toNum(cityAgg[0]['毛利率(含平台后返)']) || toNum(cityAgg[0]['毛利率']),
+        online_income: sum('预计线上收入'),
+        est_expense: sum('预计线上支出'),
+        refund_orders: sum('退款订单量'),
+        refund_amount: sum('退款金额'),
+        refund_rate: effective_orders ? sum('退款订单量') / effective_orders : sum('退款率') / cityAgg.length,
+        store_cnt: fetchCoverageStoreCnt(dateKey, cityName) || ranks.length,
+        active_store_cnt: ranks.filter((r) => toNum(r['用户实付订单量']) > 0).length,
+        rebate: sum('平台后返'),
+        marketing_cost: sum('营销活动费用'),
+        updated_at: data.updated_at || '',
+      }
+    }
+    const ov = overviewFromRanks(ranks)
+    return ov ? { ...ov, updated_at: data.updated_at || '' } : null
+  }
+
+  const cached = data.overview?.[dateKey]
+  if (cached) {
+    return {
+      ...cached,
+      updated_at: data.updated_at || '',
+    }
+  }
+
+  const ranks = filterStores(dateKey, cityName)
+  if (!ranks.length) return null
+  const ov = overviewFromRanks(ranks)
+  return ov ? { ...ov, updated_at: data.updated_at || '' } : null
 }
 
 export async function fetchGeo(dateKey: string) {
@@ -185,7 +252,7 @@ export async function fetchGeo(dateKey: string) {
       }
     }
     map[city].paid_amount += toNum(r['用户实付营业额'])
-    map[city].est_profit += toNum(r['预计毛利'])
+    map[city].est_profit += toNum(r['预计毛利(含平台后返)']) || toNum(r['预计毛利'])
     map[city].paid_orders += toNum(r['用户实付订单量'])
     map[city].store_cnt += 1
   })
@@ -208,18 +275,89 @@ export async function fetchGeo(dateKey: string) {
   }
 
   return wait(
-    Object.values(map).map((c) => ({
-      ...c,
-      profit_rate: c.paid_amount ? c.est_profit / c.paid_amount : 0,
-      lng: (CITY_COORDS[c.city] || [120.15, 30.28])[0],
-      lat: (CITY_COORDS[c.city] || [120.15, 30.28])[1],
-    })),
+    Object.values(map).map((c) => {
+      const [lng, lat] = cityCoord(c.city)
+      const province = resolveProvince(c.city)
+      return {
+        ...c,
+        profit_rate: c.paid_amount ? c.est_profit / c.paid_amount : 0,
+        lng,
+        lat,
+        province: province?.name || '',
+        provinceKey: province?.key || '',
+      }
+    }),
   )
+}
+
+export type MapStorePoint = {
+  name: string
+  shortName: string
+  city: string
+  lng: number
+  lat: number
+  paid_amount: number
+  profit_rate: number
+  paid_orders: number
+  est_profit: number
+  active: boolean
+}
+
+/** 门店地图打点：有排行数据的优先，其余用门店清单补点 */
+export async function fetchMapStores(dateKey: string, cityName = '全国', channel = '全部') {
+  const ranks =
+    channel && channel !== '全部'
+      ? filterChannelStores(dateKey, cityName, channel)
+      : filterStores(dateKey, cityName)
+  const byName = new Map<string, MapStorePoint>()
+  ranks.forEach((r, i) => {
+    const city = String(r['城市名称'] || '')
+    const full = String(r['门店名称'] || '')
+    const short = storeName(full)
+    const [lng, lat] = storeCoord(full, city, i)
+    byName.set(short || full, {
+      name: full,
+      shortName: short || full,
+      city,
+      lng,
+      lat,
+      paid_amount: toNum(r['用户实付营业额']),
+      est_profit: toNum(r['预计毛利(含平台后返)']) || toNum(r['预计毛利']),
+      paid_orders: toNum(r['用户实付订单量']),
+      profit_rate: toNum(r['毛利率(含平台后返)']) || toNum(r['毛利率']),
+      active: true,
+    })
+  })
+
+  if (!channel || channel === '全部') {
+    storeListRows(dateKey)
+      .filter((r) => matchCity(r.city, cityName))
+      .forEach((r, i) => {
+        const short = r.shortName || storeName(r.name)
+        if (byName.has(short) || byName.has(r.name)) return
+        const [lng, lat] = storeCoord(r.name || short, r.city, i + ranks.length)
+        byName.set(short || r.name, {
+          name: r.name,
+          shortName: short,
+          city: normCityName(r.city),
+          lng,
+          lat,
+          paid_amount: 0,
+          est_profit: 0,
+          paid_orders: 0,
+          profit_rate: 0,
+          active: false,
+        })
+      })
+  }
+
+  return wait([...byName.values()])
 }
 
 export async function fetchCityOptions(dateKey: string) {
   const geo = await fetchGeo(dateKey)
-  return [{ id: 'all', name: '全国' }, ...geo.map((c) => ({ id: String(c.city_code), name: c.city }))]
+  // 用城市名做 id，避免 city_code 为空导致选项冲突
+  return [{ id: 'all', name: '全国' }, ...geo.map((c) => ({ id: c.city, name: c.city }))]
 }
 
 function cityMetricSnapshot(dateKey: string, cityName: string) {
@@ -365,18 +503,74 @@ const COST_COLORS: Record<string, string> = {
 }
 
 /** 费用占营业额比；按金额降序 */
-export async function fetchCost(dateKey: string, cityName = '全国') {
+export async function fetchCost(dateKey: string, cityName = '全国', channel = '全部') {
+  const COST_EXTRA: Record<string, string> = {
+    ...COST_COLORS,
+    商品成本: '#00E396',
+    平台后返: '#9B8CFF',
+    平台补贴: '#5AD8A6',
+    推广费用: '#F6BD16',
+  }
+
+  if (channel && channel !== '全部') {
+    const rows = filterChannelStores(dateKey, cityName, channel)
+    const sum = (k: string) => rows.reduce((a, r) => a + toNum(r[k]), 0)
+    const gmv = sum('总营业额')
+    const paid = sum('用户实付营业额')
+    const items = [
+      { item: '商品成本', amount: sum('商品成本'), key: 'purchase' as const },
+      { item: '总优惠金额', amount: Math.max(0, gmv - paid), key: 'discount' as const },
+      { item: '营销活动费用', amount: sum('营销活动费用'), key: 'marketing' as const },
+      { item: '推广费用', amount: sum('推广费用'), key: 'promo' as const },
+      { item: '平台配送服务费', amount: sum('平台配送服务费'), key: 'platform_delivery' as const },
+      { item: '佣金及其他平台费', amount: sum('佣金&其他平台费用'), key: 'commission' as const },
+      { item: '商家自配送费用', amount: sum('自配送费用'), key: 'self_delivery' as const },
+      { item: '平台补贴', amount: sum('平台补贴'), key: 'platform_subsidy' as const },
+      { item: '平台后返', amount: sum('平台后返'), key: 'rebate' as const },
+    ]
+      .filter((x) => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+    return wait({
+      est_expense: 0,
+      gmv,
+      items: items.map((i) => ({
+        ...i,
+        rate: gmv ? i.amount / gmv : 0,
+        color: COST_EXTRA[i.item] || '#8899AA',
+      })),
+    })
+  }
+
+  if ((!cityName || cityName === '全国') && data.costs?.[dateKey]) {
+    const cached = data.costs[dateKey] as {
+      est_expense?: number
+      items?: { item: string; amount: number; rate: number; key?: string }[]
+    }
+    const gmv = toNum(data.overview?.[dateKey]?.total_gmv)
+    return wait({
+      est_expense: cached.est_expense || 0,
+      gmv,
+      items: (cached.items || []).map((i) => ({
+        ...i,
+        color: COST_EXTRA[i.item] || '#8899AA',
+      })),
+    })
+  }
+
   const rows = filterCities(dateKey, cityName)
   const sum = (k: string) => rows.reduce((a, r) => a + toNum(r[k]), 0)
   const gmv = sum('总营业额')
   const discount = Math.max(0, gmv - sum('有效订单金额（实付）'))
   const items = [
-    { item: '采购成本', amount: sum('商品成本'), key: 'purchase' as const },
+    { item: '商品成本', amount: sum('商品成本'), key: 'purchase' as const },
     { item: '总优惠金额', amount: discount, key: 'discount' as const },
-    { item: '营销活动费用', amount: sum('营销活动费用') + sum('推广费用'), key: 'marketing' as const },
+    { item: '营销活动费用', amount: sum('营销活动费用'), key: 'marketing' as const },
+    { item: '推广费用', amount: sum('推广费用'), key: 'promo' as const },
     { item: '平台配送服务费', amount: sum('平台配送服务费'), key: 'platform_delivery' as const },
     { item: '佣金及其他平台费', amount: sum('佣金&其他平台费用'), key: 'commission' as const },
     { item: '商家自配送费用', amount: sum('自配送费用'), key: 'self_delivery' as const },
+    { item: '平台补贴', amount: sum('平台补贴'), key: 'platform_subsidy' as const },
+    { item: '平台后返', amount: sum('平台后返'), key: 'rebate' as const },
   ]
     .filter((x) => x.amount > 0)
     .sort((a, b) => b.amount - a.amount)
@@ -386,7 +580,7 @@ export async function fetchCost(dateKey: string, cityName = '全国') {
     items: items.map((i) => ({
       ...i,
       rate: gmv ? i.amount / gmv : 0,
-      color: COST_COLORS[i.item] || '#8899AA',
+      color: COST_EXTRA[i.item] || '#8899AA',
     })),
   })
 }
@@ -422,8 +616,7 @@ export async function fetchReverse(dateKey: string, cityName = '全国', compare
 }
 
 function storeSheetRows(dateKey: string): Record<string, unknown>[] {
-  return ((raw as { stores?: Record<string, Record<string, unknown>[]> }).stores?.[dateKey] ||
-    []) as Record<string, unknown>[]
+  return storeRows(dateKey) as Record<string, unknown>[]
 }
 
 function storeCityByName(dateKey: string) {
@@ -458,13 +651,13 @@ export async function fetchMarketingActivities(dateKey: string, cityName = '全�
   const cityMap = storeCityByName(dateKey)
   const list = storeSheetRows(dateKey)
     .map((r) => {
-      const store = storeName(String(r['门店'] || ''))
+      const store = storeName(String(r['门店名称'] || r['门店'] || ''))
       return {
         name: '门店营销合计',
         cost: toNum(r['营销活动费用']) + toNum(r['推广费用']),
         store,
-        paid: toNum(r['预计线上收入']),
-        city: cityMap[store] || cityMap[String(r['门店'] || '')] || '',
+        paid: toNum(r['用户实付营业额'] || r['预计线上收入']),
+        city: cityMap[store] || cityMap[String(r['门店名称'] || '')] || String(r['城市名称'] || ''),
       }
     })
     .filter((a) => a.cost > 0 && matchCity(a.city, cityName))
@@ -581,14 +774,19 @@ export async function fetchCityRank(dateKey: string, metric = 'paid_amount') {
   return wait([...list].sort((a, b) => Number(b[key]) - Number(a[key])))
 }
 
-export async function fetchStoreRank(dateKey: string, cityName = '全国') {
+export async function fetchStoreRank(dateKey: string, cityName = '全国', channel = '全部') {
+  const rows =
+    channel && channel !== '全部'
+      ? filterChannelStores(dateKey, cityName, channel)
+      : filterStores(dateKey, cityName)
   return wait(
-    filterStores(dateKey, cityName)
+    rows
       .map((r) => ({
         name: storeName(r['门店名称']),
         fullName: String(r['门店名称'] || ''),
         city: String(r['城市名称'] || ''),
         code: String(r['门店code'] || ''),
+        channel: String(r['渠道'] || r['渠道名称'] || channel || ''),
         paid_amount: toNum(r['用户实付营业额']),
         profit_rate: toNum(r['毛利率']),
         paid_orders: toNum(r['用户实付订单量']),
@@ -599,11 +797,232 @@ export async function fetchStoreRank(dateKey: string, cityName = '全国') {
         self_delivery_cost: toNum(r['商家自配送费用']),
         sku_sales: toNum(r['商品销量']),
         return_qty: toNum(r['商品退货数量']),
+        est_profit: toNum(r['预计毛利']),
       }))
       .sort((a, b) => b.paid_amount - a.paid_amount),
   )
 }
 
-export async function fetchStoreSheet(dateKey: string, cityName = '全国') {
-  return fetchStoreRank(dateKey, cityName)
+export async function fetchStoreSheet(dateKey: string, cityName = '全国', channel = '全部') {
+  return fetchStoreRank(dateKey, cityName, channel)
+}
+
+/** 渠道结构：实付/毛利/订单按渠道汇总 */
+export async function fetchChannelMix(dateKey: string, cityName = '全国') {
+  const rows = filterChannelStores(dateKey, cityName, '全部')
+  const map: Record<
+    string,
+    { channel: string; paid_amount: number; est_profit: number; paid_orders: number; total_gmv: number }
+  > = {}
+  rows.forEach((r) => {
+    const channel = String(r['渠道'] || '未知')
+    if (!map[channel]) {
+      map[channel] = { channel, paid_amount: 0, est_profit: 0, paid_orders: 0, total_gmv: 0 }
+    }
+    map[channel].paid_amount += toNum(r['用户实付营业额'])
+    map[channel].est_profit += toNum(r['预计毛利'])
+    map[channel].paid_orders += toNum(r['用户实付订单量'])
+    map[channel].total_gmv += toNum(r['总营业额'])
+  })
+  const list = Object.values(map)
+    .map((x) => ({
+      ...x,
+      profit_rate: x.total_gmv ? x.est_profit / x.total_gmv : 0,
+    }))
+    .sort((a, b) => b.paid_amount - a.paid_amount)
+  const paidTotal = list.reduce((a, b) => a + b.paid_amount, 0) || 1
+  return wait(
+    list.map((x) => ({
+      ...x,
+      paid_share: x.paid_amount / paidTotal,
+    })),
+  )
+}
+
+/** 利润质量：含后返 vs 不含后返 + 负毛利占比 */
+export async function fetchProfitQuality(dateKey: string, cityName = '全国', channel = '全部') {
+  const ov = await fetchOverview(dateKey, cityName, channel)
+  if (!ov) return null
+  const o = ov as unknown as Record<string, number>
+  const profit = toNum(o.est_profit)
+  const profitRaw = toNum(o.est_profit_raw)
+  const rebate = toNum(o.rebate) || Math.max(0, profit - profitRaw)
+  const gmv = toNum(o.total_gmv)
+  return wait({
+    est_profit: profit,
+    est_profit_raw: profitRaw || profit - rebate,
+    rebate,
+    rebate_share: profit ? rebate / profit : 0,
+    profit_rate: toNum(o.profit_rate),
+    profit_rate_raw: toNum(o.profit_rate_raw) || (gmv ? (profitRaw || profit - rebate) / gmv : 0),
+    neg_profit_order_rate: toNum(o.neg_profit_order_rate),
+    marketing_rate: gmv ? toNum(o.marketing_cost) / gmv : 0,
+    refund_rate: toNum(o.refund_rate),
+  })
+}
+
+/** 日趋势：当前周内每日实付/毛利 */
+export async function fetchDayTrend(dateKey: string, cityName = '全国', channel = '全部') {
+  const meta = raw as unknown as {
+    days?: string[]
+    weeks?: { id: string; days: string[] }[]
+    overview?: Record<string, Record<string, number>>
+  }
+  const weeks = meta.weeks || []
+  let dayList: string[] = []
+  if (dateKey.startsWith('W:')) {
+    const id = dateKey.slice(2)
+    dayList = weeks.find((w) => w.id === id)?.days || []
+  } else {
+    dayList = weeks.find((w) => w.days.includes(dateKey))?.days || (meta.days || []).slice(-7)
+  }
+  dayList = [...dayList].sort()
+
+  const points = []
+  for (const d of dayList) {
+    const ov = await fetchOverview(d, cityName, channel)
+    if (!ov) continue
+    const o = ov as unknown as Record<string, number>
+    points.push({
+      date: d,
+      label: d.slice(5).replace('-', '/'),
+      paid_amount: toNum(o.paid_amount),
+      est_profit: toNum(o.est_profit),
+      paid_orders: toNum(o.effective_orders || o.paid_orders),
+      profit_rate: toNum(o.profit_rate),
+    })
+  }
+  return wait(points)
+}
+
+/** 门店经营画像（地图/榜单击） */
+export async function fetchStoreProfile(dateKey: string, storeNameOrShort: string) {
+  const short = storeName(storeNameOrShort)
+  const row =
+    storeRows(dateKey).find(
+      (r) => storeName(r['门店名称']) === short || String(r['门店名称']) === storeNameOrShort,
+    ) || null
+  const chRows = channelRows(dateKey).filter(
+    (r) => storeName(r['门店名称']) === short || String(r['门店名称']) === storeNameOrShort,
+  )
+  const channels = chRows
+    .map((r) => ({
+      channel: String(r['渠道'] || ''),
+      paid_amount: toNum(r['用户实付营业额']),
+      est_profit: toNum(r['预计毛利']),
+      paid_orders: toNum(r['用户实付订单量']),
+      profit_rate: toNum(r['毛利率']),
+      refund_amount: toNum(r['退款金额']),
+    }))
+    .sort((a, b) => b.paid_amount - a.paid_amount)
+
+  if (!row && !channels.length) return null
+
+  const paid = row ? toNum(row['用户实付营业额']) : channels.reduce((a, c) => a + c.paid_amount, 0)
+  const orders = row ? toNum(row['用户实付订单量']) : channels.reduce((a, c) => a + c.paid_orders, 0)
+  const profit = row ? toNum(row['预计毛利']) : channels.reduce((a, c) => a + c.est_profit, 0)
+  const gmv = row ? toNum(row['总营业额']) : 0
+  const rebate = row ? toNum(row['平台后返']) : 0
+  const profitRaw = row ? toNum(row['预计毛利_不含后返']) : Math.max(0, profit - rebate)
+
+  return wait({
+    name: storeName(row?.['门店名称'] || storeNameOrShort),
+    fullName: String(row?.['门店名称'] || storeNameOrShort),
+    city: String(row?.['城市名称'] || chRows[0]?.['城市名称'] || ''),
+    paid_amount: paid,
+    total_gmv: gmv,
+    paid_orders: orders,
+    buyer_cnt: row ? toNum(row['交易用户数']) : 0,
+    arpu: orders ? paid / orders : 0,
+    est_profit: profit,
+    est_profit_raw: profitRaw,
+    rebate,
+    rebate_share: profit ? rebate / Math.abs(profit) : 0,
+    profit_rate: row ? toNum(row['毛利率']) : gmv ? profit / gmv : 0,
+    neg_profit_order_rate: row ? toNum(row['负毛利订单占比']) : 0,
+    marketing_cost: row ? toNum(row['营销活动费用']) : 0,
+    refund_orders: row ? toNum(row['退款订单量']) : 0,
+    refund_amount: row ? toNum(row['退款金额']) : 0,
+    refund_rate: orders ? toNum(row?.['退款订单量']) / orders : 0,
+    self_delivery_cost: row ? toNum(row['商家自配送费用']) : 0,
+    channels,
+  })
+}
+
+export type AssessmentRow = {
+  name: string
+  shortName: string
+  code?: string
+  city: string
+  sellout_rate: number
+  pick_error_rate: number
+  warehouse_t: number
+  im_reply_rate: number
+  merchant_issue_rate: number
+  shop_score?: number
+}
+
+/** 日 → 所在周 id；周键 W:xxx → 直接取周 */
+export function resolveAssessmentWeekId(dateKey: string): string | null {
+  if (!dateKey) return null
+  if (dateKey.startsWith('W:')) {
+    const id = dateKey.slice(2)
+    return data.assessment?.[id] ? id : null
+  }
+  if (data.assessment?.[dateKey]) return dateKey
+  const weeks = data.weeks || []
+  const hit = weeks.find((w) => w.id === dateKey || w.days?.includes(dateKey))
+  if (hit && data.assessment?.[hit.id]) return hit.id
+  return null
+}
+
+function cityByStoreShort(dateKey: string): Record<string, string> {
+  const map: Record<string, string> = {}
+  // 优先当日门店信息；无则扫全部日
+  const days = data.days?.length ? data.days : Object.keys(data.storeList || {})
+  const prefer = storeListRows(dateKey)
+  const rows = prefer.length ? prefer : days.flatMap((d) => storeListRows(d))
+  rows.forEach((r) => {
+    if (r.shortName) map[r.shortName] = r.city
+    if (r.name) map[r.name] = r.city
+  })
+  return map
+}
+
+export function hasAssessment(dateKey: string) {
+  return !!resolveAssessmentWeekId(dateKey)
+}
+
+export async function fetchAssessmentStores(
+  dateKey: string,
+  cityName = '全国',
+  storeShort = '全部',
+): Promise<AssessmentRow[]> {
+  const weekId = resolveAssessmentWeekId(dateKey)
+  if (!weekId) return wait([])
+  const cityMap = cityByStoreShort(dateKey.startsWith('W:') ? dateKey.slice(2).split('_')[1] || '' : dateKey)
+  let rows: AssessmentRow[] = (data.assessment?.[weekId] || []).map((r) => ({
+    ...r,
+    city: cityMap[r.shortName] || cityMap[r.name] || '',
+  }))
+  if (cityName && cityName !== '全国' && cityName !== '全部') {
+    rows = rows.filter((r) => matchCity(r.city, cityName))
+  }
+  if (storeShort && storeShort !== '全部') {
+    rows = rows.filter((r) => r.shortName === storeShort || r.name === storeShort || r.code === storeShort)
+  }
+  return wait(rows)
+}
+
+export async function fetchAssessmentCityOptions(dateKey: string) {
+  const rows = await fetchAssessmentStores(dateKey)
+  const cities = [...new Set(rows.map((r) => r.city).filter(Boolean))].sort()
+  return ['全部', ...cities]
+}
+
+export async function fetchAssessmentStoreOptions(dateKey: string, cityName = '全部') {
+  const rows = await fetchAssessmentStores(dateKey, cityName === '全部' ? '全国' : cityName)
+  return rows
+    .map((r) => ({ id: r.shortName || r.name, shortName: r.shortName || r.name, name: r.name, city: r.city }))
+    .sort((a, b) => a.shortName.localeCompare(b.shortName, 'zh'))
 }

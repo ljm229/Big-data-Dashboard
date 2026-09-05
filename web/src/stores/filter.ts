@@ -3,63 +3,143 @@ import { computed, ref } from 'vue'
 import raw from '../data/dashboard.json'
 import { getOpsAvailableDates, hasOpsData as opsHasData } from '../api/opsDashboard'
 
-function isoFromKey(key: string) {
-  const [m, d] = key.split('.')
-  return `2026-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-}
+type WeekMeta = { id: string; label: string; start: string; end: string; days: string[] }
 
-const sourceKeys = Object.keys(raw.storeRank || {}).sort()
-export const COCKPIT_DATES = sourceKeys.map(isoFromKey)
+const rawDays: string[] = (raw as { days?: string[] }).days || []
+const rawWeeks: WeekMeta[] = (raw as { weeks?: WeekMeta[] }).weeks || []
+const rawChannels: string[] = (raw as { channels?: string[] }).channels || ['全部']
+
+/** 大屏可选自然日（ISO） */
+export const COCKPIT_DAYS = rawDays.length
+  ? rawDays
+  : Object.keys((raw as { storeRank?: Record<string, unknown> }).storeRank || {})
+      .filter((k) => !k.startsWith('W:'))
+      .sort()
+
+export const COCKPIT_WEEKS = rawWeeks
+export const COCKPIT_CHANNELS = rawChannels
+
+/** 兼容旧引用：默认日期列表 = 日列表 */
+export const COCKPIT_DATES = COCKPIT_DAYS
 export const AVAILABLE_DATES = COCKPIT_DATES
-export const DATE_TO_KEY: Record<string, string> = Object.fromEntries(
-  sourceKeys.map((key) => [isoFromKey(key), key]),
-)
+
+/** 旧 DATE_TO_KEY：ISO 即 dataKey */
+export const DATE_TO_KEY: Record<string, string> = Object.fromEntries(COCKPIT_DAYS.map((d) => [d, d]))
 
 export const OPS_DATES = getOpsAvailableDates()
 export const UNIFIED_DATES = [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
 
-const sourcePrimary = raw.primaryDate ? isoFromKey(raw.primaryDate) : COCKPIT_DATES[COCKPIT_DATES.length - 1]
-const sourceCompare = raw.compareDate ? isoFromKey(raw.compareDate) : COCKPIT_DATES[0]
+function shiftDay(iso: string, delta: number) {
+  const d = new Date(`${iso}T12:00:00`)
+  d.setDate(d.getDate() + delta)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
+function weekIndex(id: string) {
+  return COCKPIT_WEEKS.findIndex((w) => w.id === id)
+}
+
+export type PeriodMode = 'day' | 'week'
 export type StoreSortBy = 'default' | 'refund_amount' | 'refund_rate' | 'refund_orders' | 'inafter_ratio'
 
+const defaultDay =
+  (raw as { primaryDate?: string }).primaryDate || COCKPIT_DAYS[COCKPIT_DAYS.length - 1] || ''
+const defaultWeek = COCKPIT_WEEKS[COCKPIT_WEEKS.length - 1]?.id || ''
+
 export const useFilterStore = defineStore('filter', () => {
-  const selectedDate = ref(sourcePrimary || '')
+  const periodMode = ref<PeriodMode>('day')
+  const selectedDate = ref(defaultDay)
+  const selectedWeekId = ref(defaultWeek)
+  const channel = ref('全部')
   const cityId = ref('all')
   const cityName = ref('全国')
   const abnormalOnly = ref(false)
   const drawer = ref<{ type: 'city' | 'store'; payload: Record<string, unknown> } | null>(null)
   const updatedAt = ref('')
   const loadingTick = ref(0)
-  /** 成本板块边框闪烁触发计数 */
   const costFlashTick = ref(0)
-  /** 商品运营分析榜高亮门店名（异常筛选联动） */
   const productFlashNames = ref<string[]>([])
-  /** 底部门店明细定位高亮 */
   const focusStoreName = ref('')
-  /** 底部门店明细排序口径（逆向健康度卡片联动） */
   const storeSortBy = ref<StoreSortBy>('default')
 
-  const dataKey = computed(() => DATE_TO_KEY[selectedDate.value] || '')
-  const hasData = computed(() => !!dataKey.value)
+  /** 当前取数键：日=ISO；周=W:weekId */
+  const dataKey = computed(() => {
+    if (periodMode.value === 'week') {
+      return selectedWeekId.value ? `W:${selectedWeekId.value}` : ''
+    }
+    return selectedDate.value || ''
+  })
+
+  const hasData = computed(() => {
+    const key = dataKey.value
+    if (!key) return false
+    const ranks = (raw as { storeRank?: Record<string, unknown[]> }).storeRank
+    return !!(ranks && ranks[key])
+  })
+
   const hasOpsData = computed(() => opsHasData(selectedDate.value))
   const hasCockpitData = computed(() => hasData.value)
-  /** 对照日：另一份 Excel 日期，用于环比，不是编造的昨日 */
-  const compareDate = computed(() => {
-    if (selectedDate.value === sourcePrimary) return sourceCompare
-    if (selectedDate.value === sourceCompare) return sourcePrimary
-    return AVAILABLE_DATES.find((date) => date !== selectedDate.value) || ''
+
+  /** 环比对照键：日→昨天；周→上一周 */
+  const compareKey = computed(() => {
+    if (periodMode.value === 'week') {
+      const i = weekIndex(selectedWeekId.value)
+      if (i <= 0) return null
+      return `W:${COCKPIT_WEEKS[i - 1].id}`
+    }
+    const prev = shiftDay(selectedDate.value, -1)
+    return COCKPIT_DAYS.includes(prev) ? prev : null
   })
-  const compareKey = computed(() => (compareDate.value ? DATE_TO_KEY[compareDate.value] : null))
-  const compareLabel = computed(() =>
-    compareDate.value ? compareDate.value.slice(5).replace('-', '月') + '日' : '',
-  )
+
+  /** 周同比对照键：日→上周同一天；周→上上周（有则） */
+  const wowKey = computed(() => {
+    if (periodMode.value === 'week') {
+      const i = weekIndex(selectedWeekId.value)
+      if (i <= 1) return i === 1 ? `W:${COCKPIT_WEEKS[0].id}` : null
+      return `W:${COCKPIT_WEEKS[i - 2].id}`
+    }
+    const prev = shiftDay(selectedDate.value, -7)
+    return COCKPIT_DAYS.includes(prev) ? prev : null
+  })
+
+  const compareDate = computed(() => compareKey.value || '')
+  const compareLabel = computed(() => {
+    if (!compareKey.value) return ''
+    if (compareKey.value.startsWith('W:')) {
+      const id = compareKey.value.slice(2)
+      return COCKPIT_WEEKS.find((w) => w.id === id)?.label || id
+    }
+    return compareKey.value.slice(5).replace('-', '月') + '日'
+  })
 
   let focusTimer = 0
   let flashTimer = 0
 
+  function setPeriodMode(mode: PeriodMode) {
+    periodMode.value = mode
+    bump()
+  }
+
   function setDate(iso: string) {
     selectedDate.value = iso
+    // 若该日属于某周，同步周选择
+    const w = COCKPIT_WEEKS.find((x) => x.days.includes(iso))
+    if (w) selectedWeekId.value = w.id
+    bump()
+  }
+
+  function setWeek(weekId: string) {
+    selectedWeekId.value = weekId
+    const w = COCKPIT_WEEKS.find((x) => x.id === weekId)
+    if (w?.end) selectedDate.value = w.end
+    bump()
+  }
+
+  function setChannel(name: string) {
+    channel.value = name || '全部'
     bump()
   }
 
@@ -110,7 +190,10 @@ export const useFilterStore = defineStore('filter', () => {
   }
 
   return {
+    periodMode,
     selectedDate,
+    selectedWeekId,
+    channel,
     cityId,
     cityName,
     abnormalOnly,
@@ -127,8 +210,12 @@ export const useFilterStore = defineStore('filter', () => {
     hasCockpitData,
     compareDate,
     compareKey,
+    wowKey,
     compareLabel,
+    setPeriodMode,
     setDate,
+    setWeek,
+    setChannel,
     setCity,
     setAbnormalOnly,
     flashCostPanel,

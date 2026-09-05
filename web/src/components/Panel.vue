@@ -55,8 +55,8 @@ defineEmits<{ retry: []; 'title-click': [] }>()
 
 <style scoped lang="scss">
 .panel {
-  --glow: #5ec8ff;
-  --line: rgba(94, 200, 255, 0.78);
+  --glow: #4ec8ff;
+  --line: rgba(78, 200, 255, 0.72);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -64,14 +64,14 @@ defineEmits<{ retry: []; 'title-click': [] }>()
   min-height: 0;
   border-radius: 2px;
   background:
-    linear-gradient(160deg, rgba(18, 52, 108, 0.28), rgba(4, 16, 42, 0.42)),
-    rgba(6, 22, 54, 0.22);
-  border: 1px solid rgba(94, 200, 255, 0.18);
+    linear-gradient(165deg, rgba(14, 42, 92, 0.62), rgba(6, 20, 48, 0.48)),
+    rgba(8, 28, 64, 0.42);
+  border: 1px solid rgba(64, 180, 255, 0.32);
   box-shadow:
-    inset 0 0 28px rgba(40, 140, 255, 0.08),
-    0 0 18px rgba(40, 140, 255, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+    inset 0 0 32px rgba(30, 100, 200, 0.12),
+    0 0 16px rgba(20, 100, 200, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   overflow: hidden;
 }
 
@@ -148,29 +148,33 @@ defineEmits<{ retry: []; 'title-click': [] }>()
 }
 
 .panel__head {
-  height: 36px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
+  padding: 0 14px 0 12px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(94, 200, 255, 0.12);
-  background: linear-gradient(90deg, rgba(94, 200, 255, 0.10), transparent 55%);
+  border-bottom: 1px solid rgba(94, 200, 255, 0.14);
+  background: linear-gradient(90deg, rgba(94, 200, 255, 0.14), rgba(94, 200, 255, 0.02) 52%, transparent 78%);
 }
 
 .panel__title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   h3 {
     margin: 0;
-    font-size: 15px;
+    font-family: var(--font-cn);
+    font-size: var(--fs-title);
     font-weight: var(--fw-title);
     color: #fff;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    line-height: 1.2;
     white-space: nowrap;
-    text-shadow: 0 0 12px rgba(94, 200, 255, 0.35);
+    text-shadow:
+      0 0 14px rgba(94, 200, 255, 0.45),
+      0 1px 0 rgba(0, 20, 50, 0.35);
   }
   &.is-clickable {
     cursor: pointer;
@@ -182,17 +186,20 @@ defineEmits<{ retry: []; 'title-click': [] }>()
 }
 .panel__arrow {
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   margin-left: -2px;
 }
 
 .panel__bar {
-  width: 3px;
-  height: 14px;
+  width: 4px;
+  height: 16px;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #9adfff, #3aa0ff);
-  box-shadow: 0 0 8px rgba(94, 200, 255, 0.8);
+  border-radius: 1px;
+  background: linear-gradient(180deg, #c8f0ff, #3aa0ff 55%, #1a6cff);
+  box-shadow:
+    0 0 10px rgba(94, 200, 255, 0.95),
+    0 0 2px rgba(154, 223, 255, 0.8);
 }
 
 .panel__alert {
@@ -203,21 +210,23 @@ defineEmits<{ retry: []; 'title-click': [] }>()
 .panel__extra {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .panel__time {
   font-size: var(--fs-axis);
   color: var(--c-muted);
-  font-family: var(--font-cn);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 
 .panel__body {
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: 12px 14px 14px;
+  padding: 10px 12px 12px;
 }
 
 .panel__content {

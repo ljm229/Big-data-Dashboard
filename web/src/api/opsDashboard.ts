@@ -1,8 +1,21 @@
 /**
- * 门店运营看板数据层 — 仅使用 数据源2 聚合后的 opsDashboard.json
+ * 门店运营看板数据层
+ * - 营运核心考核：dashboard.json.assessment（周包考核表）
+ * - 人货场财/逆向等：opsDashboard.json（有则展示）
  */
 import raw from '../data/opsDashboard.json'
 import type { AssessMetric } from '../components/AssessmentCard.vue'
+import {
+  fetchAssessmentStores,
+  resolveAssessmentWeekId,
+  type AssessmentRow,
+} from './dashboard'
+import {
+  aggregateAssess,
+  calcCompositeScore,
+  gradeOf,
+  type AssessRaw,
+} from '../utils/opsAssessment'
 
 export type OpsStore = {
   id: string
@@ -284,52 +297,106 @@ export async function fetchOpsOverview(
   })
 }
 
+export type AssessBoard = {
+  weekId: string
+  storeCnt: number
+  composite: number
+  /** 门店综合分中位数（多店汇总时更稳） */
+  medianComposite: number
+  passStoreCnt: number
+  grade: ReturnType<typeof gradeOf>
+  metrics: AssessMetric[]
+  rows: Array<
+    AssessmentRow & {
+      composite: number
+      grade: ReturnType<typeof gradeOf>
+      parts: ReturnType<typeof calcCompositeScore>['parts']
+    }
+  >
+}
+
+function toAssessMetric(
+  part: ReturnType<typeof calcCompositeScore>['parts'][number],
+): AssessMetric {
+  const direction = part.lowerBetter ? 'down' : 'up'
+  const gap = part.value - part.passLine
+  return {
+    key: part.key,
+    name: part.name,
+    color: part.color,
+    unit: part.unit,
+    value: Number(part.value.toFixed(2)),
+    standard: part.passLine,
+    deltaPp: Number(gap.toFixed(2)),
+    direction,
+    met: part.pass,
+    trendGood: part.tier === 'excellent' || part.tier === 'pass',
+    deltaLabel: '距合格线',
+    tier: part.tier,
+    tierLabel: part.tierLabel,
+    weight: part.weight,
+    score: part.score,
+    weightedScore: part.weighted,
+  }
+}
+
+export async function fetchAssessmentBoard(
+  isoDate: string,
+  city = '全部',
+  storeId = '全部',
+): Promise<AssessBoard | null> {
+  const weekId = resolveAssessmentWeekId(isoDate)
+  if (!weekId) return null
+  const cityKey = !city || city === '全部' ? '全国' : city
+  const rawRows = await fetchAssessmentStores(isoDate, cityKey, storeId)
+  if (!rawRows.length) {
+    return {
+      weekId,
+      storeCnt: 0,
+      composite: 0,
+      medianComposite: 0,
+      passStoreCnt: 0,
+      grade: gradeOf(0),
+      metrics: [],
+      rows: [],
+    }
+  }
+  const agg = aggregateAssess(rawRows as AssessRaw[])!
+  const scored = calcCompositeScore(agg)
+  const rows = rawRows
+    .map((r) => {
+      const s = calcCompositeScore(r as AssessRaw)
+      return { ...r, composite: s.composite, grade: s.grade, parts: s.parts }
+    })
+    .sort((a, b) => b.composite - a.composite)
+
+  const composites = rows.map((r) => r.composite).sort((a, b) => a - b)
+  const mid = Math.floor(composites.length / 2)
+  const medianComposite =
+    composites.length % 2
+      ? composites[mid]
+      : Math.round(((composites[mid - 1] + composites[mid]) / 2) * 10) / 10
+  const passStoreCnt = rows.filter((r) => r.composite >= 80).length
+
+  return {
+    weekId,
+    storeCnt: rawRows.length,
+    composite: scored.composite,
+    medianComposite,
+    passStoreCnt,
+    grade: gradeOf(medianComposite),
+    metrics: scored.parts.map(toAssessMetric),
+    rows,
+  }
+}
+
 export async function fetchAssessmentMetrics(
   isoDate: string,
   city = '全部',
   storeId = '全部',
 ): Promise<AssessMetric[]> {
-  const snap = resolveSnapshot(isoDate)
-  const ov = await fetchOpsOverview(isoDate, city, storeId)
-  const std = (snap?.standards || {}) as Record<string, number>
-  if (!ov) return []
-
-  const mk = (
-    key: string,
-    name: string,
-    color: string,
-    unit: '%' | 'min',
-    value: number,
-    standard: number,
-    direction: 'up' | 'down',
-  ): AssessMetric => {
-    const display = unit === '%' ? value * 100 : value
-    const stdDisplay = unit === '%' ? standard * 100 : standard
-    const met = direction === 'up' ? display >= stdDisplay : display <= stdDisplay
-    const gap = display - stdDisplay
-    return {
-      key,
-      name,
-      color,
-      unit,
-      value: Number(display.toFixed(2)),
-      standard: Number(stdDisplay.toFixed(2)),
-      deltaPp: Number(gap.toFixed(2)),
-      direction,
-      met,
-      trendGood: met,
-      deltaLabel: '距标准',
-      trend: Array.from({ length: 7 }, (_, i) => Number((display * (0.97 + i * 0.005)).toFixed(2))),
-    }
-  }
-
-  return [
-    mk('ontime', '及时送达率', '#5B9BD5', '%', ov.ontime_rate, std.ontime_rate ?? 0.9, 'up'),
-    mk('pick', '拣货及时率', '#2A5C82', '%', ov.pick_ontime_rate, std.pick_ontime_rate ?? 0.8, 'up'),
-    mk('reverse', '逆向订单率', '#E74C3C', '%', ov.reverse_rate, std.reverse_rate ?? 0.05, 'down'),
-    mk('merchant', '商责流失率', '#FFC000', '%', ov.merchant_lost_rate, std.merchant_lost_rate ?? 0.01, 'down'),
-    mk('delivery', '平均配送时长', '#70AD47', 'min', ov.delivery_t, std.delivery_t ?? 15, 'down'),
-  ]
+  const board = await fetchAssessmentBoard(isoDate, city, storeId)
+  return board?.metrics || []
 }
 
 export async function fetchFunnel(isoDate: string, city = '全部', storeId = '全部') {
@@ -407,11 +474,14 @@ export async function fetchFinanceStrip(isoDate: string, city = '全部', storeI
   ])
 }
 
-export function healthFromMetrics(metrics: AssessMetric[]) {
-  if (!metrics.length) return { score: 0, met: 0, total: 0 }
+export function healthFromMetrics(metrics: AssessMetric[], composite?: number) {
+  if (!metrics.length) return { score: 0, met: 0, total: 0, grade: gradeOf(0) }
   const met = metrics.filter((m) => m.met).length
-  const score = Math.round((met / metrics.length) * 100)
-  return { score, met, total: metrics.length }
+  const score =
+    composite != null && Number.isFinite(composite)
+      ? Math.round(composite)
+      : Math.round(metrics.reduce((a, m) => a + (m.weightedScore || 0), 0))
+  return { score, met, total: metrics.length, grade: gradeOf(score) }
 }
 
 export function formatBizDate(rawDate: string) {

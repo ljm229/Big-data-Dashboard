@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 /**
  * 仅按视口宽度等比缩放，铺满左右；高度随设计稿展开，页面可纵向滚动。
  */
-export function useScreenScale(designW = 1920, designH = 1760) {
+export function useScreenScale(designW = 1920, designH = 1280) {
   const scale = ref(1)
   const style = ref<Record<string, string>>({})
   const wrapperStyle = ref<Record<string, string>>({})
