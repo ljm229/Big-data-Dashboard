@@ -465,9 +465,8 @@ export async function fetchAssessmentWeeklyReport(
   if (!weekId) return null
 
   const dashMod = await import('../data/dashboard.json')
-  const dash = (dashMod as { default?: typeof dashMod }).default || dashMod
-  const weeks =
-    (dash as { weeks?: Array<{ id: string; label?: string }> }).weeks || []
+  const dash = (dashMod as unknown as { default?: { weeks?: Array<{ id: string; label?: string }> } }).default || (dashMod as { weeks?: Array<{ id: string; label?: string }> })
+  const weeks = dash.weeks || []
   const weekIdx = weeks.findIndex((w) => w.id === weekId)
   const prevWeekId = weekIdx > 0 ? weeks[weekIdx - 1].id : null
   const weekLabel = weeks[weekIdx]?.label || weekId

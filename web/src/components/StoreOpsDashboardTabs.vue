@@ -104,7 +104,17 @@ import OpsTabPlaceholder from './ops-tabs/OpsTabPlaceholder.vue'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
 
-const tabs = [
+type TabDef = {
+  id: string
+  no: string
+  label: string
+  desc: string
+  soon: boolean
+  hint?: string
+  source?: string
+}
+
+const tabs: TabDef[] = [
   { id: 'overview', no: '01', label: '营运总览', desc: '对齐营运周报 · 五项环比与改善建议', soon: false },
   {
     id: 'result',
@@ -144,9 +154,9 @@ const tabs = [
     source: '逆向/问题单（待补）',
   },
   { id: 'coach', no: '07', label: '门店辅导', desc: '红线店与周事项', soon: false },
-] as const
+]
 
-type TabId = (typeof tabs)[number]['id']
+type TabId = string
 const activeTab = ref<TabId>('overview')
 const currentTab = computed(() => tabs.find((t) => t.id === activeTab.value))
 
