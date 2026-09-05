@@ -356,6 +356,28 @@ void (async () => {
   gap: 8px;
   flex: 1 1 auto;
   justify-content: flex-start;
+
+  :deep(.date-bar.light) {
+    .seg {
+      border-color: rgba(255, 255, 255, 0.45);
+      button {
+        color: #ffffff;
+        opacity: 0.82;
+        &.active {
+          opacity: 1;
+          color: #ffffff;
+          background: rgba(255, 255, 255, 0.22);
+          font-weight: 800;
+        }
+      }
+    }
+    .ctrl {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.45);
+      color: #ffffff;
+      color-scheme: dark;
+    }
+  }
 }
 .view-switch {
   display: flex;

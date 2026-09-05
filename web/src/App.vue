@@ -1,4 +1,5 @@
 <template>
+  <AccessGate>
   <div v-if="activeView === 'cockpit'" class="screen-root">
     <div class="screen-spacer" :style="wrapperStyle">
       <div class="screen" :style="style">
@@ -59,6 +60,7 @@
   </div>
 
   <StoreOpsDashboard v-else @switch-view="activeView = 'cockpit'" />
+  </AccessGate>
 </template>
 
 <script setup lang="ts">
@@ -66,6 +68,7 @@ import { ref, watch } from 'vue'
 import { useScreenScale } from './composables/useScale'
 import { useFilterStore, COCKPIT_DATES } from './stores/filter'
 import { hasAssessment } from './api/dashboard'
+import AccessGate from './components/AccessGate.vue'
 import AppHeader from './components/modules/AppHeader.vue'
 import KpiBand from './components/modules/KpiBand.vue'
 import StoreLaunchPanorama from './components/modules/StoreLaunchPanorama.vue'

@@ -86,11 +86,13 @@ function onChannel(e: Event) {
   button {
     border: 0;
     background: transparent;
-    color: #9eb6d0;
+    color: #ffffff;
+    opacity: 0.78;
     padding: 6px 11px;
     font-size: 12px;
     cursor: pointer;
     &.active {
+      opacity: 1;
       color: #04122a;
       background: linear-gradient(135deg, #9adfff, #3aa0ff);
       font-weight: 700;
