@@ -7,9 +7,13 @@ import raw from '../data/opsDashboard.json'
 import type { AssessMetric } from '../components/AssessmentCard.vue'
 import {
   fetchAssessmentStores,
+  fetchChannelMix,
+  fetchStoreChannelBoard,
   fetchStoreRank,
   resolveAssessmentWeekId,
   type AssessmentRow,
+  type DayOrderPoint,
+  type StoreChannelMetric,
 } from './dashboard'
 import {
   ASSESS_DEFS,
@@ -637,6 +641,16 @@ export type BizStoreRow = {
   deltaProfitRatePp: number | null
 }
 
+export type BizChannelRow = {
+  channel: string
+  paid: number
+  profit: number
+  profitRate: number
+  share: number
+  deltaPaid: number | null
+  deltaSharePp: number | null
+}
+
 export type StoreBusinessReport = {
   weekLabel: string
   prevLabel: string | null
@@ -644,8 +658,13 @@ export type StoreBusinessReport = {
   activeStoreCnt: number
   kpis: BizKpi[]
   rows: BizStoreRow[]
+  channels: BizChannelRow[]
+  /** 门店 × 渠道明细 */
+  storeChannels: StoreChannelMetric[]
+  /** 周期内每日订单/实付趋势 */
+  dayTrend: DayOrderPoint[]
   topGain: BizStoreRow[]
-  topDrag: BizStoreRow[]
+  topDown: BizStoreRow[]
   summaryNote: string
 }
 
@@ -654,7 +673,7 @@ function moneyDeltaRate(cur: number, prev: number | null) {
   return (cur - prev) / Math.abs(prev)
 }
 
-/** 门店经营结果：规模/利润/退款 + 周环比 + 贡献/拖累 */
+/** 门店经营结果：规模/利润 + 渠道结构 + 门店增减可视化数据 */
 export async function fetchStoreBusinessReport(
   isoDate: string,
   city = '全部',
@@ -831,24 +850,61 @@ export async function fetchStoreBusinessReport(
 
   const withDelta = rows.filter((r) => r.deltaPaid != null)
   const topGain = [...withDelta].sort((a, b) => (b.deltaPaid || 0) - (a.deltaPaid || 0)).slice(0, 5)
-  const topDrag = [...withDelta].sort((a, b) => (a.deltaPaid || 0) - (b.deltaPaid || 0)).slice(0, 5)
+  const topDown = [...withDelta].sort((a, b) => (a.deltaPaid || 0) - (b.deltaPaid || 0)).slice(0, 5)
+
+  const curChannels = await fetchChannelMix(curKey, cityKey)
+  const prevChannels = prevKey ? await fetchChannelMix(prevKey, cityKey) : []
+  const prevChMap = new Map(prevChannels.map((c) => [c.channel, c]))
+  const channels: BizChannelRow[] = curChannels.map((c) => {
+    const prev = prevChMap.get(c.channel)
+    return {
+      channel: c.channel,
+      paid: c.paid_amount,
+      profit: c.est_profit,
+      profitRate: c.profit_rate,
+      share: c.paid_share,
+      deltaPaid: prev ? c.paid_amount - prev.paid_amount : null,
+      deltaSharePp: prev ? (c.paid_share - prev.paid_share) * 100 : null,
+    }
+  })
+
+  const board = await fetchStoreChannelBoard(isoDate, city, storeId)
+  // 若门店筛选后有更精确的渠道汇总，覆盖饼图数据
+  if (board.channels.length) {
+    channels.splice(
+      0,
+      channels.length,
+      ...board.channels.map((c) => ({
+        channel: c.channel,
+        paid: c.paid,
+        profit: c.profit,
+        profitRate: c.profitRate,
+        share: c.share,
+        deltaPaid: null,
+        deltaSharePp: null,
+      })),
+    )
+  }
 
   const paidK = kpis.find((k) => k.key === 'paid')!
   const profitK = kpis.find((k) => k.key === 'profit_rate')!
-  const dragNames = topDrag
+  const downNames = topDown
     .filter((r) => (r.deltaPaid || 0) < 0)
     .slice(0, 3)
     .map((r) => r.name)
     .join('、')
+  const chLead = channels[0]
   const paidTxt =
     paidK.delta == null
-      ? '实付无对比'
-      : `实付环比 ${paidK.delta >= 0 ? '+' : ''}${(paidK.delta * 100).toFixed(1)}%`
+      ? ''
+      : `实付 ${(paidK.delta >= 0 ? '+' : '') + (paidK.delta * 100).toFixed(1)}%`
   const prTxt =
     profitK.delta == null
       ? ''
-      : `；毛利率 ${profitK.delta >= 0 ? '+' : ''}${profitK.delta.toFixed(2)}pp`
-  const summaryNote = `${paidTxt}${prTxt}${dragNames ? `。拖累主要来自 ${dragNames}` : ''}。`
+      : `毛利率 ${(profitK.delta >= 0 ? '+' : '') + profitK.delta.toFixed(2)}pp`
+  const chTxt = chLead ? `${chLead.channel} ${(chLead.share * 100).toFixed(0)}%` : ''
+  const downTxt = downNames ? `关注 ${downNames}` : ''
+  const summaryNote = [paidTxt, prTxt, chTxt, downTxt].filter(Boolean).join(' · ')
 
   return {
     weekLabel,
@@ -857,8 +913,11 @@ export async function fetchStoreBusinessReport(
     activeStoreCnt: curRows.filter((r) => r.paid_orders > 0).length,
     kpis,
     rows,
+    channels,
+    storeChannels: board.metrics,
+    dayTrend: board.dayTrend,
     topGain,
-    topDrag,
+    topDown,
     summaryNote,
   }
 }

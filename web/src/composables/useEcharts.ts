@@ -23,7 +23,18 @@ function applyAxisBase(axis: Record<string, unknown> | undefined) {
 function cloneOption(opt: EChartsOption): EChartsOption {
   // 3D / GL 配置不能 structuredClone / JSON 深拷贝，否则会丢内部引用并报 model not found
   const raw = opt as Record<string, unknown>
-  if (raw.geo3D || raw.grid3D || raw.globe) {
+  const series = raw.series
+  const hasGlSeries =
+    Array.isArray(series) &&
+    series.some(
+      (s) =>
+        s &&
+        typeof s === 'object' &&
+        ['surface', 'line3D', 'scatter3D', 'bar3D', 'lines3D'].includes(
+          String((s as { type?: string }).type || ''),
+        ),
+    )
+  if (raw.geo3D || raw.grid3D || raw.globe || hasGlSeries) {
     return { ...opt }
   }
   try {
@@ -34,7 +45,25 @@ function cloneOption(opt: EChartsOption): EChartsOption {
 }
 
 function withChartBase(opt: EChartsOption): EChartsOption {
-  const raw = cloneOption(opt)
+  const src = opt as Record<string, unknown>
+  const series = src.series
+  const hasGl =
+    src.geo3D ||
+    src.grid3D ||
+    src.globe ||
+    (Array.isArray(series) &&
+      series.some(
+        (s) =>
+          s &&
+          typeof s === 'object' &&
+          ['surface', 'line3D', 'scatter3D', 'bar3D', 'lines3D'].includes(
+            String((s as { type?: string }).type || ''),
+          ),
+      ))
+  // GL 图保留原 option，避免破坏 parametricEquation / grid3D
+  if (hasGl) return opt
+
+  const raw = cloneOption(opt) as Record<string, unknown>
   const base = chartBase as Record<string, unknown>
   const merged = { ...raw } as Record<string, unknown>
   merged.textStyle = {

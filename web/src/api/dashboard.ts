@@ -930,6 +930,143 @@ export async function fetchDayTrend(dateKey: string, cityName = '全国', channe
   return wait(points)
 }
 
+export type StoreChannelMetric = {
+  store: string
+  fullName: string
+  city: string
+  channel: string
+  paid: number
+  orders: number
+  aov: number
+  profit: number
+  profitRate: number
+  /** 占该门店实付份额 */
+  storeShare: number
+}
+
+export type DayOrderPoint = {
+  date: string
+  label: string
+  orders: number
+  paid: number
+  profit: number
+  aov: number
+}
+
+function matchStoreRow(fullName: string, storeId: string) {
+  if (!storeId || storeId === '全部') return true
+  const short = storeName(fullName)
+  return short === storeId || fullName === storeId || fullName.includes(storeId)
+}
+
+function weekDaysOf(dateKey: string): string[] {
+  const weeks = data.weeks || []
+  if (dateKey.startsWith('W:')) {
+    const id = dateKey.slice(2)
+    return [...(weeks.find((w) => w.id === id)?.days || [])].sort()
+  }
+  const hit = weeks.find((w) => w.days.includes(dateKey))
+  if (hit) return [...hit.days].sort()
+  return (data.days || []).includes(dateKey) ? [dateKey] : []
+}
+
+/** 门店 × 渠道：实付订单 / 实付金额 / 单均实付 / 毛利 + 日订单趋势 */
+export async function fetchStoreChannelBoard(
+  dateKey: string,
+  cityName = '全国',
+  storeId = '全部',
+) {
+  let key = dateKey
+  if (!dateKey.startsWith('W:')) {
+    const weekId = resolveAssessmentWeekId(dateKey)
+    if (weekId && (data.channelStores?.[`W:${weekId}`]?.length || 0) > 0) {
+      key = `W:${weekId}`
+    }
+  }
+
+  const cityKey = !cityName || cityName === '全部' ? '全国' : cityName
+  let rows = filterChannelStores(key, cityKey, '全部')
+  if (!rows.length && key !== dateKey) rows = filterChannelStores(dateKey, cityKey, '全部')
+  rows = rows.filter((r) => matchStoreRow(String(r['门店名称'] || ''), storeId))
+
+  const byStorePaid: Record<string, number> = {}
+  rows.forEach((r) => {
+    const full = String(r['门店名称'] || '')
+    const short = storeName(full)
+    byStorePaid[short] = (byStorePaid[short] || 0) + toNum(r['用户实付营业额'])
+  })
+
+  const metrics: StoreChannelMetric[] = rows
+    .map((r) => {
+      const full = String(r['门店名称'] || '')
+      const short = storeName(full)
+      const paid = toNum(r['用户实付营业额'])
+      const orders = toNum(r['用户实付订单量'])
+      const profit = toNum(r['预计毛利'])
+      const gmv = toNum(r['总营业额']) || paid
+      const storePaid = byStorePaid[short] || 1
+      return {
+        store: short || full,
+        fullName: full,
+        city: String(r['城市名称'] || ''),
+        channel: String(r['渠道'] || '未知'),
+        paid,
+        orders,
+        aov: orders ? paid / orders : 0,
+        profit,
+        profitRate: toNum(r['毛利率']) || (gmv ? profit / gmv : 0),
+        storeShare: paid / storePaid,
+      }
+    })
+    .sort((a, b) => a.store.localeCompare(b.store, 'zh') || b.paid - a.paid)
+
+  const channelMix: Record<string, { paid: number; orders: number; profit: number }> = {}
+  metrics.forEach((m) => {
+    if (!channelMix[m.channel]) channelMix[m.channel] = { paid: 0, orders: 0, profit: 0 }
+    channelMix[m.channel].paid += m.paid
+    channelMix[m.channel].orders += m.orders
+    channelMix[m.channel].profit += m.profit
+  })
+  const channelTotal = Object.values(channelMix).reduce((a, x) => a + x.paid, 0) || 1
+  const channels = Object.entries(channelMix)
+    .map(([channel, x]) => ({
+      channel,
+      paid: x.paid,
+      orders: x.orders,
+      aov: x.orders ? x.paid / x.orders : 0,
+      profit: x.profit,
+      profitRate: x.paid ? x.profit / x.paid : 0,
+      share: x.paid / channelTotal,
+    }))
+    .sort((a, b) => b.paid - a.paid)
+
+  const dayList = weekDaysOf(dateKey.startsWith('W:') ? dateKey : key)
+  const dayTrend: DayOrderPoint[] = []
+  for (const d of dayList) {
+    let dayRows = filterChannelStores(d, cityKey, '全部').filter((r) =>
+      matchStoreRow(String(r['门店名称'] || ''), storeId),
+    )
+    if (!dayRows.length) {
+      dayRows = storeRows(d)
+        .filter((r) => matchCity(String(r['城市名称'] || ''), cityKey))
+        .filter((r) => matchStoreRow(String(r['门店名称'] || ''), storeId))
+    }
+    const paid = dayRows.reduce((a, r) => a + toNum(r['用户实付营业额']), 0)
+    const orders = dayRows.reduce((a, r) => a + toNum(r['用户实付订单量']), 0)
+    const profit = dayRows.reduce((a, r) => a + toNum(r['预计毛利']), 0)
+    dayTrend.push({
+      date: d,
+      label: d.slice(5).replace('-', '/'),
+      orders,
+      paid,
+      profit,
+      aov: orders ? paid / orders : 0,
+    })
+  }
+
+  return wait({ metrics, channels, dayTrend, storeCnt: Object.keys(byStorePaid).length })
+}
+
 /** 门店经营画像（地图/榜单击） */
 export async function fetchStoreProfile(dateKey: string, storeNameOrShort: string) {
   const short = storeName(storeNameOrShort)

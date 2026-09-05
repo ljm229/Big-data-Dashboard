@@ -9,6 +9,11 @@
         </div>
       </div>
 
+      <div class="nav-switch">
+        <button type="button" class="link" @click="emit('switch-edition')">← 经典版</button>
+        <button type="button" class="link" @click="emit('switch-view')">数据大屏</button>
+      </div>
+
       <nav>
         <button
           v-for="t in tabs"
@@ -22,11 +27,6 @@
           <i v-if="t.soon">待接入</i>
         </button>
       </nav>
-
-      <div class="nav-foot">
-        <button type="button" class="link" @click="emit('switch-edition')">← 经典版</button>
-        <button type="button" class="link" @click="emit('switch-view')">数据大屏</button>
-      </div>
     </aside>
 
     <div class="ops-tabs__main">
@@ -66,7 +66,7 @@
 
       <div v-if="!hasAssessData" class="empty-panel">
         <strong>该周期暂无营运考核数据</strong>
-        <p>请切换到 8.21–8.27 或 8.28–9.3。</p>
+        <p>请切换到 8.21–8.27 或 8.28–9.3（建议按周查看）。</p>
       </div>
 
       <div v-else class="tab-body">
@@ -137,21 +137,12 @@ const tabs: TabDef[] = [
     id: 'result',
     no: '02',
     label: '经营结果',
-    desc: '规模利润 · 贡献拖累 · 门店榜',
+    desc: '门店×渠道 · 规模利润可视化',
     soon: false,
   },
   {
-    id: 'channel',
-    no: '03',
-    label: '渠道诊断',
-    desc: '谁贡献、谁拖累',
-    soon: true,
-    hint: '渠道份额、毛利率、周异动（明细仍回翱象）',
-    source: '渠道门店周趋势',
-  },
-  {
     id: 'traffic',
-    no: '04',
+    no: '03',
     label: '流量与活动',
     desc: '漏斗与活动质量',
     soon: true,
@@ -160,14 +151,14 @@ const tabs: TabDef[] = [
   },
   {
     id: 'supply',
-    no: '05',
+    no: '04',
     label: '商品供给',
     desc: '品类结构与毛利',
     soon: false,
   },
   {
     id: 'reverse',
-    no: '06',
+    no: '05',
     label: '逆向客诉',
     desc: '退款与客诉',
     soon: true,
@@ -176,7 +167,7 @@ const tabs: TabDef[] = [
   },
   {
     id: 'coach',
-    no: '07',
+    no: '06',
     label: '门店辅导',
     desc: '本周盯哪些店',
     soon: false,
@@ -262,11 +253,32 @@ function softGrade(g: string) {
     color: var(--ops-nav-text);
   }
 }
+.nav-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  .link {
+    border: 0;
+    background: transparent;
+    color: var(--ops-nav-text);
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
+    }
+  }
+}
 nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;
   button {
     display: grid;
     grid-template-columns: 28px 1fr auto;
@@ -314,27 +326,6 @@ nav {
     }
     &.soon:not(.active) {
       opacity: 0.72;
-    }
-  }
-}
-.nav-foot {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  .link {
-    border: 0;
-    background: transparent;
-    color: var(--ops-nav-text);
-    text-align: left;
-    padding: 8px 10px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 12px;
-    &:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: #e2e8f0;
     }
   }
 }

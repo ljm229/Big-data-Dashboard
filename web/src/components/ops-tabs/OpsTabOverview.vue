@@ -538,7 +538,17 @@ watch(
   }
 }
 .scroll {
-  overflow-x: auto;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--ops-border-soft, #f0f2f5);
+  border-radius: 8px;
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #fff;
+    box-shadow: 0 1px 0 var(--ops-border-soft, #f0f2f5);
+  }
 }
 table {
   width: 100%;
