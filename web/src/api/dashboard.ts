@@ -805,24 +805,35 @@ export async function fetchStoreRank(dateKey: string, cityName = '全国', chann
       : filterStores(dateKey, cityName)
   return wait(
     rows
-      .map((r) => ({
-        name: storeName(r['门店名称']),
-        fullName: String(r['门店名称'] || ''),
-        city: String(r['城市名称'] || ''),
-        code: String(r['门店code'] || ''),
-        channel: String(r['渠道'] || r['渠道名称'] || channel || ''),
-        paid_amount: toNum(r['用户实付营业额']),
-        profit_rate: toNum(r['毛利率']),
-        paid_orders: toNum(r['用户实付订单量']),
-        refund_orders: toNum(r['退款订单量']),
-        avg_item_price: toNum(r['单均价']),
-        active_sku_cnt: toNum(r['动销商品数']),
-        refund_amount: toNum(r['退款金额']),
-        self_delivery_cost: toNum(r['商家自配送费用']),
-        sku_sales: toNum(r['商品销量']),
-        return_qty: toNum(r['商品退货数量']),
-        est_profit: toNum(r['预计毛利']),
-      }))
+      .map((r) => {
+        const paid_amount = toNum(r['用户实付营业额'])
+        const paid_orders = toNum(r['用户实付订单量'])
+        const refund_orders = toNum(r['退款订单量'])
+        const est_profit = toNum(r['预计毛利'])
+        const total_gmv = toNum(r['总营业额'])
+        return {
+          name: storeName(r['门店名称']),
+          fullName: String(r['门店名称'] || ''),
+          city: String(r['城市名称'] || ''),
+          code: String(r['门店code'] || ''),
+          channel: String(r['渠道'] || r['渠道名称'] || channel || ''),
+          paid_amount,
+          total_gmv,
+          profit_rate: toNum(r['毛利率']),
+          paid_orders,
+          buyer_cnt: toNum(r['交易用户数']),
+          refund_orders,
+          refund_amount: toNum(r['退款金额']),
+          refund_rate: paid_orders ? refund_orders / paid_orders : 0,
+          neg_profit_order_rate: toNum(r['负毛利订单占比']),
+          avg_item_price: toNum(r['单均价']) || (paid_orders ? paid_amount / paid_orders : 0),
+          active_sku_cnt: toNum(r['动销商品数']),
+          self_delivery_cost: toNum(r['商家自配送费用']),
+          sku_sales: toNum(r['商品销量']),
+          return_qty: toNum(r['商品退货数量']),
+          est_profit,
+        }
+      })
       .sort((a, b) => b.paid_amount - a.paid_amount),
   )
 }

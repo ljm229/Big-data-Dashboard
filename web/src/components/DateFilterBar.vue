@@ -122,20 +122,31 @@ select.ctrl option {
 
 .date-bar.light {
   .seg {
-    border-color: rgba(42, 92, 130, 0.25);
+    border-color: #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
     button {
-      color: #5a6a7a;
+      color: #94a3b8;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 12px;
+      font-weight: 600;
       &.active {
         color: #fff;
-        background: #2a5c82;
+        background: #1e293b;
+        font-weight: 700;
       }
     }
   }
   .ctrl {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(42, 92, 130, 0.22);
-    color: #2a5c82;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    color: #1f2937;
     color-scheme: light;
+    height: 32px;
+    border-radius: 6px;
+    font-weight: 600;
+    max-width: 160px;
   }
 }
 </style>

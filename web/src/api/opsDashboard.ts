@@ -7,6 +7,7 @@ import raw from '../data/opsDashboard.json'
 import type { AssessMetric } from '../components/AssessmentCard.vue'
 import {
   fetchAssessmentStores,
+  fetchStoreRank,
   resolveAssessmentWeekId,
   type AssessmentRow,
 } from './dashboard'
@@ -607,6 +608,258 @@ export async function fetchAssessmentWeeklyReport(
     merchantRank,
     suggestions,
     summaryNote: summaryNote ? `关键变化：${summaryNote}` : '本周无对比周数据',
+  }
+}
+
+export type BizKpi = {
+  key: string
+  name: string
+  value: number
+  prev: number | null
+  delta: number | null
+  deltaKind: 'pct' | 'pp' | 'money' | 'num'
+  lowerBetter?: boolean
+}
+
+export type BizStoreRow = {
+  name: string
+  fullName: string
+  city: string
+  paid: number
+  orders: number
+  aov: number
+  profit: number
+  profitRate: number
+  refundRate: number
+  negProfitRate: number
+  deltaPaid: number | null
+  deltaProfit: number | null
+  deltaProfitRatePp: number | null
+}
+
+export type StoreBusinessReport = {
+  weekLabel: string
+  prevLabel: string | null
+  storeCnt: number
+  activeStoreCnt: number
+  kpis: BizKpi[]
+  rows: BizStoreRow[]
+  topGain: BizStoreRow[]
+  topDrag: BizStoreRow[]
+  summaryNote: string
+}
+
+function moneyDeltaRate(cur: number, prev: number | null) {
+  if (prev == null || prev === 0) return null
+  return (cur - prev) / Math.abs(prev)
+}
+
+/** 门店经营结果：规模/利润/退款 + 周环比 + 贡献/拖累 */
+export async function fetchStoreBusinessReport(
+  isoDate: string,
+  city = '全部',
+  storeId = '全部',
+): Promise<StoreBusinessReport | null> {
+  const dashMod = await import('../data/dashboard.json')
+  const dash = (dashMod as unknown as { default?: { weeks?: Array<{ id: string; label?: string }> } }).default || (dashMod as { weeks?: Array<{ id: string; label?: string }> })
+  const weeks = dash.weeks || []
+
+  let curKey = isoDate
+  let prevKey: string | null = null
+  let weekLabel = isoDate
+  let prevLabel: string | null = null
+
+  if (isoDate.startsWith('W:')) {
+    const weekId = isoDate.slice(2)
+    const idx = weeks.findIndex((w) => w.id === weekId)
+    weekLabel = weeks[idx]?.label || weekId
+    if (idx > 0) {
+      prevKey = `W:${weeks[idx - 1].id}`
+      prevLabel = weeks[idx - 1]?.label || weeks[idx - 1].id
+    }
+  } else {
+    const weekId = resolveAssessmentWeekId(isoDate)
+    const idx = weekId ? weeks.findIndex((w) => w.id === weekId) : -1
+    if (weekId && idx >= 0) {
+      curKey = `W:${weekId}`
+      weekLabel = weeks[idx]?.label || weekId
+      if (idx > 0) {
+        prevKey = `W:${weeks[idx - 1].id}`
+        prevLabel = weeks[idx - 1]?.label || weeks[idx - 1].id
+      }
+    } else {
+      const dayIdx = (dash as { days?: string[] }).days?.indexOf(isoDate) ?? -1
+      const days = (dash as { days?: string[] }).days || []
+      if (dayIdx > 0) {
+        prevKey = days[dayIdx - 1]
+        prevLabel = prevKey
+      }
+      weekLabel = isoDate.slice(5).replace('-', '.')
+    }
+  }
+
+  const cityKey = !city || city === '全部' ? '全国' : city
+  let curRows = await fetchStoreRank(curKey, cityKey, '全部')
+  if (!curRows.length && !isoDate.startsWith('W:')) {
+    curRows = await fetchStoreRank(isoDate, cityKey, '全部')
+    curKey = isoDate
+  }
+  if (storeId && storeId !== '全部') {
+    curRows = curRows.filter((r) => r.name === storeId || r.fullName === storeId || r.code === storeId)
+  }
+  if (!curRows.length) return null
+
+  let prevRows = prevKey ? await fetchStoreRank(prevKey, cityKey, '全部') : []
+  if (storeId && storeId !== '全部' && prevRows.length) {
+    prevRows = prevRows.filter((r) => r.name === storeId || r.fullName === storeId || r.code === storeId)
+  }
+  const prevMap = new Map(prevRows.map((r) => [r.name || r.fullName, r]))
+
+  const sum = (rows: typeof curRows, k: keyof (typeof curRows)[0]) =>
+    rows.reduce((a, r) => a + (Number(r[k]) || 0), 0)
+  const paid = sum(curRows, 'paid_amount')
+  const orders = sum(curRows, 'paid_orders')
+  const profit = sum(curRows, 'est_profit')
+  const gmv = sum(curRows, 'total_gmv') || paid
+  const buyers = sum(curRows, 'buyer_cnt')
+  const aov = buyers ? paid / buyers : orders ? paid / orders : 0
+  const profitRate = gmv ? profit / gmv : 0
+  const refundRate = orders ? sum(curRows, 'refund_orders') / orders : 0
+  const negProfitRate = curRows.length
+    ? curRows.reduce((a, r) => a + (r.neg_profit_order_rate || 0), 0) / curRows.length
+    : 0
+
+  const prevPaid = prevRows.length ? sum(prevRows, 'paid_amount') : null
+  const prevOrders = prevRows.length ? sum(prevRows, 'paid_orders') : null
+  const prevProfit = prevRows.length ? sum(prevRows, 'est_profit') : null
+  const prevGmv = prevRows.length ? sum(prevRows, 'total_gmv') || prevPaid : null
+  const prevBuyers = prevRows.length ? sum(prevRows, 'buyer_cnt') : null
+  const prevAov =
+    prevBuyers && prevPaid
+      ? prevPaid / prevBuyers
+      : prevOrders && prevPaid
+        ? prevPaid / prevOrders
+        : null
+  const prevProfitRate = prevGmv && prevProfit != null ? prevProfit / prevGmv : null
+  const prevRefundRate =
+    prevOrders && prevOrders > 0 ? sum(prevRows, 'refund_orders') / prevOrders : null
+  const prevNeg =
+    prevRows.length
+      ? prevRows.reduce((a, r) => a + (r.neg_profit_order_rate || 0), 0) / prevRows.length
+      : null
+
+  const kpis: BizKpi[] = [
+    {
+      key: 'paid',
+      name: '实付营业额',
+      value: paid,
+      prev: prevPaid,
+      delta: moneyDeltaRate(paid, prevPaid),
+      deltaKind: 'pct',
+    },
+    {
+      key: 'orders',
+      name: '实付订单',
+      value: orders,
+      prev: prevOrders,
+      delta: moneyDeltaRate(orders, prevOrders),
+      deltaKind: 'pct',
+    },
+    {
+      key: 'aov',
+      name: '客单',
+      value: aov,
+      prev: prevAov,
+      delta: prevAov == null ? null : aov - prevAov,
+      deltaKind: 'money',
+    },
+    {
+      key: 'profit',
+      name: '预计毛利',
+      value: profit,
+      prev: prevProfit,
+      delta: moneyDeltaRate(profit, prevProfit),
+      deltaKind: 'pct',
+    },
+    {
+      key: 'profit_rate',
+      name: '毛利率',
+      value: profitRate,
+      prev: prevProfitRate,
+      delta: prevProfitRate == null ? null : (profitRate - prevProfitRate) * 100,
+      deltaKind: 'pp',
+    },
+    {
+      key: 'refund_rate',
+      name: '退款率',
+      value: refundRate,
+      prev: prevRefundRate,
+      delta: prevRefundRate == null ? null : (refundRate - prevRefundRate) * 100,
+      deltaKind: 'pp',
+      lowerBetter: true,
+    },
+    {
+      key: 'neg_profit',
+      name: '负毛利订单占比',
+      value: negProfitRate,
+      prev: prevNeg,
+      delta: prevNeg == null ? null : (negProfitRate - prevNeg) * 100,
+      deltaKind: 'pp',
+      lowerBetter: true,
+    },
+  ]
+
+  const rows: BizStoreRow[] = curRows.map((r) => {
+    const prev = prevMap.get(r.name) || prevMap.get(r.fullName)
+    const rowAov = r.paid_orders ? r.paid_amount / r.paid_orders : r.avg_item_price || 0
+    return {
+      name: r.name,
+      fullName: r.fullName,
+      city: r.city,
+      paid: r.paid_amount,
+      orders: r.paid_orders,
+      aov: rowAov,
+      profit: r.est_profit,
+      profitRate: r.profit_rate,
+      refundRate: r.refund_rate,
+      negProfitRate: r.neg_profit_order_rate,
+      deltaPaid: prev ? r.paid_amount - prev.paid_amount : null,
+      deltaProfit: prev ? r.est_profit - prev.est_profit : null,
+      deltaProfitRatePp: prev ? (r.profit_rate - prev.profit_rate) * 100 : null,
+    }
+  })
+
+  const withDelta = rows.filter((r) => r.deltaPaid != null)
+  const topGain = [...withDelta].sort((a, b) => (b.deltaPaid || 0) - (a.deltaPaid || 0)).slice(0, 5)
+  const topDrag = [...withDelta].sort((a, b) => (a.deltaPaid || 0) - (b.deltaPaid || 0)).slice(0, 5)
+
+  const paidK = kpis.find((k) => k.key === 'paid')!
+  const profitK = kpis.find((k) => k.key === 'profit_rate')!
+  const dragNames = topDrag
+    .filter((r) => (r.deltaPaid || 0) < 0)
+    .slice(0, 3)
+    .map((r) => r.name)
+    .join('、')
+  const paidTxt =
+    paidK.delta == null
+      ? '实付无对比'
+      : `实付环比 ${paidK.delta >= 0 ? '+' : ''}${(paidK.delta * 100).toFixed(1)}%`
+  const prTxt =
+    profitK.delta == null
+      ? ''
+      : `；毛利率 ${profitK.delta >= 0 ? '+' : ''}${profitK.delta.toFixed(2)}pp`
+  const summaryNote = `${paidTxt}${prTxt}${dragNames ? `。拖累主要来自 ${dragNames}` : ''}。`
+
+  return {
+    weekLabel,
+    prevLabel,
+    storeCnt: curRows.length,
+    activeStoreCnt: curRows.filter((r) => r.paid_orders > 0).length,
+    kpis,
+    rows,
+    topGain,
+    topDrag,
+    summaryNote,
   }
 }
 

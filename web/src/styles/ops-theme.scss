@@ -1,0 +1,35 @@
+/* Tab 运营看板 · QuickMart 风配色（挂在 .ops-theme） */
+.ops-theme {
+  --ops-bg: #f5f6f8;
+  --ops-surface: #ffffff;
+  --ops-border: #e8eaef;
+  --ops-border-soft: #f0f2f5;
+  --ops-text: #1f2937;
+  --ops-text-2: #64748b;
+  --ops-muted: #94a3b8;
+  --ops-primary: #3b82f6;
+  --ops-primary-2: #60a5fa;
+  --ops-primary-soft: #eff6ff;
+  --ops-nav: #1e293b;
+  --ops-nav-text: #94a3b8;
+  --ops-nav-active: #f97316;
+  --ops-ok: #10b981;
+  --ops-ok-bg: #ecfdf5;
+  --ops-bad: #ef4444;
+  --ops-bad-bg: #fef2f2;
+  --ops-warn: #f59e0b;
+  --ops-warn-bg: #fffbeb;
+  --ops-info: #3b82f6;
+  --ops-info-bg: #eff6ff;
+  --ops-num: #0f172a;
+  --ops-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --ops-radius: 10px;
+  --ops-font: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ops-font-num: 'Rajdhani', 'DIN Alternate', Bahnschrift, Consolas, monospace;
+
+  --ops-g-s: #10b981;
+  --ops-g-a: #3b82f6;
+  --ops-g-b: #f59e0b;
+  --ops-g-c: #f97316;
+  --ops-g-d: #ef4444;
+}

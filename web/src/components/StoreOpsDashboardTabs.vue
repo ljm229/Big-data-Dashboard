@@ -1,5 +1,5 @@
 <template>
-  <div class="ops-tabs">
+  <div class="ops-tabs ops-theme">
     <aside class="ops-tabs__nav">
       <div class="nav-brand">
         <b>运</b>
@@ -31,13 +31,23 @@
 
     <div class="ops-tabs__main">
       <header class="topbar">
-        <div class="topbar__title">
+        <div class="topbar__row">
           <h1>{{ currentTab?.label }}</h1>
-          <p>{{ currentTab?.desc }} · {{ assessWeekLabel }} · {{ storeCntText }}</p>
+          <div v-if="hasAssessData" class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
+            <div class="health__grade" :style="{ color: softGrade(health.grade.grade) }">
+              {{ health.grade.grade }}
+            </div>
+            <strong>{{ headerScore }}</strong>
+            <div>
+              <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
+              <span>{{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} 合格店</span>
+            </div>
+          </div>
         </div>
 
         <div class="topbar__filters">
           <DateFilterBar variant="light" scope="ops" />
+          <div class="filter-divider" />
           <label class="filter">
             <span>城市</span>
             <select v-model="city">
@@ -51,15 +61,6 @@
               <option v-for="s in storeOptions" :key="s.id" :value="s.id">{{ s.shortName }}</option>
             </select>
           </label>
-        </div>
-
-        <div v-if="hasAssessData" class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
-          <div class="health__grade" :style="{ color: health.grade.color }">{{ health.grade.grade }}</div>
-          <strong>{{ headerScore }}</strong>
-          <div>
-            <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
-            <span>{{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} 合格店</span>
-          </div>
         </div>
       </header>
 
@@ -75,6 +76,13 @@
           :city="city"
           :store-id="storeId"
         />
+        <OpsTabResult
+          v-else-if="activeTab === 'result'"
+          :date-key="assessKey"
+          :city="city"
+          :store-id="storeId"
+        />
+        <OpsTabTraffic v-else-if="activeTab === 'traffic'" />
         <OpsTabSupply v-else-if="activeTab === 'supply'" :date-key="assessKey" :city="city" :store-id="storeId" />
         <OpsTabCoach
           v-else-if="activeTab === 'coach'"
@@ -98,9 +106,12 @@ import { computed, ref } from 'vue'
 import DateFilterBar from './DateFilterBar.vue'
 import { useOpsAssessment } from '../composables/useOpsAssessment'
 import OpsTabOverview from './ops-tabs/OpsTabOverview.vue'
+import OpsTabResult from './ops-tabs/OpsTabResult.vue'
+import OpsTabTraffic from './ops-tabs/OpsTabTraffic.vue'
 import OpsTabSupply from './ops-tabs/OpsTabSupply.vue'
 import OpsTabCoach from './ops-tabs/OpsTabCoach.vue'
 import OpsTabPlaceholder from './ops-tabs/OpsTabPlaceholder.vue'
+import '../styles/ops-theme.scss'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
 
@@ -115,15 +126,19 @@ type TabDef = {
 }
 
 const tabs: TabDef[] = [
-  { id: 'overview', no: '01', label: '营运总览', desc: '对齐营运周报 · 五项环比与改善建议', soon: false },
+  {
+    id: 'overview',
+    no: '01',
+    label: '门店运营质量',
+    desc: '履约五项是否过线',
+    soon: false,
+  },
   {
     id: 'result',
     no: '02',
     label: '经营结果',
-    desc: '规模与利润',
-    soon: true,
-    hint: '复用大屏经营 KPI、毛利与退款摘要',
-    source: '经营分析-周/门店/城市',
+    desc: '规模利润 · 贡献拖累 · 门店榜',
+    soon: false,
   },
   {
     id: 'channel',
@@ -131,29 +146,41 @@ const tabs: TabDef[] = [
     label: '渠道诊断',
     desc: '谁贡献、谁拖累',
     soon: true,
-    hint: '渠道份额、毛利率、周异动与结论卡',
+    hint: '渠道份额、毛利率、周异动（明细仍回翱象）',
     source: '渠道门店周趋势',
   },
   {
-    id: 'fulfill',
+    id: 'traffic',
     no: '04',
-    label: '履约服务',
-    desc: '过程五项过线',
+    label: '流量与活动',
+    desc: '漏斗与活动质量',
     soon: true,
-    hint: '售罄/错漏拣/仓T/IM/商责深化拆解',
-    source: '营运考核 + 履约明细（待补）',
+    hint: '门店/汇总漏斗；商品流量明细回翱象',
+    source: '现有大屏流量/活动字段（框架）',
   },
-  { id: 'supply', no: '05', label: '商品供给', desc: '品类结构与毛利', soon: false },
+  {
+    id: 'supply',
+    no: '05',
+    label: '商品供给',
+    desc: '品类结构与毛利',
+    soon: false,
+  },
   {
     id: 'reverse',
     no: '06',
     label: '逆向客诉',
-    desc: '钱亏在哪',
+    desc: '退款与客诉',
     soon: true,
-    hint: '商责、逆向原因/品类/金额',
+    hint: '门店退款摘要；负毛利订单明细回翱象',
     source: '逆向/问题单（待补）',
   },
-  { id: 'coach', no: '07', label: '门店辅导', desc: '红线店与周事项', soon: false },
+  {
+    id: 'coach',
+    no: '07',
+    label: '门店辅导',
+    desc: '本周盯哪些店',
+    soon: false,
+  },
 ]
 
 type TabId = string
@@ -176,28 +203,34 @@ const {
   watchStores,
   failTags,
 } = useOpsAssessment()
+
+const GRADE_SOFT: Record<string, string> = {
+  S: '#10b981',
+  A: '#3b82f6',
+  B: '#f59e0b',
+  C: '#f97316',
+  D: '#ef4444',
+}
+function softGrade(g: string) {
+  return GRADE_SOFT[g] || '#3b82f6'
+}
 </script>
 
 <style scoped lang="scss">
 .ops-tabs {
-  --primary: #2a5c82;
-  --accent: #5b9bd5;
-  --bg: #f3f6f9;
-  --text: #3d3d3d;
-  --muted: #8c8c8c;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  grid-template-columns: 196px minmax(0, 1fr);
+  background: var(--ops-bg);
+  color: var(--ops-text);
+  font-family: var(--ops-font);
 }
 .ops-tabs__nav {
-  background: linear-gradient(180deg, #1e4a6e, #2a5c82 40%, #1a3d5c);
+  background: var(--ops-nav);
   color: #fff;
   display: flex;
   flex-direction: column;
-  padding: 16px 10px 12px;
+  padding: 18px 10px 14px;
   min-height: 100vh;
   position: sticky;
   top: 0;
@@ -206,60 +239,78 @@ const {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 4px 8px 16px;
+  padding: 2px 8px 18px;
   b {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
     display: grid;
     place-items: center;
-    background: rgba(255, 255, 255, 0.16);
+    background: var(--ops-nav-active);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
   }
   strong {
     display: block;
     font-size: 14px;
+    color: #fff;
+    font-weight: 700;
   }
   span {
     font-size: 11px;
-    opacity: 0.75;
+    color: var(--ops-nav-text);
   }
 }
 nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
   button {
     display: grid;
     grid-template-columns: 28px 1fr auto;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     text-align: left;
     border: 0;
     background: transparent;
-    color: rgba(255, 255, 255, 0.82);
-    border-radius: 10px;
-    padding: 10px 8px;
+    color: var(--ops-nav-text);
+    border-radius: 8px;
+    padding: 10px 10px;
     cursor: pointer;
     font-size: 13px;
+    transition: background 0.15s ease, color 0.15s ease;
     em {
       font-style: normal;
       font-size: 11px;
-      opacity: 0.7;
-      font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+      color: #64748b;
+      font-family: var(--ops-font-num);
+      font-weight: 600;
     }
     i {
       font-style: normal;
       font-size: 10px;
-      padding: 1px 5px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.7);
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #94a3b8;
+    }
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
     }
     &.active {
-      background: rgba(255, 255, 255, 0.18);
+      background: var(--ops-nav-active);
       color: #fff;
       font-weight: 700;
+      em {
+        color: rgba(255, 255, 255, 0.85);
+      }
+      i {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
     }
     &.soon:not(.active) {
       opacity: 0.72;
@@ -269,129 +320,149 @@ nav {
 .nav-foot {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   .link {
     border: 0;
     background: transparent;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--ops-nav-text);
     text-align: left;
-    padding: 8px;
+    padding: 8px 10px;
     border-radius: 8px;
     cursor: pointer;
     font-size: 12px;
     &:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
     }
   }
 }
 .ops-tabs__main {
   min-width: 0;
-  padding: 14px 18px 24px;
+  padding: 16px 20px 28px;
+  background: var(--ops-bg);
 }
 .topbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  align-items: center;
   margin-bottom: 14px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #fff;
-  border: 1px solid rgba(42, 92, 130, 0.08);
-  box-shadow: 0 2px 10px rgba(42, 92, 130, 0.05);
+  padding: 14px 16px;
+  border-radius: var(--ops-radius);
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+  box-shadow: var(--ops-shadow);
 }
-.topbar__title {
-  min-width: 160px;
+.topbar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   h1 {
     margin: 0;
-    font-size: 18px;
-    color: var(--primary);
-  }
-  p {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--muted);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--ops-text);
+    letter-spacing: 0.01em;
   }
 }
 .topbar__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
-  flex: 1;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--ops-border-soft);
+}
+.filter-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--ops-border);
+  flex-shrink: 0;
 }
 .filter {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ops-muted);
+  span {
+    flex-shrink: 0;
+  }
   select {
-    min-width: 100px;
-    border: 1px solid #d7e2ec;
-    border-radius: 8px;
-    padding: 7px 9px;
-    color: var(--primary);
+    min-width: 108px;
+    height: 32px;
+    border: 1px solid var(--ops-border);
+    border-radius: 6px;
+    padding: 0 10px;
+    color: var(--ops-text);
     font-weight: 600;
+    font-size: 12px;
     background: #fff;
+    box-sizing: border-box;
   }
 }
 .health {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: #f0f6fb;
-  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--ops-primary-soft);
+  flex-shrink: 0;
   &__grade {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     display: grid;
     place-items: center;
     font-weight: 900;
     background: #fff;
-    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+    border: 1px solid var(--ops-border);
+    font-family: var(--ops-font-num);
+    font-size: 14px;
   }
   strong {
-    font-size: 28px;
-    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+    font-size: 26px;
+    font-family: var(--ops-font-num);
     line-height: 1;
+    color: var(--ops-num);
+    font-variant-numeric: tabular-nums;
   }
   b {
     display: block;
     font-size: 12px;
-    color: var(--primary);
+    color: var(--ops-text);
   }
   span {
     font-size: 11px;
-    color: var(--muted);
+    color: var(--ops-muted);
   }
   &.ok strong {
-    color: #2f7d48;
+    color: var(--ops-ok);
   }
   &.warn strong {
-    color: #c47d00;
+    color: var(--ops-warn);
   }
 }
 .empty-panel {
   margin-top: 20px;
   padding: 28px;
   text-align: center;
-  background: #fff;
-  border-radius: 12px;
-  border: 1px dashed rgba(42, 92, 130, 0.3);
+  background: var(--ops-surface);
+  border-radius: var(--ops-radius);
+  border: 1px dashed var(--ops-border);
   strong {
     display: block;
-    color: var(--primary);
+    color: var(--ops-text);
     margin-bottom: 6px;
   }
   p {
     margin: 0;
-    color: var(--muted);
+    color: var(--ops-muted);
   }
 }
 .tab-body {

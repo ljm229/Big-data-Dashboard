@@ -20,18 +20,20 @@ defineProps<{
 
 <style scoped lang="scss">
 .placeholder {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--ops-surface, #fff);
+  border-radius: var(--ops-radius, 12px);
   padding: 28px 24px;
-  border: 1px dashed rgba(42, 92, 130, 0.28);
+  border: 1px dashed var(--ops-border, #e2eaf2);
+  box-shadow: var(--ops-shadow, none);
   h2 {
     margin: 0;
-    color: #2a5c82;
+    color: var(--ops-text, #1e2d3a);
     font-size: 18px;
+    font-weight: 800;
   }
   p {
     margin: 10px 0 0;
-    color: #5a6a7a;
+    color: var(--ops-text-2, #5c6f80);
     line-height: 1.5;
   }
   .meta {
@@ -41,14 +43,14 @@ defineProps<{
     align-items: center;
     padding: 8px 12px;
     border-radius: 8px;
-    background: #f5f8fb;
+    background: var(--ops-primary-soft, #e7f4f8);
     span {
       font-size: 12px;
-      color: #8c8c8c;
+      color: var(--ops-muted, #8b9aab);
     }
     b {
       font-size: 13px;
-      color: #2a5c82;
+      color: var(--ops-primary, #1f6f8b);
     }
   }
   em {
@@ -56,7 +58,7 @@ defineProps<{
     margin-top: 14px;
     font-style: normal;
     font-size: 12px;
-    color: #8c8c8c;
+    color: var(--ops-muted, #8b9aab);
   }
 }
 </style>

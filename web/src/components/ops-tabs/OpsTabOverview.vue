@@ -4,7 +4,6 @@
     <p v-else-if="!report" class="hint">当前筛选下暂无周报数据</p>
 
     <template v-else>
-      <!-- 0 考核标准（可折叠） -->
       <details class="card standards">
         <summary>营运核心指标考核标准 & 综合打分规则</summary>
         <div class="std-grid">
@@ -19,23 +18,26 @@
             <tbody>
               <tr v-for="d in assessDefs" :key="d.key">
                 <td class="lbl">{{ d.name }}</td>
-                <td class="ok">{{ d.lowerBetter ? '≤' : '≥' }}{{ d.passLine }}{{ d.unit === 'min' ? '分钟' : '%' }}</td>
-                <td class="bad">{{ d.lowerBetter ? '>' : '<' }}{{ d.passLine }}{{ d.unit === 'min' ? '分钟' : '%' }}</td>
+                <td class="ok">
+                  {{ d.lowerBetter ? '≤' : '≥' }}{{ d.passLine }}{{ d.unit === 'min' ? '分钟' : '%' }}
+                </td>
+                <td class="bad">
+                  {{ d.lowerBetter ? '>' : '<' }}{{ d.passLine }}{{ d.unit === 'min' ? '分钟' : '%' }}
+                </td>
               </tr>
             </tbody>
           </table>
           <p class="note">
             满分 100 = 售罄×40% + 错漏拣×20% + 仓T×10% + 商责×20% + IM×10% ·
-            <b style="color: #2f9e44">S 90–100</b> ·
-            <b style="color: #4dabf7">A 80–90</b> ·
-            <b style="color: #fab005">B 60–80</b> ·
-            <b style="color: #ff922b">C 40–60</b> ·
-            <b style="color: #e03131">D 0–40</b>
+            <b class="g-s">S 90–100</b> ·
+            <b class="g-a">A 80–90</b> ·
+            <b class="g-b">B 60–80</b> ·
+            <b class="g-c">C 40–60</b> ·
+            <b class="g-d">D 0–40</b>
           </p>
         </div>
       </details>
 
-      <!-- 1 服务商维度周环比 -->
       <section class="card">
         <div class="sec-head"><span class="no">1</span>服务商维度 · 营运指标周环比</div>
         <div class="banner">
@@ -84,7 +86,9 @@
                 <td>{{ fmtVal(m.value, m.unit) }}</td>
                 <td>{{ m.prev == null ? '—' : fmtVal(m.prev, m.unit) }}</td>
                 <td :class="deltaClass(m)">{{ fmtDelta(m) }}</td>
-                <td>{{ m.lowerBetter ? '≤' : '≥' }}{{ m.passLine }}{{ m.unit === 'min' ? 'min' : '%' }}</td>
+                <td>
+                  {{ m.lowerBetter ? '≤' : '≥' }}{{ m.passLine }}{{ m.unit === 'min' ? 'min' : '%' }}
+                </td>
                 <td :class="m.pass ? 'ok' : 'bad'">{{ m.pass ? '合格' : '不合格' }}</td>
                 <td>
                   {{ m.storePassCnt }}/{{ m.storeCnt }} ({{ Math.round(m.storePassRate * 100) }}%)
@@ -96,7 +100,6 @@
         <p class="note">{{ report.summaryNote }}</p>
       </section>
 
-      <!-- 2 门店明细升序 -->
       <section class="card">
         <div class="sec-head">
           <span class="no">2</span>门店营运数据明细（{{ report.storeCnt }} 家，按综合得分升序）
@@ -132,7 +135,9 @@
                     {{ fmtRowDelta(row, m.key) }}
                   </td>
                 </template>
-                <td><b>{{ Math.round(row.composite) }}</b></td>
+                <td>
+                  <b>{{ Math.round(row.composite) }}</b>
+                </td>
                 <td>
                   <span class="badge" :class="'b' + row.grade.grade">{{ row.grade.grade }}</span>
                 </td>
@@ -144,13 +149,12 @@
           合格标准：售罄率≤8% · 错漏拣率≤0.5% · 仓T≤5min · IM≥90% · 商责问题单率≤1.5%。绿色=合格，红色=不合格。
         </p>
         <div class="flegend">
-          <span class="it" v-for="n in 6" :key="n">
+          <span v-for="n in 6" :key="n" class="it">
             <i class="sw" :class="'sw' + (n - 1)" />不合格 {{ n - 1 }} 项
           </span>
         </div>
       </section>
 
-      <!-- 3 评级分档 -->
       <section class="card">
         <div class="sec-head"><span class="no">3</span>门店综合评级分档</div>
         <div class="ggrid">
@@ -178,7 +182,6 @@
         </div>
       </section>
 
-      <!-- 4 商责排行 -->
       <section class="card">
         <div class="sec-head"><span class="no">4</span>商责问题单率概览</div>
         <div v-if="merchantMetric" class="merchant-hero" :class="merchantMetric.pass ? 'pass' : 'fail'">
@@ -216,7 +219,6 @@
         </div>
       </section>
 
-      <!-- 5 改善意见 -->
       <section class="card">
         <div class="sec-head"><span class="no">5</span>改善意见与建议</div>
         <div v-if="!report.suggestions.length" class="note">本周五项指标均达标，暂无专项整改建议。</div>
@@ -342,26 +344,31 @@ watch(
 .report {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding-bottom: 24px;
+  color: var(--ops-text, #1f2937);
 }
 .hint {
   text-align: center;
-  color: #8c8c8c;
+  color: var(--ops-muted, #94a3b8);
   padding: 32px;
 }
 .card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  border: 1px solid rgba(42, 92, 130, 0.08);
-  box-shadow: 0 2px 10px rgba(30, 58, 95, 0.04);
+  background: var(--ops-surface, #fff);
+  border-radius: var(--ops-radius, 10px);
+  padding: 16px 18px;
+  border: 1px solid var(--ops-border, #e8eaef);
+  box-shadow: var(--ops-shadow, none);
 }
 .standards summary {
   cursor: pointer;
   font-weight: 700;
-  color: #1e3a5f;
+  color: var(--ops-text, #1f2937);
   font-size: 14px;
+  list-style: none;
+  &::-webkit-details-marker {
+    display: none;
+  }
 }
 .std-grid {
   margin-top: 12px;
@@ -370,133 +377,163 @@ watch(
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
-  color: #1e3a5f;
-  margin-bottom: 14px;
+  color: var(--ops-text, #1f2937);
+  margin-bottom: 12px;
   .no {
     display: inline-flex;
-    width: 26px;
-    height: 26px;
-    border-radius: 7px;
-    background: #2f6fb0;
-    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--ops-primary-soft, #eff6ff);
+    color: var(--ops-primary, #3b82f6);
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 13px;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
+    font-weight: 700;
+    flex-shrink: 0;
   }
 }
 .banner {
-  background: #eef4fb;
-  color: #1e3a5f;
+  background: var(--ops-primary-soft, #eff6ff);
+  color: var(--ops-primary, #3b82f6);
   border-radius: 10px;
   padding: 10px 14px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   margin-bottom: 14px;
 }
 .metric-cards {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 .mc {
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--ops-border, #e8eaef);
   border-radius: 10px;
-  padding: 14px;
-  border-top: 4px solid #ccc;
+  padding: 12px 14px;
+  background: var(--ops-info-bg, #eff6ff);
   &.pass {
-    border-top-color: #2f9e44;
+    background: var(--ops-info-bg, #eff6ff);
   }
   &.fail {
-    border-top-color: #e03131;
+    background: var(--ops-bad-bg, #fef2f2);
+    border-color: #fecaca;
   }
   .name {
     font-size: 12px;
-    color: #868e96;
+    color: var(--ops-muted, #94a3b8);
     font-weight: 600;
   }
   .val {
-    font-size: 24px;
+    display: block;
+    font-size: 26px;
     font-weight: 800;
-    margin: 6px 0;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
     font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    margin: 6px 0 4px;
+    &.ok {
+      color: var(--ops-primary, #3b82f6);
+    }
+    &.bad {
+      color: var(--ops-bad, #ef4444);
+    }
   }
   .prev {
     font-size: 12px;
-    color: #adb5bd;
+    color: var(--ops-muted, #94a3b8);
   }
   .chg {
-    font-size: 12px;
-    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 2px;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
   }
   .tag {
     display: inline-block;
     margin-top: 8px;
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 5px;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 700;
     &.pass {
-      background: #ebfbee;
-      color: #2f9e44;
+      background: #dbeafe;
+      color: #2563eb;
     }
     &.fail {
-      background: #fff5f5;
-      color: #e03131;
+      background: #fee2e2;
+      color: #dc2626;
     }
   }
   .reach {
-    font-size: 11px;
-    color: #868e96;
     margin-top: 6px;
-    line-height: 1.6;
+    font-size: 11px;
+    color: var(--ops-muted, #94a3b8);
+    line-height: 1.5;
   }
 }
 .merchant-hero {
-  display: inline-block;
-  min-width: 240px;
-  border: 1px solid #e9ecef;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
   border-radius: 10px;
-  padding: 14px 16px;
-  border-top: 4px solid #ccc;
   margin-bottom: 12px;
+  border: 1px solid var(--ops-border, #e8eaef);
+  min-width: 220px;
   &.pass {
-    border-top-color: #2f9e44;
+    background: var(--ops-info-bg, #eff6ff);
   }
   &.fail {
-    border-top-color: #e03131;
+    background: var(--ops-bad-bg, #fef2f2);
+    border-color: #fecaca;
   }
   .name {
     font-size: 13px;
-    color: #868e96;
+    color: var(--ops-muted, #94a3b8);
     font-weight: 600;
   }
   .val {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 800;
-    margin: 6px 0;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
+    line-height: 1.15;
+    margin: 4px 0;
+    &.ok {
+      color: var(--ops-primary, #3b82f6);
+    }
+    &.bad {
+      color: var(--ops-bad, #ef4444);
+    }
   }
   .prev {
     font-size: 12px;
-    color: #adb5bd;
+    color: var(--ops-muted, #94a3b8);
   }
   .chg {
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
   }
   .tag {
     display: inline-block;
     margin-top: 8px;
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 5px;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 700;
+    width: fit-content;
     &.pass {
-      background: #ebfbee;
-      color: #2f9e44;
+      background: #dbeafe;
+      color: #2563eb;
     }
     &.fail {
-      background: #fff5f5;
-      color: #e03131;
+      background: #fee2e2;
+      color: #dc2626;
     }
   }
 }
@@ -509,19 +546,27 @@ table {
   font-size: 13px;
   th,
   td {
-    padding: 9px 10px;
+    padding: 8px 10px;
     text-align: center;
-    border-bottom: 1px solid #eef0f2;
+    border-bottom: 1px solid var(--ops-border-soft, #f0f2f5);
     font-variant-numeric: tabular-nums;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
+  }
+  td.lbl,
+  th.lbl {
+    font-family: var(--ops-font, inherit);
   }
   thead th {
-    background: #f7f8fa;
+    background: #f8fafc;
     font-weight: 700;
-    color: #495057;
+    color: var(--ops-muted, #94a3b8);
+    font-size: 12px;
+    font-family: var(--ops-font, inherit);
   }
   .lbl {
     text-align: left;
     font-weight: 600;
+    color: var(--ops-text, #1f2937);
   }
 }
 .detail thead th {
@@ -532,29 +577,44 @@ table {
   white-space: nowrap;
 }
 .ok {
-  color: #2f9e44;
+  color: var(--ops-ok, #10b981);
   font-weight: 700;
 }
 .bad {
-  color: #e03131;
+  color: var(--ops-bad, #ef4444);
   font-weight: 700;
 }
 .worse {
-  color: #e03131;
+  color: var(--ops-bad, #ef4444);
   font-weight: 700;
 }
 .better {
-  color: #2f9e44;
+  color: var(--ops-ok, #10b981);
   font-weight: 700;
 }
 .flat {
-  color: #868e96;
+  color: var(--ops-muted, #94a3b8);
 }
 .note {
   font-size: 12px;
-  color: #868e96;
+  color: var(--ops-muted, #94a3b8);
   margin-top: 10px;
   line-height: 1.7;
+  .g-s {
+    color: #10b981;
+  }
+  .g-a {
+    color: #3b82f6;
+  }
+  .g-b {
+    color: #f59e0b;
+  }
+  .g-c {
+    color: #f97316;
+  }
+  .g-d {
+    color: #ef4444;
+  }
 }
 .ggrid {
   display: grid;
@@ -563,101 +623,121 @@ table {
 }
 .gcell {
   border-radius: 10px;
-  padding: 14px;
+  padding: 14px 8px;
   text-align: center;
-  color: #fff;
+  border: 1px solid transparent;
   .n {
     font-size: 28px;
     font-weight: 800;
+    font-family: var(--ops-font-num, Rajdhani, monospace);
+    line-height: 1.1;
   }
   .t {
     font-size: 12px;
-    opacity: 0.92;
-    margin-top: 2px;
+    margin-top: 4px;
+    font-weight: 600;
   }
 }
 .gS {
-  background: #2f9e44;
+  background: #ecfdf5;
+  color: #10b981;
+  border-color: #a7f3d0;
 }
 .gA {
-  background: #4dabf7;
+  background: #eff6ff;
+  color: #3b82f6;
+  border-color: #bfdbfe;
 }
 .gB {
-  background: #fab005;
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
 }
 .gC {
-  background: #ff922b;
+  background: #fff7ed;
+  color: #ea580c;
+  border-color: #fed7aa;
 }
 .gD {
-  background: #e03131;
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #fecaca;
 }
 .grade-note {
   margin-top: 14px;
   font-size: 13px;
-  color: #495057;
+  color: var(--ops-text-2, #64748b);
   line-height: 1.9;
   p {
     margin: 0;
+  }
+  b {
+    color: var(--ops-text, #1f2937);
   }
 }
 .badge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 5px;
-  font-weight: 700;
+  border-radius: 4px;
+  font-weight: 800;
   font-size: 12px;
-  color: #fff;
+  font-family: var(--ops-font-num, Rajdhani, monospace);
 }
 .bS {
-  background: #2f9e44;
+  background: #ecfdf5;
+  color: #10b981;
 }
 .bA {
-  background: #4dabf7;
+  background: #eff6ff;
+  color: #3b82f6;
 }
 .bB {
-  background: #fab005;
+  background: #fffbeb;
+  color: #d97706;
 }
 .bC {
-  background: #ff922b;
+  background: #fff7ed;
+  color: #ea580c;
 }
 .bD {
-  background: #e03131;
+  background: #fef2f2;
+  color: #ef4444;
 }
 tr.f0 > td {
-  background: #ebfbee;
+  background: #f8fafc;
 }
 tr.f1 > td {
-  background: #f4fce3;
+  background: #fffbeb;
 }
 tr.f2 > td {
-  background: #fff9db;
+  background: #fff7ed;
 }
 tr.f3 > td {
-  background: #fff4e6;
+  background: #ffedd5;
 }
 tr.f4 > td {
-  background: #ffe8e8;
+  background: #fee2e2;
 }
 tr.f5 > td {
-  background: #ffd9d9;
+  background: #fecaca;
 }
 tr.f0 > td:first-child {
-  box-shadow: inset 4px 0 0 #2f9e44;
+  box-shadow: inset 3px 0 0 #10b981;
 }
 tr.f1 > td:first-child {
-  box-shadow: inset 4px 0 0 #82c91e;
+  box-shadow: inset 3px 0 0 #f59e0b;
 }
 tr.f2 > td:first-child {
-  box-shadow: inset 4px 0 0 #fab005;
+  box-shadow: inset 3px 0 0 #f97316;
 }
 tr.f3 > td:first-child {
-  box-shadow: inset 4px 0 0 #ff922b;
+  box-shadow: inset 3px 0 0 #ef4444;
 }
 tr.f4 > td:first-child {
-  box-shadow: inset 4px 0 0 #e03131;
+  box-shadow: inset 3px 0 0 #dc2626;
 }
 tr.f5 > td:first-child {
-  box-shadow: inset 4px 0 0 #a61e1e;
+  box-shadow: inset 3px 0 0 #b91c1c;
 }
 .flegend {
   display: flex;
@@ -665,7 +745,7 @@ tr.f5 > td:first-child {
   gap: 12px;
   margin-top: 10px;
   font-size: 12px;
-  color: #495057;
+  color: var(--ops-text-2, #64748b);
   .it {
     display: flex;
     align-items: center;
@@ -675,42 +755,43 @@ tr.f5 > td:first-child {
     width: 22px;
     height: 14px;
     border-radius: 4px;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--ops-border, #e8eaef);
   }
   .sw0 {
-    background: #ebfbee;
+    background: #f8fafc;
   }
   .sw1 {
-    background: #f4fce3;
+    background: #fffbeb;
   }
   .sw2 {
-    background: #fff9db;
+    background: #fff7ed;
   }
   .sw3 {
-    background: #fff4e6;
+    background: #ffedd5;
   }
   .sw4 {
-    background: #ffe8e8;
+    background: #fee2e2;
   }
   .sw5 {
-    background: #ffd9d9;
+    background: #fecaca;
   }
 }
 .imp {
-  border-left: 4px solid #2f6fb0;
-  background: #f8f9fb;
+  border-left: 3px solid var(--ops-primary, #3b82f6);
+  background: #f8fafc;
   padding: 12px 16px;
   margin-bottom: 10px;
   border-radius: 0 8px 8px 0;
   h4 {
-    color: #1e3a5f;
+    color: var(--ops-text, #1f2937);
     font-size: 14px;
     margin: 0 0 6px;
   }
   p {
     margin: 0;
     font-size: 13px;
-    color: #495057;
+    color: var(--ops-text-2, #64748b);
+    line-height: 1.55;
   }
 }
 @media (max-width: 1280px) {

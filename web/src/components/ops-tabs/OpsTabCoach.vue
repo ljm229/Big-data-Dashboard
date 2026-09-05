@@ -11,7 +11,11 @@
         <div v-for="s in watchStores" :key="s.shortName" class="problem">
           <div class="problem__head">
             <b>{{ s.shortName }}</b>
-            <span>{{ s.city?.replace(/市$/, '') || '—' }} · {{ s.composite.toFixed(0) }}分 · {{ s.grade.grade }}</span>
+            <span
+              >{{ s.city?.replace(/市$/, '') || '—' }} ·
+              <em class="num">{{ s.composite.toFixed(0) }}</em>
+              分 · {{ s.grade.grade }}</span
+            >
           </div>
           <div class="problem__tags">
             <em v-for="tag in failTags(s)" :key="tag">{{ tag }}</em>
@@ -50,26 +54,28 @@ defineProps<{
 .coach {
   display: grid;
   grid-template-columns: 1.2fr 0.9fr;
-  gap: 12px;
+  gap: 14px;
   align-items: start;
 }
 .card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px 14px;
-  border: 1px solid rgba(42, 92, 130, 0.06);
+  background: var(--ops-surface, #fff);
+  border-radius: var(--ops-radius, 12px);
+  padding: 16px 18px;
+  border: 1px solid var(--ops-border, #e2eaf2);
+  box-shadow: var(--ops-shadow, none);
 }
 .card__head {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   h2 {
     margin: 0;
     font-size: 15px;
-    color: #2a5c82;
+    font-weight: 800;
+    color: var(--ops-text, #1e2d3a);
   }
   p {
     margin: 4px 0 0;
     font-size: 12px;
-    color: #8c8c8c;
+    color: var(--ops-muted, #8b9aab);
   }
 }
 .problem-list {
@@ -80,20 +86,29 @@ defineProps<{
   overflow: auto;
 }
 .problem {
-  padding: 10px;
+  padding: 12px 12px;
   border-radius: 10px;
-  border: 1px solid #e7eef5;
+  background: #fafcfe;
+  border: 1px solid var(--ops-border-soft, #eef3f8);
   &__head {
     display: flex;
     justify-content: space-between;
     gap: 8px;
+    align-items: baseline;
     b {
-      color: #2a5c82;
+      color: var(--ops-text, #1e2d3a);
+      font-size: 14px;
     }
     span {
       font-size: 12px;
-      color: #8c8c8c;
+      color: var(--ops-muted, #8b9aab);
       white-space: nowrap;
+    }
+    .num {
+      font-style: normal;
+      font-family: var(--ops-font-num, Rajdhani, monospace);
+      font-weight: 700;
+      color: var(--ops-bad, #e04545);
     }
   }
   &__tags {
@@ -104,32 +119,33 @@ defineProps<{
     em {
       font-style: normal;
       font-size: 11px;
-      padding: 3px 7px;
-      border-radius: 999px;
-      background: #fff4e5;
-      color: #b86e00;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--ops-warn-bg, #fff6e6);
+      color: var(--ops-warn, #d4890d);
+      font-weight: 600;
     }
   }
 }
 .notice-empty {
-  padding: 14px;
-  border: 1px dashed rgba(42, 92, 130, 0.28);
+  padding: 16px;
+  border: 1px dashed var(--ops-border, #e2eaf2);
   border-radius: 10px;
   background: #fafcfe;
   strong {
     display: block;
-    color: #2a5c82;
+    color: var(--ops-text, #1e2d3a);
   }
   p {
     margin: 8px 0 0;
-    color: #8c8c8c;
+    color: var(--ops-muted, #8b9aab);
     font-size: 12px;
     line-height: 1.5;
   }
 }
 .empty {
   text-align: center;
-  color: #8c8c8c;
+  color: var(--ops-muted, #8b9aab);
   padding: 16px;
 }
 @media (max-width: 1100px) {

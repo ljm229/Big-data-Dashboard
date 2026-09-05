@@ -41,7 +41,7 @@ const summary = computed(() => {
   }
 })
 
-const COLORS = ['#2A5C82', '#5B9BD5', '#70AD47', '#FFC000', '#E74C3C', '#9B6DFF', '#2A9D8F', '#F4B183']
+const COLORS = ['#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#94a3b8']
 
 async function reload() {
   const res = await fetchCategoryMix(props.dateKey, props.city || '全部', props.storeId || '全部')
@@ -70,7 +70,7 @@ async function reload() {
     yAxis: {
       type: 'category',
       data: top.map((r) => r.name),
-      axisLabel: { color: '#3d3d3d', fontSize: 12 },
+      axisLabel: { color: '#5c6f80', fontSize: 12 },
       axisTick: { show: false },
       axisLine: { show: false },
     },
@@ -88,8 +88,9 @@ async function reload() {
         label: {
           show: true,
           position: 'right',
-          color: '#5a6a7a',
+          color: '#1e2d3a',
           fontSize: 11,
+          fontWeight: 600,
           formatter: (p: unknown) => {
             const d = p as { dataIndex: number; value: number }
             const row = top[d.dataIndex]
@@ -108,31 +109,32 @@ watch(() => [props.dateKey, props.city, props.storeId], () => void reload(), { i
 
 <style scoped lang="scss">
 .cat-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 10px 14px 8px;
-  box-shadow: 0 2px 10px rgba(42, 92, 130, 0.07);
-  border: 1px solid rgba(42, 92, 130, 0.06);
+  background: var(--ops-surface, #fff);
+  border-radius: var(--ops-radius, 12px);
+  padding: 14px 16px 10px;
+  box-shadow: var(--ops-shadow, 0 1px 2px rgba(30, 45, 58, 0.04));
+  border: 1px solid var(--ops-border, #e2eaf2);
 }
 .card__head {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   h2 {
     margin: 0;
     font-size: 15px;
-    color: #2a5c82;
+    font-weight: 800;
+    color: var(--ops-text, #1e2d3a);
     white-space: nowrap;
   }
   p {
     margin: 0;
     font-size: 12px;
-    color: #8c8c8c;
+    color: var(--ops-muted, #8b9aab);
   }
 }
 .chart {
   width: 100%;
-  height: 196px;
+  height: 220px;
 }
 </style>
