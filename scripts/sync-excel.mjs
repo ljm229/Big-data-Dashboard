@@ -644,6 +644,80 @@ for (const key of Object.keys(byDay)) {
   geo[key] = buildGeo(block.storeRank, block.storeList)
 }
 
+/** 品类分析导出（数据源根目录）：overall ≈ 两周合计；byStore 可筛门店/城市 */
+function mapCategoryRow(r, withStore = false) {
+  const row = {
+    name: String(r['一级品类'] || '').trim(),
+    total_gmv: toNum(r['商品总销售额']),
+    sales: toNum(r['商品销售额']),
+    income: toNum(r['销售收入']),
+    orders: toNum(r['有效订单量']),
+    qty: toNum(r['总商品销量']),
+    aov: toNum(r['商品客单价']),
+    profit: toNum(r['商品毛利额']),
+    profit_rate: toNum(r['商品毛利率']),
+    active_rate: toNum(r['商品动销率']),
+    refund_amount: toNum(r['商品退款金额']),
+    refund_orders: toNum(r['退款订单量']),
+    sku_online: toNum(r['在售商品数']),
+    sku_active: toNum(r['动销商品数量']),
+    wow_rate: toNum(r['商品总销售额_自定义对比_比率']),
+  }
+  if (withStore) {
+    const full = String(r['门店'] || '')
+    row.store = full
+    row.shortName = normStoreName(full)
+  }
+  return row
+}
+
+function loadCategoryBlock() {
+  const files = fs
+    .readdirSync(sourceRoot)
+    .filter((f) => f.includes('品类分析') && f.endsWith('.xlsx') && !f.startsWith('~$'))
+    .sort()
+  if (!files.length) return null
+
+  let overall = []
+  let byStore = []
+  for (const f of files) {
+    const rows = readSheet(path.join(sourceRoot, f))
+    if (!rows.length) continue
+    if (Object.prototype.hasOwnProperty.call(rows[0], '门店')) {
+      byStore = rows.filter((r) => r['一级品类'] && r['门店']).map((r) => mapCategoryRow(r, true))
+    } else {
+      overall = rows.filter((r) => r['一级品类']).map((r) => mapCategoryRow(r, false))
+    }
+  }
+  if (!overall.length && !byStore.length) return null
+
+  const start = allDays[0] || weeks[0]?.start || ''
+  const end = allDays[allDays.length - 1] || weeks[weeks.length - 1]?.end || ''
+  return {
+    period: {
+      start,
+      end,
+      label: start && end ? `${isoToLabel(start)}-${isoToLabel(end)}` : '',
+    },
+    overall: overall.sort((a, b) => b.total_gmv - a.total_gmv),
+    byStore,
+  }
+}
+
+const category = loadCategoryBlock()
+if (category) {
+  console.log(
+    'category overall',
+    category.overall.length,
+    'byStore',
+    category.byStore.length,
+    'period',
+    category.period.label,
+  )
+} else {
+  console.warn('no category export found in 数据源/')
+}
+
 const payload = {
   schemaVersion: 2,
   primaryDate: allDays[allDays.length - 1] || '',
@@ -660,6 +734,7 @@ const payload = {
   costs,
   reverse,
   assessment,
+  category,
   updated_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
 }
 

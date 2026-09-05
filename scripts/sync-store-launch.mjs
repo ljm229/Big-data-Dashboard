@@ -142,7 +142,7 @@ const schedule = [...pendingRows]
 
 const payload = {
   generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-  source: '数据源/8.28/淘宝便利店门店信息表.xlsx',
+  source: '数据源/8.28-9.3/淘宝便利店门店信息表.xlsx',
   summary: {
     total,
     launched: launchedCount,

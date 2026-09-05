@@ -61,111 +61,94 @@
           <span>{{ g.label }}</span>
           <em>{{ g.count }}</em>
         </div>
-        <p class="grade-hint">
-          权重：售罄 40% · 错漏拣 20% · 仓T 10% · 商责 20% · IM 10%｜分档 100/80/60/0｜多店顶栏取综合分中位数
-        </p>
       </section>
 
       <div class="main-grid">
-        <article class="card assess-rank">
-          <header class="card__head">
-            <div>
-              <h2>门店考核榜</h2>
-              <p>五维指标 + 加权综合分 · 不合格项标红</p>
-            </div>
-          </header>
-          <div class="rank-wrap" @mouseenter="rankPaused = true" @mouseleave="rankPaused = false">
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th>门店</th>
-                  <th>城市</th>
-                  <th>售罄率</th>
-                  <th>错漏拣</th>
-                  <th>仓T</th>
-                  <th>商责单</th>
-                  <th>IM回复</th>
-                  <th>综合分</th>
-                  <th>等级</th>
-                </tr>
-              </thead>
-              <tbody :style="rankScrollStyle">
-                <tr v-for="(row, idx) in rankLoop" :key="row.shortName + '-' + idx">
-                  <td class="name">{{ row.shortName }}</td>
-                  <td>{{ row.city?.replace(/市$/, '') || '—' }}</td>
-                  <td :class="{ bad: !partPass(row, 'sellout_rate') }">{{ fmtPart(row, 'sellout_rate') }}</td>
-                  <td :class="{ bad: !partPass(row, 'pick_error_rate') }">{{ fmtPart(row, 'pick_error_rate') }}</td>
-                  <td :class="{ bad: !partPass(row, 'warehouse_t') }">{{ fmtPart(row, 'warehouse_t') }}</td>
-                  <td :class="{ bad: !partPass(row, 'merchant_issue_rate') }">
-                    {{ fmtPart(row, 'merchant_issue_rate') }}
-                  </td>
-                  <td :class="{ bad: !partPass(row, 'im_reply_rate') }">{{ fmtPart(row, 'im_reply_rate') }}</td>
-                  <td class="score">{{ row.composite.toFixed(1) }}</td>
-                  <td>
-                    <em class="grade-tag" :style="{ background: row.grade.color }">{{ row.grade.grade }}</em>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-if="!assessRows.length" class="empty">当前筛选下暂无门店</p>
-          </div>
-        </article>
-
-        <div class="side-col">
-          <article class="card notice-card">
+        <div class="main-left">
+          <article class="card assess-rank">
             <header class="card__head">
               <div>
-                <h2>本周重要事项</h2>
-                <p>周维度 · 运营群重点通知清单（内容待录入）</p>
-              </div>
-              <div class="notice-tabs" aria-hidden="true">
-                <button type="button" class="active">全部</button>
-                <button type="button">P0</button>
-                <button type="button">P1</button>
-                <button type="button">P2</button>
+                <h2>门店考核榜</h2>
+                <p>五维指标 + 加权综合分 · 不合格项标红</p>
               </div>
             </header>
-
-            <div class="notice-schema">
-              <span>优先级</span>
-              <span>事项标题</span>
-              <span>负责人</span>
-              <span>截止</span>
-              <span>状态</span>
-            </div>
-
-            <div class="notice-empty">
-              <strong>结构已预留，本周暂不填写内容</strong>
-              <p>
-                用途：同步群里本周必须跟进的通知（考核整改、活动节点、红线门店、临时制度等）。建议每条含优先级 /
-                标题 / 负责人 / 截止日期 / 状态；按考核周切换，不按自然日碎片化。
-              </p>
-              <ul>
-                <li>P0 · 红线 / 当日必须闭环</li>
-                <li>P1 · 本周必须完成</li>
-                <li>P2 · 周知 / 跟踪即可</li>
-              </ul>
+            <div
+              ref="rankWrapEl"
+              class="rank-wrap"
+              @mouseenter="rankPaused = true"
+              @mouseleave="rankPaused = false"
+            >
+              <table class="rank-table">
+                <thead>
+                  <tr>
+                    <th>门店</th>
+                    <th>城市</th>
+                    <th>售罄率</th>
+                    <th>错漏拣</th>
+                    <th>仓T</th>
+                    <th>商责单</th>
+                    <th>IM回复</th>
+                    <th>综合分</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in assessRows" :key="row.shortName">
+                    <td class="name">{{ row.shortName }}</td>
+                    <td>{{ row.city?.replace(/市$/, '') || '—' }}</td>
+                    <td :class="{ bad: !partPass(row, 'sellout_rate') }">{{ fmtPart(row, 'sellout_rate') }}</td>
+                    <td :class="{ bad: !partPass(row, 'pick_error_rate') }">{{ fmtPart(row, 'pick_error_rate') }}</td>
+                    <td :class="{ bad: !partPass(row, 'warehouse_t') }">{{ fmtPart(row, 'warehouse_t') }}</td>
+                    <td :class="{ bad: !partPass(row, 'merchant_issue_rate') }">
+                      {{ fmtPart(row, 'merchant_issue_rate') }}
+                    </td>
+                    <td :class="{ bad: !partPass(row, 'im_reply_rate') }">{{ fmtPart(row, 'im_reply_rate') }}</td>
+                    <td class="score">{{ row.composite.toFixed(1) }}</td>
+                    <td>
+                      <em class="grade-tag" :style="{ background: row.grade.color }">{{ row.grade.grade }}</em>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-if="!assessRows.length" class="empty">当前筛选下暂无门店</p>
             </div>
           </article>
 
+          <CategoryStructure :date-key="assessKey" :city="city" :store-id="storeId" />
+        </div>
+
+        <div class="side-col">
           <article class="card">
             <header class="card__head">
               <div>
                 <h2>需关注门店</h2>
-                <p>综合分 &lt; 60（C/D）· 来自考核表</p>
+                <p>综合分 &lt; 60（C/D）</p>
               </div>
             </header>
             <div class="problem-list">
               <div v-for="s in watchStores" :key="s.shortName" class="problem">
                 <div class="problem__head">
                   <b>{{ s.shortName }}</b>
-                  <span>{{ s.city?.replace(/市$/, '') || '—' }} · {{ s.composite.toFixed(0) }}分 · {{ s.grade.grade }}</span>
+                  <span>{{ s.composite.toFixed(0) }}分 · {{ s.grade.grade }}</span>
                 </div>
                 <div class="problem__tags">
                   <em v-for="tag in failTags(s)" :key="tag">{{ tag }}</em>
                 </div>
               </div>
-              <p v-if="!watchStores.length" class="empty">当前筛选下暂无 C/D 门店</p>
+              <p v-if="!watchStores.length" class="empty">暂无 C/D 门店</p>
+            </div>
+          </article>
+
+          <article class="card notice-card">
+            <header class="card__head">
+              <div>
+                <h2>本周重要事项</h2>
+                <p>{{ assessWeekLabel }} · 群通知清单</p>
+              </div>
+            </header>
+            <div class="notice-empty">
+              <strong>内容待录入</strong>
+              <p>按周同步群内重点：整改 / 活动 / 红线店。字段：优先级 · 标题 · 负责人 · 截止 · 状态。</p>
             </div>
           </article>
         </div>
@@ -178,6 +161,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import AssessmentCard, { type AssessMetric } from './AssessmentCard.vue'
+import CategoryStructure from './CategoryStructure.vue'
 import DateFilterBar from './DateFilterBar.vue'
 import { useFilterStore, COCKPIT_WEEKS } from '../stores/filter'
 import {
@@ -258,29 +242,19 @@ function fmtPart(row: AssessBoard['rows'][number], key: AssessKey) {
 }
 
 const rankPaused = ref(false)
-const rankOffset = ref(0)
+const rankWrapEl = ref<HTMLElement | null>(null)
 let rankTimer: ReturnType<typeof setInterval> | null = null
-const rankLoop = computed(() => {
-  const rows = assessRows.value
-  if (rows.length <= 8) return rows
-  return [...rows, ...rows]
-})
-const rankScrollStyle = computed(() => {
-  if (assessRows.value.length <= 8) return {}
-  return {
-    transform: `translateY(-${rankOffset.value}px)`,
-    transition: rankPaused.value ? 'none' : 'transform 0.6s ease-in-out',
-  }
-})
 
 function startRankScroll() {
   if (rankTimer) clearInterval(rankTimer)
   rankTimer = setInterval(() => {
-    if (rankPaused.value || assessRows.value.length <= 8) return
-    const rowH = 40
-    rankOffset.value += rowH
-    if (rankOffset.value >= assessRows.value.length * rowH) rankOffset.value = 0
-  }, 2000)
+    const el = rankWrapEl.value
+    if (!el || rankPaused.value || assessRows.value.length <= 8) return
+    const max = el.scrollHeight - el.clientHeight
+    if (max <= 0) return
+    const next = el.scrollTop + 40
+    el.scrollTo({ top: next >= max ? 0 : next, behavior: 'smooth' })
+  }, 2200)
 }
 onUnmounted(() => {
   if (rankTimer) clearInterval(rankTimer)
@@ -305,7 +279,7 @@ async function reload() {
   const board = await fetchAssessmentBoard(assessKey.value, city.value, storeId.value)
   assessBoard.value = board
   metrics.value = board?.metrics || []
-  rankOffset.value = 0
+  if (rankWrapEl.value) rankWrapEl.value.scrollTop = 0
   startRankScroll()
 }
 
@@ -359,11 +333,11 @@ void (async () => {
   }
 }
 .ops-header {
-  display: grid;
-  grid-template-columns: minmax(280px, 1.1fr) minmax(420px, 1.4fr) minmax(240px, 0.9fr);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: 12px 16px;
+  padding: 10px 14px;
   border-radius: 14px;
   background: linear-gradient(135deg, #2a5c82, #3d7aa8 55%, #5b9bd5);
   color: #fff;
@@ -371,8 +345,8 @@ void (async () => {
 }
 .ops-header__left {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 .ops-header__mid {
@@ -380,7 +354,8 @@ void (async () => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  justify-content: center;
+  flex: 1 1 auto;
+  justify-content: flex-start;
 }
 .view-switch {
   display: flex;
@@ -445,7 +420,7 @@ void (async () => {
   }
 }
 .health {
-  justify-self: end;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -493,29 +468,29 @@ void (async () => {
   gap: 12px;
 }
 .grade-strip {
-  margin-top: 12px;
+  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .grade-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 6px 10px;
   border-radius: 10px;
   background: #fff;
   border: 1px solid color-mix(in srgb, var(--g) 35%, #e8eef5);
   b {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
     display: grid;
     place-items: center;
     background: var(--g);
     color: #04122a;
-    font-size: 13px;
+    font-size: 12px;
   }
   span {
     font-size: 12px;
@@ -526,26 +501,25 @@ void (async () => {
     font-weight: 800;
     font-family: Rajdhani, Bahnschrift, Consolas, monospace;
     color: var(--primary);
-    font-size: 18px;
+    font-size: 16px;
   }
-}
-.grade-hint {
-  margin: 0;
-  flex: 1 1 280px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.45;
 }
 .main-grid {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.75fr);
   gap: 12px;
   align-items: start;
+}
+.main-left {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 .side-col {
   display: grid;
   gap: 12px;
+  align-content: start;
 }
 .card {
   background: var(--card);
@@ -573,28 +547,24 @@ void (async () => {
   }
 }
 .rank-wrap {
-  max-height: 420px;
-  overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .rank-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
   thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     background: #f5f8fb;
     color: var(--muted);
     font-weight: 600;
     padding: 8px 6px;
     text-align: left;
-  }
-  tbody {
-    display: block;
-  }
-  thead,
-  tbody tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
+    box-shadow: 0 1px 0 #e8eef5;
   }
   td {
     padding: 8px 6px;
@@ -626,66 +596,28 @@ void (async () => {
   font-weight: 800;
   font-size: 12px;
 }
-.notice-tabs {
-  display: flex;
-  gap: 4px;
-  button {
-    border: 1px solid #d7e2ec;
-    background: #f7fafc;
-    color: var(--muted);
-    border-radius: 999px;
-    padding: 3px 9px;
-    font-size: 11px;
-    cursor: default;
-    &.active {
-      background: #2a5c82;
-      border-color: #2a5c82;
-      color: #fff;
-      font-weight: 700;
-    }
-  }
-}
-.notice-schema {
-  display: grid;
-  grid-template-columns: 56px 1.4fr 72px 72px 64px;
-  gap: 6px;
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  background: #f5f8fb;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-}
 .notice-empty {
-  padding: 16px 12px 8px;
+  padding: 12px;
   border: 1px dashed rgba(42, 92, 130, 0.28);
   border-radius: 10px;
   background: #fafcfe;
   strong {
     display: block;
     color: var(--primary);
-    font-size: 14px;
+    font-size: 13px;
   }
   p {
-    margin: 8px 0;
+    margin: 6px 0 0;
     color: var(--muted);
     font-size: 12px;
-    line-height: 1.55;
-  }
-  ul {
-    margin: 0;
-    padding-left: 18px;
-    color: #5a6a7a;
-    font-size: 12px;
-    line-height: 1.7;
+    line-height: 1.5;
   }
 }
 .problem-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 280px;
+  gap: 8px;
+  max-height: 320px;
   overflow: auto;
 }
 .problem {
@@ -730,10 +662,11 @@ void (async () => {
 
 @media (max-width: 1280px) {
   .ops-header {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
   .health {
-    justify-self: start;
+    margin-left: 0;
   }
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

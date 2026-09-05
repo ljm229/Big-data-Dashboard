@@ -8,6 +8,25 @@ import { cityCoord, storeCoord, resolveProvince, normCityName } from '../data/ge
 
 type StoreListRow = { city: string; name: string; shortName: string }
 
+export type CategoryRow = {
+  name: string
+  total_gmv: number
+  sales: number
+  income: number
+  orders: number
+  qty: number
+  aov: number
+  profit: number
+  profit_rate: number
+  active_rate: number
+  refund_amount: number
+  refund_orders: number
+  sku_online?: number
+  sku_active?: number
+  wow_rate?: number
+  share?: number
+}
+
 type DashRaw = {
   overview?: Record<string, Record<string, number | string>>
   storeRank?: Record<string, StoreRow[]>
@@ -32,6 +51,11 @@ type DashRaw = {
   >
   weeks?: Array<{ id: string; days: string[]; start?: string; end?: string }>
   days?: string[]
+  category?: {
+    period?: { start?: string; end?: string; label?: string }
+    overall?: CategoryRow[]
+    byStore?: Array<CategoryRow & { store?: string; shortName?: string }>
+  }
   updated_at?: string
   schemaVersion?: number
 }
@@ -1025,4 +1049,71 @@ export async function fetchAssessmentStoreOptions(dateKey: string, cityName = '�
   return rows
     .map((r) => ({ id: r.shortName || r.name, shortName: r.shortName || r.name, name: r.name, city: r.city }))
     .sort((a, b) => a.shortName.localeCompare(b.shortName, 'zh'))
+}
+
+function aggregateCategoryRows(rows: CategoryRow[]): CategoryRow[] {
+  const map = new Map<string, CategoryRow>()
+  rows.forEach((r) => {
+    const cur = map.get(r.name)
+    if (!cur) {
+      map.set(r.name, { ...r })
+      return
+    }
+    cur.total_gmv += r.total_gmv
+    cur.sales += r.sales
+    cur.income += r.income
+    cur.orders += r.orders
+    cur.qty += r.qty
+    cur.profit += r.profit
+    cur.refund_amount += r.refund_amount
+    cur.refund_orders += r.refund_orders
+    cur.sku_online = (cur.sku_online || 0) + (r.sku_online || 0)
+    cur.sku_active = (cur.sku_active || 0) + (r.sku_active || 0)
+  })
+  return [...map.values()]
+    .map((r) => ({
+      ...r,
+      aov: r.orders ? r.sales / r.orders : 0,
+      profit_rate: r.sales ? r.profit / r.sales : 0,
+      active_rate: r.sku_online ? (r.sku_active || 0) / r.sku_online : r.active_rate,
+    }))
+    .sort((a, b) => b.total_gmv - a.total_gmv)
+}
+
+export async function fetchCategoryMix(dateKey: string, cityName = '全国', storeShort = '全部') {
+  const block = data.category
+  if (!block) return wait({ period: null as null | { label?: string; start?: string; end?: string }, rows: [] as CategoryRow[] })
+
+  const cityMap = cityByStoreShort(
+    dateKey.startsWith('W:') ? dateKey.slice(2).split('_')[1] || '' : dateKey,
+  )
+  let rows: CategoryRow[] = []
+
+  const needFilter =
+    (storeShort && storeShort !== '全部') || (cityName && cityName !== '全国' && cityName !== '全部')
+
+  if (needFilter && block.byStore?.length) {
+    let storeRows = block.byStore
+    if (storeShort && storeShort !== '全部') {
+      storeRows = storeRows.filter(
+        (r) => r.shortName === storeShort || storeName(r.store) === storeShort || r.store === storeShort,
+      )
+    } else if (cityName && cityName !== '全国' && cityName !== '全部') {
+      storeRows = storeRows.filter((r) => {
+        const city = cityMap[r.shortName || ''] || cityMap[storeName(r.store || '')] || ''
+        return matchCity(city, cityName)
+      })
+    }
+    rows = aggregateCategoryRows(storeRows)
+  } else {
+    rows = [...(block.overall || [])]
+  }
+
+  const total = rows.reduce((a, r) => a + r.total_gmv, 0) || 1
+  rows = rows.map((r) => ({ ...r, share: r.total_gmv / total }))
+
+  return wait({
+    period: block.period || null,
+    rows,
+  })
 }
