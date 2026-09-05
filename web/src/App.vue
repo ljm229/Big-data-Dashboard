@@ -27,7 +27,24 @@
             <template #nav>
               <div class="view-switch view-switch--in-header">
                 <button type="button" class="active">数据大屏</button>
-                <button type="button" @click="activeView = 'ops'">门店运营看板</button>
+                <button
+                  type="button"
+                  @click="
+                    activeView = 'ops';
+                    opsEdition = 'classic'
+                  "
+                >
+                  运营·经典
+                </button>
+                <button
+                  type="button"
+                  @click="
+                    activeView = 'ops';
+                    opsEdition = 'tabs'
+                  "
+                >
+                  运营·Tab
+                </button>
               </div>
             </template>
           </AppHeader>
@@ -59,7 +76,16 @@
     </div>
   </div>
 
-  <StoreOpsDashboard v-else @switch-view="activeView = 'cockpit'" />
+  <StoreOpsDashboard
+    v-else-if="opsEdition === 'classic'"
+    @switch-view="activeView = 'cockpit'"
+    @switch-edition="opsEdition = 'tabs'"
+  />
+  <StoreOpsDashboardTabs
+    v-else
+    @switch-view="activeView = 'cockpit'"
+    @switch-edition="opsEdition = 'classic'"
+  />
   </AccessGate>
 </template>
 
@@ -80,9 +106,11 @@ import CityContribution from './components/modules/CityContribution.vue'
 import R2StoreRank from './components/modules/R2StoreRank.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import StoreOpsDashboard from './components/StoreOpsDashboard.vue'
+import StoreOpsDashboardTabs from './components/StoreOpsDashboardTabs.vue'
 import DateFilterBar from './components/DateFilterBar.vue'
 
 const activeView = ref<'cockpit' | 'ops'>('cockpit')
+const opsEdition = ref<'classic' | 'tabs'>('classic')
 const filter = useFilterStore()
 const { style, wrapperStyle } = useScreenScale(1920, 1280)
 

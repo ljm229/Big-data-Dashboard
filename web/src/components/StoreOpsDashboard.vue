@@ -4,7 +4,8 @@
       <div class="ops-header__left">
         <div class="view-switch">
           <button type="button" @click="emit('switch-view')">数据大屏</button>
-          <button type="button" class="active">门店运营看板</button>
+          <button type="button" class="active">门店运营·经典</button>
+          <button type="button" @click="emit('switch-edition')">Tab 版</button>
         </div>
         <div class="brand">
           <div class="brand__mark">运</div>
@@ -173,7 +174,7 @@ import dashRaw from '../data/dashboard.json'
 import { fetchAssessmentBoard, healthFromMetrics, type AssessBoard } from '../api/opsDashboard'
 import { GRADE_RULES, type AssessKey } from '../utils/opsAssessment'
 
-const emit = defineEmits<{ 'switch-view': [] }>()
+const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
 
 const filter = useFilterStore()
 const { selectedDate, dataKey, loadingTick } = storeToRefs(filter)

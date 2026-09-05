@@ -11,11 +11,25 @@ import {
   type AssessmentRow,
 } from './dashboard'
 import {
+  ASSESS_DEFS,
+  GRADE_RULES,
   aggregateAssess,
   calcCompositeScore,
+  displayValue,
   gradeOf,
+  isPass,
+  type AssessKey,
   type AssessRaw,
 } from '../utils/opsAssessment'
+
+/** 周报展示顺序：售罄 → 错漏拣 → 仓T → IM → 商责 */
+const REPORT_METRIC_ORDER: AssessKey[] = [
+  'sellout_rate',
+  'pick_error_rate',
+  'warehouse_t',
+  'im_reply_rate',
+  'merchant_issue_rate',
+]
 
 export type OpsStore = {
   id: string
@@ -397,6 +411,204 @@ export async function fetchAssessmentMetrics(
 ): Promise<AssessMetric[]> {
   const board = await fetchAssessmentBoard(isoDate, city, storeId)
   return board?.metrics || []
+}
+
+export type WeeklyMetricCard = {
+  key: AssessKey
+  name: string
+  shortName: string
+  unit: '%' | 'min'
+  value: number
+  prev: number | null
+  delta: number | null
+  pass: boolean
+  passLine: number
+  lowerBetter: boolean
+  storePassCnt: number
+  storeCnt: number
+  storePassRate: number
+}
+
+export type WeeklyStoreRow = AssessBoard['rows'][number] & {
+  prevComposite: number | null
+  deltas: Partial<Record<AssessKey, number | null>>
+  failCnt: number
+}
+
+export type WeeklySuggestion = {
+  title: string
+  desc: string
+}
+
+export type AssessmentWeeklyReport = {
+  weekId: string
+  prevWeekId: string | null
+  weekLabel: string
+  prevLabel: string | null
+  storeCnt: number
+  failMetricCnt: number
+  metrics: WeeklyMetricCard[]
+  rowsAsc: WeeklyStoreRow[]
+  gradeDist: Array<(typeof GRADE_RULES)[number] & { count: number; share: number }>
+  merchantRank: Array<{ shortName: string; name: string; value: number; pass: boolean }>
+  suggestions: WeeklySuggestion[]
+  summaryNote: string
+}
+
+/** 对齐营运周报：本周 vs 上周 + 门店达标率 + 升序明细 + 改善建议 */
+export async function fetchAssessmentWeeklyReport(
+  isoDate: string,
+  city = '全部',
+  storeId = '全部',
+): Promise<AssessmentWeeklyReport | null> {
+  const weekId = resolveAssessmentWeekId(isoDate)
+  if (!weekId) return null
+
+  const dashMod = await import('../data/dashboard.json')
+  const dash = (dashMod as { default?: typeof dashMod }).default || dashMod
+  const weeks =
+    (dash as { weeks?: Array<{ id: string; label?: string }> }).weeks || []
+  const weekIdx = weeks.findIndex((w) => w.id === weekId)
+  const prevWeekId = weekIdx > 0 ? weeks[weekIdx - 1].id : null
+  const weekLabel = weeks[weekIdx]?.label || weekId
+  const prevLabel = prevWeekId ? weeks[weekIdx - 1]?.label || prevWeekId : null
+
+  const cityKey = !city || city === '全部' ? '全国' : city
+  const curRows = await fetchAssessmentStores(isoDate, cityKey, storeId)
+  if (!curRows.length) return null
+
+  const prevRows = prevWeekId
+    ? await fetchAssessmentStores(`W:${prevWeekId}`, cityKey, storeId === '全部' ? '全部' : storeId)
+    : []
+  const prevMap = new Map(prevRows.map((r) => [r.shortName || r.name, r]))
+
+  const curAgg = aggregateAssess(curRows as AssessRaw[])!
+  const prevAgg = prevRows.length ? aggregateAssess(prevRows as AssessRaw[]) : null
+
+  const scoredRows = curRows.map((r) => {
+    const s = calcCompositeScore(r as AssessRaw)
+    const prev = prevMap.get(r.shortName) || prevMap.get(r.name)
+    const prevScore = prev ? calcCompositeScore(prev as AssessRaw) : null
+    const deltas: Partial<Record<AssessKey, number | null>> = {}
+    ASSESS_DEFS.forEach((d) => {
+      const curV = displayValue(d.key, r[d.key] ?? 0)
+      if (!prev) {
+        deltas[d.key] = null
+        return
+      }
+      const prevV = displayValue(d.key, prev[d.key] ?? 0)
+      deltas[d.key] = Math.round((curV - prevV) * 100) / 100
+    })
+    const failCnt = s.parts.filter((p) => !p.pass).length
+    return {
+      ...r,
+      composite: s.composite,
+      grade: s.grade,
+      parts: s.parts,
+      prevComposite: prevScore?.composite ?? null,
+      deltas,
+      failCnt,
+    } satisfies WeeklyStoreRow
+  })
+
+  const defByKey = Object.fromEntries(ASSESS_DEFS.map((d) => [d.key, d])) as Record<
+    AssessKey,
+    (typeof ASSESS_DEFS)[number]
+  >
+  const metrics: WeeklyMetricCard[] = REPORT_METRIC_ORDER.map((key) => {
+    const d = defByKey[key]
+    const value = displayValue(d.key, curAgg[d.key] ?? 0)
+    const prev = prevAgg ? displayValue(d.key, prevAgg[d.key] ?? 0) : null
+    const storePassCnt = scoredRows.filter((r) => {
+      const part = r.parts.find((p) => p.key === d.key)
+      return part?.pass
+    }).length
+    return {
+      key: d.key,
+      name: d.name,
+      shortName: d.shortName,
+      unit: d.unit,
+      value: Number(value.toFixed(2)),
+      prev: prev == null ? null : Number(prev.toFixed(2)),
+      delta: prev == null ? null : Number((value - prev).toFixed(2)),
+      pass: isPass(d.key, value),
+      passLine: d.passLine,
+      lowerBetter: d.lowerBetter,
+      storePassCnt,
+      storeCnt: scoredRows.length,
+      storePassRate: scoredRows.length ? storePassCnt / scoredRows.length : 0,
+    }
+  })
+
+  const failMetricCnt = metrics.filter((m) => !m.pass).length
+  const gradeDist = GRADE_RULES.map((g) => {
+    const count = scoredRows.filter((r) => r.grade.grade === g.grade).length
+    return { ...g, count, share: scoredRows.length ? count / scoredRows.length : 0 }
+  })
+
+  const rowsAsc = [...scoredRows].sort((a, b) => a.composite - b.composite)
+
+  const merchantRank = [...scoredRows]
+    .map((r) => {
+      const part = r.parts.find((p) => p.key === 'merchant_issue_rate')!
+      return {
+        shortName: r.shortName,
+        name: r.name,
+        value: part.value,
+        pass: part.pass,
+      }
+    })
+    .sort((a, b) => b.value - a.value)
+
+  const suggestions: WeeklySuggestion[] = []
+  metrics
+    .filter((m) => !m.pass)
+    .forEach((m) => {
+      const worst = [...scoredRows]
+        .sort((a, b) => {
+          const av = a.parts.find((p) => p.key === m.key)!.value
+          const bv = b.parts.find((p) => p.key === m.key)!.value
+          return m.lowerBetter ? bv - av : av - bv
+        })
+        .slice(0, 3)
+      const unit = m.unit === 'min' ? '' : '%'
+      suggestions.push({
+        title: `${m.name} 未达标（当前 ${m.value}${m.unit === 'min' ? 'min' : '%'}，标准 ${m.lowerBetter ? '≤' : '≥'}${m.passLine}${m.unit === 'min' ? 'min' : '%'}）`,
+        desc: `需重点整改门店：${worst.map((s) => `${s.name || s.shortName}(${s.parts.find((p) => p.key === m.key)!.value}${unit || ''})`).join('、')}。`,
+      })
+    })
+  const dStores = scoredRows.filter((r) => r.grade.grade === 'D')
+  if (dStores.length) {
+    suggestions.push({
+      title: `D 红线店 ${dStores.length} 家`,
+      desc: `${dStores.map((s) => s.name || s.shortName).join('、')}。逐店挂账跟踪，本周内制定一店一策专项改善动作。`,
+    })
+  }
+
+  const summaryNote = metrics
+    .filter((m) => m.delta != null && m.delta !== 0)
+    .map((m) => {
+      const worse = m.lowerBetter ? (m.delta as number) > 0 : (m.delta as number) < 0
+      const sign = (m.delta as number) > 0 ? '+' : ''
+      const unit = m.unit === 'min' ? '' : 'pp'
+      return `${m.name}${worse ? '恶化' : '改善'}(${sign}${m.delta}${unit})`
+    })
+    .join('；')
+
+  return {
+    weekId,
+    prevWeekId,
+    weekLabel,
+    prevLabel,
+    storeCnt: scoredRows.length,
+    failMetricCnt,
+    metrics,
+    rowsAsc,
+    gradeDist,
+    merchantRank,
+    suggestions,
+    summaryNote: summaryNote ? `关键变化：${summaryNote}` : '本周无对比周数据',
+  }
 }
 
 export async function fetchFunnel(isoDate: string, city = '全部', storeId = '全部') {

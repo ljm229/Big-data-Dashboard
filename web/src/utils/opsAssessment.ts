@@ -97,7 +97,7 @@ export const ASSESS_DEFS: Array<{
 export const GRADE_RULES: Array<{ grade: StoreGrade; label: string; min: number; max: number; color: string }> = [
   { grade: 'S', label: '标杆店', min: 90, max: 100, color: '#3dff7a' },
   { grade: 'A', label: '合格店', min: 80, max: 90, color: '#5B9BD5' },
-  { grade: 'B', label: '基准店', min: 60, max: 80, color: '#ffc53d' },
+  { grade: 'B', label: '基线店', min: 60, max: 80, color: '#ffc53d' },
   { grade: 'C', label: '不合格店', min: 40, max: 60, color: '#ff7a45' },
   { grade: 'D', label: '红线店', min: 0, max: 40, color: '#ff5c5c' },
 ]
