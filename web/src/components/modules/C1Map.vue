@@ -340,10 +340,9 @@ function fallbackProfile(store: MapStorePoint): StoreProfile {
 function resolveMarkerAnchor(store?: MapStorePoint, event?: { clientX?: number; clientY?: number }) {
   if (store && chart.value && el.value) {
     try {
-      const pixel = chart.value.convertToPixel({ geoIndex: 0 }, [store.lng, store.lat]) as
-        | number[]
-        | null
-      if (pixel?.length >= 2) {
+      const raw = chart.value.convertToPixel({ geoIndex: 0 }, [store.lng, store.lat])
+      const pixel = Array.isArray(raw) ? raw : null
+      if (pixel && pixel.length >= 2) {
         const node = el.value
         const r = node.getBoundingClientRect()
         const sx = r.width / Math.max(node.clientWidth, 1)
