@@ -1,12 +1,12 @@
 <template>
   <Panel title="城市 TOP10" :updated-at="time" :loading="loading && !rows.length">
     <template #extra>
-      <select class="metric" :value="metric" @change="onMetric">
-        <option value="paid_amount">实付营业额</option>
-        <option value="profit">预计毛利</option>
-        <option value="orders">订单量</option>
-        <option value="orders_per_store_day">单店日均订单</option>
-      </select>
+      <DashSelect
+        class="metric-select"
+        :model-value="metric"
+        :options="metricOptions"
+        @update:model-value="onMetric"
+      />
     </template>
     <div ref="el" class="chart" />
   </Panel>
@@ -14,9 +14,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { EChartsOption } from 'echarts'
 import { storeToRefs } from 'pinia'
 import Panel from '../Panel.vue'
+import DashSelect from '../DashSelect.vue'
 import { useFilterStore } from '../../stores/filter'
 import { fetchCityRank } from '../../api/dashboard'
 import { useEcharts } from '../../composables/useEcharts'
@@ -33,8 +33,15 @@ const time = computed(() => (updatedAt.value ? updatedAt.value.slice(11, 19) : '
 const { chart } = useEcharts(el, option)
 let timer = 0
 
-function onMetric(e: Event) {
-  metric.value = (e.target as HTMLSelectElement).value
+const metricOptions = [
+  { value: 'paid_amount', label: '实付营业额' },
+  { value: 'profit', label: '预计毛利' },
+  { value: 'orders', label: '订单量' },
+  { value: 'orders_per_store_day', label: '单店日均订单' },
+]
+
+function onMetric(value: string) {
+  metric.value = value
   load(false)
 }
 
@@ -113,14 +120,8 @@ onUnmounted(() => clearInterval(timer))
 </script>
 
 <style scoped>
-.metric {
-  background: rgba(8, 24, 56, 0.9);
-  border: 1px solid rgba(0, 170, 255, 0.45);
-  color: #e8f3ff;
-  border-radius: 4px;
-  font-size: var(--fs-axis);
-  padding: 4px 6px;
-  max-width: 120px;
+.metric-select {
+  width: 136px;
 }
 .chart {
   width: 100%;

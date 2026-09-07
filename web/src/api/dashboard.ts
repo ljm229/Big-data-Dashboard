@@ -1,6 +1,6 @@
 /**
  * 只从 Excel 转换后的 JSON 取值，不做分时/订单流等推演。
- * 源：数据源周包 → dashboard.json（按日 / 按周键，毛利含后返）
+ * 源：数据源周包 → dashboard.json（按日 / 按周 / 按月键，毛利含后返）
  */
 import raw from '../data/dashboard.json'
 import { isAbnormalStore } from '../utils/health'
@@ -50,6 +50,7 @@ type DashRaw = {
     }>
   >
   weeks?: Array<{ id: string; days: string[]; start?: string; end?: string }>
+  months?: Array<{ id: string; days: string[]; start?: string; end?: string; label?: string }>
   days?: string[]
   category?: {
     period?: { start?: string; end?: string; label?: string }
@@ -186,7 +187,7 @@ export function availableDates() {
   const days = (raw as { days?: string[] }).days
   if (days?.length) return days
   return Object.keys(data.storeRank || {})
-    .filter((k) => !k.startsWith('W:'))
+    .filter((k) => !k.startsWith('W:') && !k.startsWith('M:'))
     .sort()
 }
 
@@ -896,20 +897,28 @@ export async function fetchProfitQuality(dateKey: string, cityName = '全国', c
   })
 }
 
-/** 日趋势：当前周内每日实付/毛利 */
+/** 日趋势：当前周/月内每日实付/毛利 */
 export async function fetchDayTrend(dateKey: string, cityName = '全国', channel = '全部') {
   const meta = raw as unknown as {
     days?: string[]
     weeks?: { id: string; days: string[] }[]
+    months?: { id: string; days: string[] }[]
     overview?: Record<string, Record<string, number>>
   }
   const weeks = meta.weeks || []
+  const months = meta.months || []
   let dayList: string[] = []
   if (dateKey.startsWith('W:')) {
     const id = dateKey.slice(2)
     dayList = weeks.find((w) => w.id === id)?.days || []
+  } else if (dateKey.startsWith('M:')) {
+    const id = dateKey.slice(2)
+    dayList = months.find((m) => m.id === id)?.days || []
   } else {
-    dayList = weeks.find((w) => w.days.includes(dateKey))?.days || (meta.days || []).slice(-7)
+    dayList =
+      weeks.find((w) => w.days.includes(dateKey))?.days ||
+      months.find((m) => m.days.includes(dateKey))?.days ||
+      (meta.days || []).slice(-7)
   }
   dayList = [...dayList].sort()
 
@@ -961,12 +970,19 @@ function matchStoreRow(fullName: string, storeId: string) {
 
 function weekDaysOf(dateKey: string): string[] {
   const weeks = data.weeks || []
+  const months = data.months || []
   if (dateKey.startsWith('W:')) {
     const id = dateKey.slice(2)
     return [...(weeks.find((w) => w.id === id)?.days || [])].sort()
   }
+  if (dateKey.startsWith('M:')) {
+    const id = dateKey.slice(2)
+    return [...(months.find((m) => m.id === id)?.days || [])].sort()
+  }
   const hit = weeks.find((w) => w.days.includes(dateKey))
   if (hit) return [...hit.days].sort()
+  const monthHit = months.find((m) => m.days.includes(dateKey))
+  if (monthHit) return [...monthHit.days].sort()
   return (data.days || []).includes(dateKey) ? [dateKey] : []
 }
 
@@ -977,7 +993,7 @@ export async function fetchStoreChannelBoard(
   storeId = '全部',
 ) {
   let key = dateKey
-  if (!dateKey.startsWith('W:')) {
+  if (!dateKey.startsWith('W:') && !dateKey.startsWith('M:')) {
     const weekId = resolveAssessmentWeekId(dateKey)
     if (weekId && (data.channelStores?.[`W:${weekId}`]?.length || 0) > 0) {
       key = `W:${weekId}`
@@ -1040,7 +1056,7 @@ export async function fetchStoreChannelBoard(
     }))
     .sort((a, b) => b.paid - a.paid)
 
-  const dayList = weekDaysOf(dateKey.startsWith('W:') ? dateKey : key)
+  const dayList = weekDaysOf(dateKey.startsWith('W:') || dateKey.startsWith('M:') ? dateKey : key)
   const dayTrend: DayOrderPoint[] = []
   for (const d of dayList) {
     let dayRows = filterChannelStores(d, cityKey, '全部').filter((r) =>
@@ -1121,6 +1137,16 @@ export async function fetchStoreProfile(dateKey: string, storeNameOrShort: strin
   })
 }
 
+function resolveCityMapDateKey(dateKey: string): string {
+  if (dateKey.startsWith('W:')) return dateKey.slice(2).split('_')[1] || ''
+  if (dateKey.startsWith('M:')) {
+    const id = dateKey.slice(2)
+    const month = (data.months || []).find((m) => m.id === id)
+    return month?.end || month?.days?.[month.days.length - 1] || id
+  }
+  return dateKey
+}
+
 export type AssessmentRow = {
   name: string
   shortName: string
@@ -1134,12 +1160,18 @@ export type AssessmentRow = {
   shop_score?: number
 }
 
-/** 日 → 所在周 id；周键 W:xxx → 直接取周 */
+/** 日 → 所在周 id；周键 W:xxx → 直接取周；月键 M:xxx → 取月末所在周 */
 export function resolveAssessmentWeekId(dateKey: string): string | null {
   if (!dateKey) return null
   if (dateKey.startsWith('W:')) {
     const id = dateKey.slice(2)
     return data.assessment?.[id] ? id : null
+  }
+  if (dateKey.startsWith('M:')) {
+    const id = dateKey.slice(2)
+    const month = (data.months || []).find((m) => m.id === id)
+    const end = month?.end || month?.days?.[month.days.length - 1] || ''
+    return end ? resolveAssessmentWeekId(end) : null
   }
   if (data.assessment?.[dateKey]) return dateKey
   const weeks = data.weeks || []
@@ -1172,7 +1204,7 @@ export async function fetchAssessmentStores(
 ): Promise<AssessmentRow[]> {
   const weekId = resolveAssessmentWeekId(dateKey)
   if (!weekId) return wait([])
-  const cityMap = cityByStoreShort(dateKey.startsWith('W:') ? dateKey.slice(2).split('_')[1] || '' : dateKey)
+  const cityMap = cityByStoreShort(resolveCityMapDateKey(dateKey))
   let rows: AssessmentRow[] = (data.assessment?.[weekId] || []).map((r) => ({
     ...r,
     city: cityMap[r.shortName] || cityMap[r.name] || '',
@@ -1232,9 +1264,7 @@ export async function fetchCategoryMix(dateKey: string, cityName = '全国', sto
   const block = data.category
   if (!block) return wait({ period: null as null | { label?: string; start?: string; end?: string }, rows: [] as CategoryRow[] })
 
-  const cityMap = cityByStoreShort(
-    dateKey.startsWith('W:') ? dateKey.slice(2).split('_')[1] || '' : dateKey,
-  )
+  const cityMap = cityByStoreShort(resolveCityMapDateKey(dateKey))
   let rows: CategoryRow[] = []
 
   const needFilter =

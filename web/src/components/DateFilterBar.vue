@@ -7,25 +7,46 @@
       <button type="button" :class="{ active: periodMode === 'week' }" @click="filter.setPeriodMode('week')">
         按周
       </button>
+      <button type="button" :class="{ active: periodMode === 'month' }" @click="filter.setPeriodMode('month')">
+        按月
+      </button>
     </div>
 
-    <input
+    <DashDatePicker
       v-if="scope === 'unified' || periodMode === 'day'"
-      type="date"
-      class="ctrl"
-      :value="selectedDate"
-      :min="pickerDates[0]"
-      :max="pickerDates[pickerDates.length - 1]"
-      @change="onDate"
+      class="ctrl-date"
+      :variant="variant"
+      :model-value="selectedDate"
+      :dates="pickerDates"
+      @update:model-value="filter.setDate"
     />
 
-    <select v-else class="ctrl" :value="selectedWeekId" @change="onWeek">
-      <option v-for="w in COCKPIT_WEEKS" :key="w.id" :value="w.id">{{ w.label }}</option>
-    </select>
+    <DashSelect
+      v-else-if="periodMode === 'week'"
+      class="ctrl-select ctrl-select--week"
+      :variant="variant"
+      :model-value="selectedWeekId"
+      :options="weekOptions"
+      @update:model-value="filter.setWeek"
+    />
 
-    <select v-if="scope === 'cockpit'" class="ctrl ctrl--channel" :value="channel" @change="onChannel">
-      <option v-for="c in COCKPIT_CHANNELS" :key="c" :value="c">{{ c === '全部' ? '全部渠道' : c }}</option>
-    </select>
+    <DashSelect
+      v-else
+      class="ctrl-select ctrl-select--month"
+      :variant="variant"
+      :model-value="selectedMonthId"
+      :options="monthOptions"
+      @update:model-value="filter.setMonth"
+    />
+
+    <DashSelect
+      v-if="scope === 'cockpit'"
+      class="ctrl-select ctrl-select--channel"
+      :variant="variant"
+      :model-value="channel"
+      :options="channelOptions"
+      @update:model-value="filter.setChannel"
+    />
   </div>
 </template>
 
@@ -36,9 +57,12 @@ import {
   useFilterStore,
   COCKPIT_DATES,
   COCKPIT_WEEKS,
+  COCKPIT_MONTHS,
   COCKPIT_CHANNELS,
   OPS_DATES,
 } from '../stores/filter'
+import DashSelect from './DashSelect.vue'
+import DashDatePicker from './DashDatePicker.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -49,23 +73,20 @@ const props = withDefaults(
 )
 
 const filter = useFilterStore()
-const { selectedDate, selectedWeekId, periodMode, channel } = storeToRefs(filter)
+const { selectedDate, selectedWeekId, selectedMonthId, periodMode, channel } = storeToRefs(filter)
 
 const pickerDates = computed(() => {
-  // 营运考核按周落在大屏日期内；运营明细仅个别日有
   if (props.scope === 'cockpit' || props.scope === 'ops') return COCKPIT_DATES
   return [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
 })
 
-function onDate(e: Event) {
-  filter.setDate((e.target as HTMLInputElement).value)
-}
-function onWeek(e: Event) {
-  filter.setWeek((e.target as HTMLSelectElement).value)
-}
-function onChannel(e: Event) {
-  filter.setChannel((e.target as HTMLSelectElement).value)
-}
+const weekOptions = computed(() =>
+  COCKPIT_WEEKS.map((w) => ({ value: w.id, label: w.label })),
+)
+const monthOptions = computed(() => COCKPIT_MONTHS.map((m) => ({ value: m.id, label: m.label })))
+const channelOptions = computed(() =>
+  COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部渠道' : c })),
+)
 </script>
 
 <style scoped lang="scss">
@@ -79,7 +100,7 @@ function onChannel(e: Event) {
 }
 .seg {
   display: flex;
-  border: 1px solid rgba(94, 200, 255, 0.4);
+  border: 1px solid rgba(94, 200, 255, 0.45);
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
@@ -87,9 +108,11 @@ function onChannel(e: Event) {
     border: 0;
     background: transparent;
     color: #ffffff;
-    opacity: 0.78;
-    padding: 6px 11px;
-    font-size: 12px;
+    opacity: 0.82;
+    padding: 8px 14px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
     cursor: pointer;
     &.active {
       opacity: 1;
@@ -99,25 +122,20 @@ function onChannel(e: Event) {
     }
   }
 }
-.ctrl {
-  background: rgba(8, 24, 56, 0.85);
-  border: 1px solid rgba(94, 200, 255, 0.4);
-  color: #e8f3ff;
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 12px;
-  outline: none;
-  color-scheme: dark;
-  height: 30px;
-  box-sizing: border-box;
-  max-width: 148px;
+.ctrl-date {
+  width: 132px;
 }
-.ctrl--channel {
-  max-width: 118px;
+.ctrl-select {
+  width: 148px;
 }
-select.ctrl option {
-  background: #0a1e3c;
-  color: #e8f3ff;
+.ctrl-select--week {
+  width: 118px;
+}
+.ctrl-select--month {
+  width: 148px;
+}
+.ctrl-select--channel {
+  width: 128px;
 }
 
 .date-bar.light {
@@ -127,9 +145,9 @@ select.ctrl option {
     background: #fff;
     button {
       color: #94a3b8;
-      padding: 0 12px;
-      height: 32px;
-      font-size: 12px;
+      padding: 0 14px;
+      height: 36px;
+      font-size: 15px;
       font-weight: 600;
       &.active {
         color: #fff;
@@ -137,16 +155,6 @@ select.ctrl option {
         font-weight: 700;
       }
     }
-  }
-  .ctrl {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    color: #1f2937;
-    color-scheme: light;
-    height: 32px;
-    border-radius: 6px;
-    font-weight: 600;
-    max-width: 160px;
   }
 }
 </style>

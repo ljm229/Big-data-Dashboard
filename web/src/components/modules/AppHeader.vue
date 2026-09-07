@@ -173,7 +173,8 @@ onUnmounted(() => clearInterval(timer))
 .header {
   position: relative;
   flex-shrink: 0;
-  z-index: 2;
+  z-index: 50;
+  overflow: visible;
   background: transparent;
   padding-bottom: 4px;
 }
@@ -204,7 +205,7 @@ onUnmounted(() => clearInterval(timer))
 }
 
 .clock {
-  font-size: var(--fs-axis);
+  font-size: 14px;
   font-family: var(--font-num);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

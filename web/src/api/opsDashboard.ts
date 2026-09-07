@@ -696,6 +696,16 @@ export async function fetchStoreBusinessReport(
       prevKey = `W:${weeks[idx - 1].id}`
       prevLabel = weeks[idx - 1]?.label || weeks[idx - 1].id
     }
+  } else if (isoDate.startsWith('M:')) {
+    const months =
+      (dash as { months?: Array<{ id: string; label?: string }> }).months || []
+    const monthId = isoDate.slice(2)
+    const idx = months.findIndex((m) => m.id === monthId)
+    weekLabel = months[idx]?.label || monthId
+    if (idx > 0) {
+      prevKey = `M:${months[idx - 1].id}`
+      prevLabel = months[idx - 1]?.label || months[idx - 1].id
+    }
   } else {
     const weekId = resolveAssessmentWeekId(isoDate)
     const idx = weekId ? weeks.findIndex((w) => w.id === weekId) : -1
@@ -719,7 +729,7 @@ export async function fetchStoreBusinessReport(
 
   const cityKey = !city || city === '全部' ? '全国' : city
   let curRows = await fetchStoreRank(curKey, cityKey, '全部')
-  if (!curRows.length && !isoDate.startsWith('W:')) {
+  if (!curRows.length && !isoDate.startsWith('W:') && !isoDate.startsWith('M:')) {
     curRows = await fetchStoreRank(isoDate, cityKey, '全部')
     curKey = isoDate
   }

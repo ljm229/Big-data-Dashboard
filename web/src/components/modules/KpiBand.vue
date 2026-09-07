@@ -1,5 +1,6 @@
 <template>
   <div class="kpi">
+    <div v-if="scopeHint" class="kpi__scope">{{ scopeHint }}</div>
     <article v-for="card in cards" :key="card.key" class="kpi__card">
       <div class="kpi__label">{{ card.label }}</div>
       <FlipNumber :value="card.main" :tone="card.tone" class="kpi__num" />
@@ -29,6 +30,13 @@ const data = ref<Record<string, number> | null>(null)
 const compare = ref<Record<string, number> | null>(null)
 const wow = ref<Record<string, number> | null>(null)
 let timer = 0
+
+const scopeHint = computed(() => {
+  const parts: string[] = []
+  if (cityName.value && cityName.value !== '全国') parts.push(cityName.value)
+  if (channel.value && channel.value !== '全部') parts.push(channel.value)
+  return parts.length ? `当前筛选：${parts.join(' · ')}` : ''
+})
 
 async function load() {
   const ch = channel.value
@@ -153,12 +161,22 @@ onUnmounted(() => clearInterval(timer))
 
 <style scoped lang="scss">
 .kpi {
+  position: relative;
   height: 118px;
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 10px;
   padding: 0 2px;
+}
+
+.kpi__scope {
+  position: absolute;
+  top: -16px;
+  left: 4px;
+  z-index: 2;
+  font-size: 12px;
+  color: #9adfff;
 }
 
 .kpi__card {

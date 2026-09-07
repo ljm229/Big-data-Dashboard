@@ -90,8 +90,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useScreenScale } from './composables/useScale'
+import { computed, provide, ref, watch } from 'vue'
+import { SCREEN_SCALE_KEY, useScreenScale } from './composables/useScale'
 import { useFilterStore, COCKPIT_DATES } from './stores/filter'
 import { hasAssessment } from './api/dashboard'
 import AccessGate from './components/AccessGate.vue'
@@ -112,7 +112,10 @@ import DateFilterBar from './components/DateFilterBar.vue'
 const activeView = ref<'cockpit' | 'ops'>('cockpit')
 const opsEdition = ref<'classic' | 'tabs'>('classic')
 const filter = useFilterStore()
-const { style, wrapperStyle } = useScreenScale(1920, 1280)
+const { scale, style, wrapperStyle } = useScreenScale(1920, 1280)
+/** 仅数据大屏做 scale；运营看板保持 1，避免下拉/弹层被二次缩小 */
+const overlayScale = computed(() => (activeView.value === 'cockpit' ? scale.value : 1))
+provide(SCREEN_SCALE_KEY, overlayScale)
 
 watch(activeView, (view) => {
   const iso = filter.selectedDate
@@ -131,19 +134,21 @@ watch(activeView, (view) => {
   display: flex;
   gap: 8px;
   button {
-    border: 1px solid rgba(94, 200, 255, 0.35);
+    border: 1px solid rgba(94, 200, 255, 0.45);
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 8px 14px;
     color: #cfe0f6;
     background: rgba(255, 255, 255, 0.06);
     cursor: pointer;
-    font-size: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
     white-space: nowrap;
     &.active {
       color: #04122a;
       background: linear-gradient(135deg, #9adfff, #3aa0ff);
       border-color: transparent;
-      font-weight: 800;
+      font-weight: 700;
     }
   }
 }
@@ -412,6 +417,9 @@ watch(activeView, (view) => {
   flex-direction: column;
   gap: 4px;
   background: transparent;
+  /* 高于下方栏目，避免日历/下拉被左侧卡片盖住 */
+  z-index: 40;
+  overflow: visible;
 }
 .body {
   flex: 1;
@@ -419,6 +427,7 @@ watch(activeView, (view) => {
   display: flex;
   flex-direction: column;
   gap: 0;
+  z-index: 1;
 }
 .body-main {
   flex: 1;

@@ -1,6 +1,6 @@
 /**
  * 从 数据源/* 周包重新生成 web/src/data/dashboard.json
- * 支持按日 / 按周取数，含渠道维；毛利默认「含平台后返」
+ * 支持按日 / 按周 / 按月取数，含渠道维；毛利默认「含平台后返」
  * 用法：node scripts/sync-excel.mjs
  */
 import XLSX from 'xlsx'
@@ -39,6 +39,20 @@ function isoToLabel(iso) {
   if (!iso) return ''
   const [, m, d] = iso.split('-')
   return `${Number(m)}.${Number(d)}`
+}
+
+/** 周五所在月的第几个周五 →「8月第3周」 */
+function calendarWeekLabel(friIso) {
+  const fri = new Date(`${friIso}T12:00:00`)
+  if (Number.isNaN(fri.getTime())) return friIso
+  const y = fri.getFullYear()
+  const m = fri.getMonth()
+  let ordinal = 0
+  for (let day = 1; day <= fri.getDate(); day++) {
+    const dt = new Date(y, m, day, 12)
+    if (dt.getDay() === 5) ordinal++
+  }
+  return `${m + 1}月第${ordinal}周`
 }
 
 function normStoreName(name) {
@@ -274,10 +288,12 @@ for (const folder of weekDirs) {
   }
 
   const weekId = `${days[0]}_${days[days.length - 1]}`
+  // 周口径：周五 → 周四；标签按周五所在月第几周
+  const fri = days[0]
   weeks.push({
     id: weekId,
-    label: folder,
-    start: days[0],
+    label: calendarWeekLabel(fri),
+    start: fri,
     end: days[days.length - 1],
     days,
   })
@@ -576,8 +592,164 @@ for (const folder of weekDirs) {
 }
 
 const allDays = Object.keys(byDay)
-  .filter((k) => !k.startsWith('W:'))
+  .filter((k) => !k.startsWith('W:') && !k.startsWith('M:'))
   .sort()
+
+/** 按自然月汇总（从日键聚合） */
+const months = []
+const daysByMonth = {}
+allDays.forEach((iso) => {
+  const ym = iso.slice(0, 7)
+  if (!daysByMonth[ym]) daysByMonth[ym] = []
+  daysByMonth[ym].push(iso)
+})
+const STORE_SUM_KEYS = [
+  '总营业额',
+  '总优惠金额',
+  '用户实付营业额',
+  '用户实付订单量',
+  '交易用户数',
+  '预计毛利',
+  '预计毛利_不含后返',
+  '预计线上收入',
+  '预计线上支出',
+  '采购成本',
+  '商家自配送费用',
+  '退款订单量',
+  '退款金额',
+  '平台后返',
+  '营销活动费用',
+  '商品成本',
+  '平台配送服务费',
+  '自配送费用',
+  '佣金&其他平台费用',
+  '推广费用',
+  '平台补贴',
+]
+for (const ym of Object.keys(daysByMonth).sort()) {
+  const mDays = daysByMonth[ym].sort()
+  const [y, mo] = ym.split('-')
+  months.push({
+    id: ym,
+    label: `${Number(y)}年${Number(mo)}月`,
+    start: mDays[0],
+    end: mDays[mDays.length - 1],
+    days: mDays,
+  })
+  const storeMap = {}
+  const cityMap = {}
+  const chMap = {}
+  let storeListMonth = []
+  mDays.forEach((iso) => {
+    const day = byDay[iso]
+    if (!day) return
+    day.storeRank.forEach((r) => {
+      const key = normStoreName(r['门店名称'])
+      if (!storeMap[key]) storeMap[key] = { ...r, 日期: ym }
+      else {
+        const t = storeMap[key]
+        STORE_SUM_KEYS.forEach((k) => {
+          t[k] = toNum(t[k]) + toNum(r[k])
+        })
+      }
+    })
+    day.cities.forEach((r) => {
+      const key = r['城市']
+      if (!key) return
+      if (!cityMap[key]) cityMap[key] = { ...r, 日期: ym }
+      else {
+        const t = cityMap[key]
+        Object.keys(r).forEach((k) => {
+          if (k === '城市' || k === '日期' || typeof r[k] === 'string') return
+          t[k] = toNum(t[k]) + toNum(r[k])
+        })
+      }
+    })
+    ;(day.channelStores || []).forEach((r) => {
+      const key = `${r['渠道']}__${normStoreName(r['门店名称'])}`
+      if (!chMap[key]) chMap[key] = { ...r, 日期: ym }
+      else {
+        const t = chMap[key]
+        STORE_SUM_KEYS.forEach((k) => {
+          t[k] = toNum(t[k]) + toNum(r[k])
+        })
+      }
+    })
+    if (day.storeList?.length) storeListMonth = day.storeList
+  })
+  Object.values(storeMap).forEach((t) => {
+    t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利']) / toNum(t['总营业额']) : 0
+  })
+  Object.values(cityMap).forEach((t) => {
+    t['毛利率'] = toNum(t['总营业额'])
+      ? toNum(t['预计毛利(含平台后返)'] || t['预计毛利']) / toNum(t['总营业额'])
+      : 0
+    t['毛利率(含平台后返)'] = t['毛利率']
+  })
+  Object.values(chMap).forEach((t) => {
+    t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利']) / toNum(t['总营业额']) : 0
+  })
+  const monthOverview = metricsFromRows(
+    mDays.flatMap((iso) => {
+      const ov = byDay[iso]?.overview
+      if (!ov) return []
+      return [
+        {
+          总营业额: ov.total_gmv,
+          '有效订单金额（实付）': ov.paid_amount,
+          有效订单量: ov.effective_orders,
+          有效买家数: ov.buyer_cnt,
+          '预计毛利(含平台后返)': ov.est_profit,
+          预计毛利: ov.est_profit_raw,
+          '毛利率(含平台后返)': ov.profit_rate,
+          毛利率: ov.profit_rate_raw,
+          平台后返: ov.rebate,
+          预计线上收入: ov.online_income,
+          预计线上支出: ov.est_expense,
+          商品成本: ov.purchase_cost,
+          营销活动费用: ov.marketing_cost,
+          '佣金&其他平台费用': ov.commission,
+          平台配送服务费: ov.platform_delivery,
+          自配送费用: ov.self_delivery,
+          推广费用: ov.promo_cost,
+          平台补贴: ov.platform_subsidy,
+          负毛利订单占比: ov.neg_profit_order_rate,
+          商家补贴率: ov.merchant_subsidy_rate,
+          退款率: ov.refund_rate,
+          退款金额: ov.refund_amount,
+          退款订单量: ov.refund_orders,
+          取消订单量: ov.cancel_orders,
+          部分退款订单量: ov.partial_refund_orders,
+          整单退款订单量: ov.full_refund_orders,
+          售中售后退款比: ov.inafter_refund_ratio,
+          '有效客单价（实付）': ov.arpu,
+        },
+      ]
+    }),
+  )
+  byDay[`M:${ym}`] = {
+    overview: {
+      ...monthOverview,
+      store_cnt: storeListMonth.filter((s) => s.status === '已营业').length,
+      active_store_cnt: Object.values(storeMap).filter((r) => toNum(r['用户实付订单量']) > 0).length,
+    },
+    cities: Object.values(cityMap),
+    storeRank: Object.values(storeMap),
+    channelStores: Object.values(chMap),
+    storeList: storeListMonth,
+    costs: costFromMetrics(monthOverview),
+    reverse: {
+      refund_rate: monthOverview?.refund_rate || 0,
+      refund_amount: monthOverview?.refund_amount || 0,
+      refund_orders: monthOverview?.refund_orders || 0,
+      inafter_refund_ratio: monthOverview?.inafter_refund_ratio || 0,
+      partial_refund_orders: monthOverview?.partial_refund_orders || 0,
+      full_refund_orders: monthOverview?.full_refund_orders || 0,
+    },
+    monthId: ym,
+  }
+  console.log('synced month', ym, 'days', mDays.length)
+}
 
 // 兼容旧结构：storeRank / cities / overview 按 dataKey
 const storeRank = {}
@@ -724,6 +896,7 @@ const payload = {
   compareDate: allDays.length > 1 ? allDays[allDays.length - 2] : '',
   days: allDays,
   weeks,
+  months,
   channels: ['全部', ...[...channelSet].sort()],
   overview,
   cities,
@@ -741,4 +914,13 @@ const payload = {
 const out = path.join(root, 'web', 'src', 'data', 'dashboard.json')
 fs.writeFileSync(out, JSON.stringify(payload))
 console.log('synced ->', out)
-console.log('days', allDays.length, 'weeks', weeks.length, 'channels', payload.channels.join(','))
+console.log(
+  'days',
+  allDays.length,
+  'weeks',
+  weeks.length,
+  'months',
+  months.length,
+  'channels',
+  payload.channels.join(','),
+)

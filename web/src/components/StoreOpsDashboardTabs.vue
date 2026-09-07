@@ -268,7 +268,8 @@ function softGrade(g: string) {
     padding: 8px 10px;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 15px;
+    font-weight: 600;
     &:hover {
       background: rgba(255, 255, 255, 0.06);
       color: #e2e8f0;
@@ -378,20 +379,20 @@ nav {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ops-muted);
   span {
     flex-shrink: 0;
   }
   select {
     min-width: 108px;
-    height: 32px;
+    height: 36px;
     border: 1px solid var(--ops-border);
     border-radius: 6px;
     padding: 0 10px;
     color: var(--ops-text);
     font-weight: 600;
-    font-size: 12px;
+    font-size: 14px;
     background: #fff;
     box-sizing: border-box;
   }

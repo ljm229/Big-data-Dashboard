@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
-    <div v-if="open" class="drawer-mask" @click.self="close">
-      <aside class="drawer">
+    <div v-if="open" class="drawer-mask" :style="maskStyle" @click.self="close">
+      <aside class="drawer" :style="drawerStyle">
         <header>
           <h3>{{ title }}</h3>
           <button type="button" @click="close">×</button>
@@ -33,12 +33,14 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useFilterStore } from '../stores/filter'
 import { formatMoney, formatPercent, formatInt } from '../utils/format'
+import { SCREEN_SCALE_KEY } from '../composables/useScale'
 
 const filter = useFilterStore()
 const { drawer } = storeToRefs(filter)
+const screenScale = inject(SCREEN_SCALE_KEY, ref(1))
 const open = computed(() => !!drawer.value)
 const title = computed(() =>
   drawer.value?.type === 'city'
@@ -46,9 +48,24 @@ const title = computed(() =>
     : `门店经营 · ${drawer.value?.payload.name || ''}`,
 )
 
+const s = computed(() => Math.max(screenScale.value || 1, 0.01))
+const maskStyle = computed(() => ({ zIndex: 5500 }))
+const drawerStyle = computed(() => ({
+  width: `${Math.round(420 * s.value)}px`,
+  fontSize: `${Math.round(15 * s.value)}px`,
+}))
+
 const channels = computed(() => {
   const list = drawer.value?.payload?.channels
-  return Array.isArray(list) ? (list as { channel: string; paid_amount: number; paid_orders: number; est_profit: number; profit_rate: number }[]) : []
+  return Array.isArray(list)
+    ? (list as {
+        channel: string
+        paid_amount: number
+        paid_orders: number
+        est_profit: number
+        profit_rate: number
+      }[])
+    : []
 })
 
 const items = computed(() => {
@@ -93,13 +110,11 @@ function close() {
 .drawer-mask {
   position: fixed;
   inset: 0;
-  z-index: 1000;
   background: rgba(0, 8, 24, 0.55);
   display: flex;
   justify-content: flex-end;
 }
 .drawer {
-  width: 400px;
   height: 100%;
   background: linear-gradient(180deg, #0d2248, #08152e);
   border-left: 1px solid rgba(64, 180, 255, 0.35);
@@ -113,14 +128,14 @@ function close() {
     border-bottom: 1px solid rgba(64, 180, 255, 0.2);
     h3 {
       margin: 0;
-      font-size: 16px;
+      font-size: 1.15em;
       color: #e8f3ff;
     }
     button {
       border: 0;
       background: transparent;
       color: #9eb6d0;
-      font-size: 22px;
+      font-size: 1.5em;
       cursor: pointer;
     }
   }
@@ -138,18 +153,18 @@ function close() {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   span {
     color: rgba(170, 200, 230, 0.8);
-    font-size: 13px;
+    font-size: 1em;
   }
   b {
     color: #fff;
-    font-size: 13px;
+    font-size: 1em;
     font-weight: 600;
     text-align: right;
   }
 }
 .sub {
   margin: 18px 0 8px;
-  font-size: 13px;
+  font-size: 1em;
   color: #9adfff;
   font-weight: 700;
 }
@@ -160,11 +175,11 @@ function close() {
     display: flex;
     justify-content: space-between;
     color: #e8f3ff;
-    font-size: 13px;
+    font-size: 1em;
   }
   &__meta {
     margin-top: 4px;
-    font-size: 12px;
+    font-size: 0.9em;
     color: rgba(150, 180, 210, 0.78);
   }
 }

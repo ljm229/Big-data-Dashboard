@@ -164,7 +164,7 @@ import { storeToRefs } from 'pinia'
 import AssessmentCard, { type AssessMetric } from './AssessmentCard.vue'
 import CategoryStructure from './CategoryStructure.vue'
 import DateFilterBar from './DateFilterBar.vue'
-import { useFilterStore, COCKPIT_WEEKS } from '../stores/filter'
+import { useFilterStore, COCKPIT_WEEKS, COCKPIT_MONTHS } from '../stores/filter'
 import {
   fetchAssessmentCityOptions,
   fetchAssessmentStoreOptions,
@@ -190,6 +190,10 @@ const updatedHint = String((dashRaw as { updated_at?: string }).updated_at || ''
 
 const assessWeekLabel = computed(() => {
   const key = assessKey.value
+  if (key.startsWith('M:')) {
+    const id = key.slice(2)
+    return COCKPIT_MONTHS.find((m) => m.id === id)?.label || id
+  }
   const weekId = key.startsWith('W:')
     ? key.slice(2)
     : COCKPIT_WEEKS.find((w) => w.days.includes(selectedDate.value))?.id
@@ -382,20 +386,23 @@ void (async () => {
 }
 .view-switch {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   button {
     border: 1px solid rgba(255, 255, 255, 0.35);
     border-radius: 6px;
-    padding: 5px 10px;
-    color: rgba(255, 255, 255, 0.82);
+    padding: 8px 14px;
+    color: rgba(255, 255, 255, 0.88);
     background: rgba(255, 255, 255, 0.1);
     cursor: pointer;
-    font-size: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
     &.active {
       color: #2a5c82;
       background: #fff;
       border-color: transparent;
-      font-weight: 800;
+      font-weight: 700;
     }
   }
 }
@@ -428,7 +435,7 @@ void (async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
   span {
     opacity: 0.9;
   }
@@ -440,6 +447,7 @@ void (async () => {
     background: rgba(255, 255, 255, 0.95);
     color: var(--primary);
     font-weight: 600;
+    font-size: 14px;
   }
 }
 .health {

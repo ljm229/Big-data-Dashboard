@@ -1,7 +1,7 @@
 import { computed, onUnmounted, ref, watch, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { AssessMetric } from '../components/AssessmentCard.vue'
-import { useFilterStore, COCKPIT_WEEKS } from '../stores/filter'
+import { useFilterStore, COCKPIT_WEEKS, COCKPIT_MONTHS } from '../stores/filter'
 import {
   fetchAssessmentCityOptions,
   fetchAssessmentStoreOptions,
@@ -27,6 +27,10 @@ export function useOpsAssessment() {
 
   const assessWeekLabel = computed(() => {
     const key = assessKey.value
+    if (key.startsWith('M:')) {
+      const id = key.slice(2)
+      return COCKPIT_MONTHS.find((m) => m.id === id)?.label || id
+    }
     const weekId = key.startsWith('W:')
       ? key.slice(2)
       : COCKPIT_WEEKS.find((w) => w.days.includes(selectedDate.value))?.id

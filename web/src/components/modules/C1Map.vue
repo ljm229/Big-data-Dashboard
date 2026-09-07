@@ -1,30 +1,36 @@
 <template>
-  <Panel :title="panelTitle" :updated-at="time" :loading="loading && !list.length">
+  <Panel :title="panelTitle" :loading="loading && !list.length">
     <div class="wrap">
       <div class="map-toolbar">
         <div class="map-toolbar__filters">
           <label class="city-filter">
             城市
-            <select :value="cityId === 'all' ? 'all' : cityName" @change="onCity">
-              <option v-for="c in cities" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
+            <DashSelect
+              class="city-filter__select"
+              :model-value="cityId === 'all' ? 'all' : cityName"
+              :options="citySelectOptions"
+              @update:model-value="onCitySelect"
+            />
           </label>
           <label class="city-filter">
             门店
-            <select v-model="storeFocus" :disabled="!storeOptions.length" @change="onStoreFocus">
-              <option value="">{{ cityName === '全国' ? '先选城市' : '全部门店' }}</option>
-              <option v-for="s in storeOptions" :key="s.shortName" :value="s.shortName">
-                {{ s.shortName }}
-              </option>
-            </select>
+            <DashSelect
+              class="city-filter__select"
+              :model-value="storeFocus"
+              :options="storeSelectOptions"
+              :disabled="!storeOptions.length"
+              :placeholder="cityName === '全国' ? '先选城市' : '全部门店'"
+              @update:model-value="onStoreSelect"
+            />
           </label>
-          <label class="city-filter">
+          <label class="city-filter city-filter--metric">
             地图指标
-            <select v-model="mapMetric" @change="onMetricChange">
-              <option value="paid">气泡=实付 · 颜色=毛利率</option>
-              <option value="orders">气泡=订单 · 颜色=毛利率</option>
-              <option value="profit">气泡=毛利 · 颜色=毛利率</option>
-            </select>
+            <DashSelect
+              class="city-filter__select city-filter__select--metric"
+              :model-value="mapMetric"
+              :options="metricOptions"
+              @update:model-value="onMetricSelect"
+            />
           </label>
         </div>
         <div class="summary">
@@ -75,10 +81,12 @@
 
 <script setup lang="ts">
 import * as echarts from 'echarts'
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import Panel from '../Panel.vue'
+import DashSelect from '../DashSelect.vue'
 import { useFilterStore } from '../../stores/filter'
+import { SCREEN_SCALE_KEY } from '../../composables/useScale'
 import {
   fetchGeo,
   fetchCityOptions,
@@ -110,7 +118,7 @@ type GeoCity = {
 type StoreProfile = NonNullable<Awaited<ReturnType<typeof fetchStoreProfile>>>
 
 const filter = useFilterStore()
-const { dataKey, loadingTick, updatedAt, cityId, cityName, hasData, channel } = storeToRefs(filter)
+const { dataKey, loadingTick, cityId, cityName, hasData, channel } = storeToRefs(filter)
 const el = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const option = ref<any>(null)
@@ -130,7 +138,6 @@ const lastMode = ref<'nation' | 'province'>('nation')
 const lastProvinceKey = ref<string>('')
 let mapClickHandled = false
 
-const time = computed(() => (updatedAt.value ? updatedAt.value.slice(5, 10) : ''))
 const provinceView = computed(() => !!activeProvince.value && cityName.value !== '全国')
 const panelTitle = computed(() =>
   provinceView.value ? `${activeProvince.value?.name || ''} · ${cityName.value}` : '城市分布',
@@ -147,6 +154,17 @@ const storeOptions = computed(() => {
   return stores.value.filter((s) => matchCityLocal(s.city, cityName.value))
 })
 
+const citySelectOptions = computed(() => cities.value.map((c) => ({ value: c.id, label: c.name })))
+const storeSelectOptions = computed(() => [
+  { value: '', label: cityName.value === '全国' ? '先选城市' : '全部门店' },
+  ...storeOptions.value.map((s) => ({ value: s.shortName, label: s.shortName })),
+])
+const metricOptions = [
+  { value: 'paid', label: '气泡=实付 · 颜色=毛利率' },
+  { value: 'orders', label: '气泡=订单 · 颜色=毛利率' },
+  { value: 'profit', label: '气泡=毛利 · 颜色=毛利率' },
+]
+
 /** 省内门店点：始终保留全部门店，高亮用 storeFocus，不删点（避免只能点一次） */
 const cityStores = computed(() => {
   if (cityName.value && cityName.value !== '全国') {
@@ -161,13 +179,19 @@ const visibleStoreCnt = computed(() => {
 })
 
 const { chart } = useEcharts(el, option)
+const screenScale = inject(SCREEN_SCALE_KEY, ref(1))
 
-const popupStyle = computed(() => ({
-  position: 'fixed' as const,
-  left: `${popupPos.value.left}px`,
-  top: `${popupPos.value.top}px`,
-  zIndex: 3000,
-}))
+const popupStyle = computed(() => {
+  const s = Math.max(screenScale.value || 1, 0.01)
+  return {
+    position: 'fixed' as const,
+    left: `${popupPos.value.left}px`,
+    top: `${popupPos.value.top}px`,
+    zIndex: 5000,
+    transform: `scale(${s})`,
+    transformOrigin: 'top left',
+  }
+})
 
 const profileRows = computed(() => {
   const p = profilePopup.value
@@ -203,8 +227,7 @@ async function ensureProvinceMap(meta: ProvinceMeta) {
   return mapName
 }
 
-function onCity(e: Event) {
-  const id = (e.target as HTMLSelectElement).value
+function onCitySelect(id: string) {
   const name = cities.value.find((c) => c.id === id)?.name || '全国'
   storeFocus.value = ''
   closePopup()
@@ -217,16 +240,39 @@ function backNationwide() {
   closePopup()
 }
 
+function onStoreSelect(value: string) {
+  storeFocus.value = value
+  onStoreFocus()
+}
+
+/** 下拉选门店：只高亮并微微放大到点位，不弹经营窗（弹窗仅地图点击） */
 function onStoreFocus() {
   const store = storeOptions.value.find((s) => s.shortName === storeFocus.value)
-  if (store) void showStorePopup(store)
-  else {
-    closePopup()
+  closePopup()
+  if (store) {
+    highlightProvinceStores()
+    focusMapOnStore(store)
+  } else {
     void paint()
   }
 }
 
-function onMetricChange() {
+/** 将地图中心微移到门店并略放大 */
+function focusMapOnStore(store: MapStorePoint) {
+  if (!chart.value || lastMode.value !== 'province') return
+  chart.value.setOption(
+    {
+      geo: {
+        center: [store.lng, store.lat],
+        zoom: 2.35,
+      },
+    },
+    { lazyUpdate: true },
+  )
+}
+
+function onMetricSelect(value: string) {
+  mapMetric.value = value as 'paid' | 'orders' | 'profit'
   void paint()
 }
 
@@ -290,21 +336,65 @@ function fallbackProfile(store: MapStorePoint): StoreProfile {
   }
 }
 
-function placePopup(event?: { clientX?: number; clientY?: number }) {
-  const cardW = 300
-  const cardH = 400
-  let left = 80
-  let top = 120
-  if (event?.clientX != null && event?.clientY != null) {
-    left = event.clientX + 16
-    top = event.clientY - 24
-  } else if (el.value) {
-    const r = el.value.getBoundingClientRect()
-    left = r.left + r.width * 0.55
-    top = r.top + r.height * 0.18
+/** 弹窗锚点：优先门店像素坐标，避免盖住选中点 */
+function resolveMarkerAnchor(store?: MapStorePoint, event?: { clientX?: number; clientY?: number }) {
+  if (store && chart.value && el.value) {
+    try {
+      const pixel = chart.value.convertToPixel({ geoIndex: 0 }, [store.lng, store.lat]) as
+        | number[]
+        | null
+      if (pixel?.length >= 2) {
+        const node = el.value
+        const r = node.getBoundingClientRect()
+        const sx = r.width / Math.max(node.clientWidth, 1)
+        const sy = r.height / Math.max(node.clientHeight, 1)
+        return { x: r.left + pixel[0] * sx, y: r.top + pixel[1] * sy }
+      }
+    } catch {
+      /* fall through */
+    }
   }
+  if (event?.clientX != null && event?.clientY != null) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  if (el.value) {
+    const r = el.value.getBoundingClientRect()
+    return { x: r.left + r.width * 0.55, y: r.top + r.height * 0.3 }
+  }
+  return { x: 120, y: 160 }
+}
+
+/** 弹窗放到锚点旁侧，不遮挡门店标记 */
+function placePopup(store?: MapStorePoint, event?: { clientX?: number; clientY?: number }) {
+  const s = Math.max(screenScale.value || 1, 0.01)
+  const cardW = 320 * s
+  const cardH = Math.min(460, window.innerHeight * 0.78) * s
+  const gap = 36
+  const anchor = resolveMarkerAnchor(store, event)
+
+  let left = anchor.x + gap
+  let top = anchor.y - cardH * 0.28
+
+  // 右侧放不下 → 放到左侧
+  if (left + cardW > window.innerWidth - 12) {
+    left = anchor.x - cardW - gap
+  }
+  // 仍与标记重叠或超出 → 再试上方 / 下方
+  if (left < 12) left = 12
+  if (top < 12) top = 12
+  if (top + cardH > window.innerHeight - 12) {
+    top = Math.max(12, window.innerHeight - cardH - 12)
+  }
+  // 若水平仍会盖住锚点，强制推到远离侧
+  const overlapsX = left <= anchor.x && left + cardW >= anchor.x
+  const overlapsY = top <= anchor.y && top + cardH >= anchor.y
+  if (overlapsX && overlapsY) {
+    if (anchor.x > window.innerWidth * 0.5) left = Math.max(12, anchor.x - cardW - gap)
+    else left = Math.min(window.innerWidth - cardW - 12, anchor.x + gap)
+  }
+
   const maxL = window.innerWidth - cardW - 12
-  const maxT = window.innerHeight - Math.min(cardH, window.innerHeight * 0.75) - 12
+  const maxT = window.innerHeight - cardH - 12
   popupPos.value = {
     left: Math.max(12, Math.min(left, maxL)),
     top: Math.max(12, Math.min(top, maxT)),
@@ -313,7 +403,7 @@ function placePopup(event?: { clientX?: number; clientY?: number }) {
 
 async function showStorePopup(store: MapStorePoint, event?: { clientX?: number; clientY?: number }) {
   storeFocus.value = store.shortName
-  placePopup(event)
+  placePopup(store, event)
   profilePopup.value = fallbackProfile(store)
   const profile = await fetchStoreProfile(dataKey.value, store.shortName || store.name)
   if (profile && storeFocus.value === store.shortName) profilePopup.value = profile
@@ -756,19 +846,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--fs-axis);
+  font-size: 14px;
   color: var(--c-muted);
-  select {
-    min-width: 132px;
-    background: rgba(8, 24, 56, 0.9);
-    border: 1px solid rgba(0, 170, 255, 0.45);
-    color: #f2f7ff;
-    border-radius: 4px;
-    padding: 7px 10px;
-    font-size: var(--fs-data);
+  .city-filter__select {
+    width: 140px;
   }
-  &:last-of-type select {
-    min-width: 200px;
+  .city-filter__select--metric {
+    width: 220px;
   }
 }
 .summary {
@@ -847,12 +931,12 @@ onUnmounted(() => {
 <style lang="scss">
 .city-popup.city-popup--profile {
   position: fixed;
-  z-index: 3000;
-  width: 300px;
-  max-height: min(420px, 78vh);
+  z-index: 5000;
+  width: 320px;
+  max-height: min(460px, 78vh);
   display: flex;
   flex-direction: column;
-  padding: 14px 16px 12px;
+  padding: 16px 18px 14px;
   border-radius: 8px;
   background: rgba(0, 10, 30, 0.96);
   border: 1px solid rgba(90, 200, 255, 0.35);
@@ -863,7 +947,7 @@ onUnmounted(() => {
   overflow: auto;
   h4 {
     margin: 0 0 2px;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     color: #fff;
     padding-right: 20px;
@@ -871,7 +955,7 @@ onUnmounted(() => {
 }
 .city-popup__sub {
   margin: 0 0 10px;
-  font-size: 11px;
+  font-size: 13px;
   color: #7a90a8;
 }
 .profile-rows {
@@ -883,48 +967,50 @@ onUnmounted(() => {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 5px 0;
-    font-size: 12px;
+    padding: 7px 0;
+    font-size: 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     span {
       color: #8899aa;
     }
     b {
       color: #fff;
-      font-family: DIN Alternate, DIN, Arial, sans-serif;
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
-      font-weight: 600;
     }
   }
 }
 .city-popup__line {
   height: 1px;
-  margin: 8px 0 6px;
-  background: rgba(255, 255, 255, 0.1);
+  margin: 10px 0 8px;
+  background: rgba(255, 255, 255, 0.08);
 }
 .city-popup__sec {
-  margin: 0 0 6px;
-  font-size: 12px;
+  margin: 0 0 8px;
+  font-size: 13px;
   color: #9adfff;
+  font-weight: 600;
 }
 .ch-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 72px 1fr;
   gap: 2px 10px;
-  padding: 5px 0;
-  font-size: 11px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
   strong {
+    grid-row: span 2;
     color: #e8f3ff;
-    font-weight: 600;
   }
   em {
     font-style: normal;
-    font-family: DIN Alternate, DIN, Arial, sans-serif;
     color: #fff;
+    font-weight: 700;
   }
   span {
-    grid-column: 1 / -1;
-    color: #7a90a8;
+    grid-column: 2;
+    color: #8899aa;
+    font-size: 12px;
   }
 }
 .city-popup__close {
@@ -944,11 +1030,9 @@ onUnmounted(() => {
 @keyframes map-popup-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 </style>
