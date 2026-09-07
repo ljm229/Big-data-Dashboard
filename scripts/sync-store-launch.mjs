@@ -12,6 +12,9 @@ const root = path.resolve(__dirname, '..')
 const src = path.join(root, '数据源', '8.28-9.3', '淘宝便利店门店信息表.xlsx')
 const out = path.join(root, 'web', 'src', 'data', 'storeLaunch.json')
 
+/** 人工确认已营业、覆盖表内「待营业」口径 */
+const FORCE_LAUNCHED = new Set(['淮南街店', '淘宝便利店（淮南街店）'])
+
 function shortStore(name) {
   return String(name || '')
     .replace(/淘宝便利店/g, '')
@@ -78,13 +81,17 @@ const stores = []
 for (const row of rows.slice(1)) {
   const name = String(row[0] || '').trim()
   if (!name) continue
-  const status = String(row[4] || '').trim()
+  let status = String(row[4] || '').trim()
+  const shortName = shortStore(name)
+  if (FORCE_LAUNCHED.has(name) || FORCE_LAUNCHED.has(shortName)) {
+    status = '已营业'
+  }
   const launched = status === '已营业'
   const pending = status === '待营业'
   const date = parseDate(row[1])
   stores.push({
     name,
-    shortName: shortStore(name),
+    shortName,
     city: normCity(row[2], row[3]),
     address: String(row[3] || '').trim(),
     status,

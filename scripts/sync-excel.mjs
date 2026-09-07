@@ -55,6 +55,19 @@ function calendarWeekLabel(friIso) {
   return `${m + 1}月第${ordinal}周`
 }
 
+function fridayOfWeek(iso) {
+  const d = new Date(`${iso}T12:00:00`)
+  const sinceFri = (d.getDay() + 2) % 7
+  d.setDate(d.getDate() - sinceFri)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function thursdayOfWeek(iso) {
+  const d = new Date(`${fridayOfWeek(iso)}T12:00:00`)
+  d.setDate(d.getDate() + 6)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 function normStoreName(name) {
   return String(name || '')
     .replace(/淘宝便利店[（(]/g, '')
@@ -208,8 +221,13 @@ function costFromMetrics(ov) {
   }
 }
 
+function isExcelFile(f) {
+  // 跳过 Excel 打开时的临时锁文件 ~$xxx.xlsx
+  return f.endsWith('.xlsx') && !path.basename(f).startsWith('~$')
+}
+
 function findFile(files, ...preds) {
-  return files.find((f) => f.endsWith('.xlsx') && preds.every((p) => (typeof p === 'string' ? f.includes(p) : p(f))))
+  return files.find((f) => isExcelFile(f) && preds.every((p) => (typeof p === 'string' ? f.includes(p) : p(f))))
 }
 
 const weekDirs = fs
@@ -218,11 +236,13 @@ const weekDirs = fs
     const dir = path.join(sourceRoot, name)
     if (!fs.statSync(dir).isDirectory()) return false
     const files = fs.readdirSync(dir)
-    return files.some((f) => f.includes('周趋势') && f.endsWith('.xlsx'))
+    return files.some((f) => isExcelFile(f) && f.includes('周趋势'))
   })
   .sort((a, b) => {
-    const ia = toIsoDate(a.split('-')[0].replace(/^(\d+)\.(\d+)/, (_, m, d) => `2026${pad(m)}${pad(d)}`)) || a
-    const ib = toIsoDate(b.split('-')[0].replace(/^(\d+)\.(\d+)/, (_, m, d) => `2026${pad(m)}${pad(d)}`)) || b
+    // 整月包（如「8月」）最后处理，覆盖同日周包并补齐月初
+    const ma = a.includes('月') ? 1 : 0
+    const mb = b.includes('月') ? 1 : 0
+    if (ma !== mb) return ma - mb
     return a.localeCompare(b, 'zh')
   })
 
@@ -234,14 +254,14 @@ let storeListGlobal = []
 
 for (const folder of weekDirs) {
   const dir = path.join(sourceRoot, folder)
-  const files = fs.readdirSync(dir)
+  const files = fs.readdirSync(dir).filter(isExcelFile)
 
   const weekFile = findFile(files, '周趋势')
   const cityFile = findFile(files, '城市')
   const channelFile = findFile(files, '渠道')
-  const storeFile = files.find((f) => f.includes('门店周期') && !f.includes('渠道') && f.endsWith('.xlsx'))
-  const infoFile = files.find((f) => f.includes('门店信息') && f.endsWith('.xlsx'))
-  const assessFile = files.find((f) => f.includes('考核') && f.endsWith('.xlsx'))
+  const storeFile = files.find((f) => f.includes('门店周期') && !f.includes('渠道'))
+  const infoFile = files.find((f) => f.includes('门店信息'))
+  const assessFile = files.find((f) => f.includes('考核'))
 
   if (!weekFile || !cityFile || !storeFile || !channelFile) {
     console.warn('skip incomplete folder', folder)
@@ -254,6 +274,7 @@ for (const folder of weekDirs) {
   const channelRows = readSheet(path.join(dir, channelFile)).filter((r) => r['门店'] && r['渠道'])
   channelRows.forEach((r) => channelSet.add(String(r['渠道']).trim()))
 
+  // 月包/残周常无「门店信息表」：沿用此前周包的门店→城市映射，避免城市贡献被清空
   const storeCityMap = {}
   if (infoFile) {
     const infoRows = readSheet(path.join(dir, infoFile))
@@ -266,11 +287,12 @@ for (const folder of weekDirs) {
         status: String(r['营业'] || ''),
         address: String(r['__EMPTY'] || r['地址'] || ''),
       }))
-    storeListGlobal.forEach((r) => {
-      if (r.shortName) storeCityMap[r.shortName] = r.city
-      storeCityMap[normStoreName(r.name)] = r.city
-    })
   }
+  storeListGlobal.forEach((r) => {
+    if (r.shortName && r.city) storeCityMap[r.shortName] = r.city
+    const nk = normStoreName(r.name)
+    if (nk && r.city) storeCityMap[nk] = r.city
+  })
 
   const daySet = new Set()
   weekRows.forEach((r) => {
@@ -287,16 +309,19 @@ for (const folder of weekDirs) {
     continue
   }
 
+  const isMonthPack = folder.includes('月')
   const weekId = `${days[0]}_${days[days.length - 1]}`
-  // 周口径：周五 → 周四；标签按周五所在月第几周
-  const fri = days[0]
-  weeks.push({
-    id: weekId,
-    label: calendarWeekLabel(fri),
-    start: fri,
-    end: days[days.length - 1],
-    days,
-  })
+  if (!isMonthPack) {
+    // 周口径：周五 → 周四；标签按周五所在月第几周
+    const fri = fridayOfWeek(days[0])
+    weeks.push({
+      id: weekId,
+      label: calendarWeekLabel(fri),
+      start: fri,
+      end: days[days.length - 1],
+      days,
+    })
+  }
 
   if (assessFile) {
     assessment[weekId] = readSheet(path.join(dir, assessFile)).map((r) => ({
@@ -320,7 +345,7 @@ for (const folder of weekDirs) {
 
     const overview = wDay.length ? pickMetrics(wDay[0]) : metricsFromRows(sDay)
 
-    const cities = cDay.map((r) => {
+    let cities = cDay.map((r) => {
       const m = pickMetrics(r)
       return {
         城市: normCity(r['城市']),
@@ -386,6 +411,45 @@ for (const folder of weekDirs) {
       }
     })
 
+    // 月包城市表无日期时，按门店实付汇总城市
+    if (!cities.length && storeRank.length) {
+      const cityAgg = {}
+      storeRank.forEach((r) => {
+        const city = r['城市名称']
+        if (!city) return
+        if (!cityAgg[city]) {
+          cityAgg[city] = {
+            城市: city,
+            日期: iso,
+            总营业额: 0,
+            '有效订单金额（实付）': 0,
+            有效订单量: 0,
+            有效买家数: 0,
+            '预计毛利(含平台后返)': 0,
+            预计毛利: 0,
+            预计线上收入: 0,
+            退款金额: 0,
+            退款订单量: 0,
+          }
+        }
+        const t = cityAgg[city]
+        t['总营业额'] += toNum(r['总营业额'])
+        t['有效订单金额（实付）'] += toNum(r['用户实付营业额'])
+        t['有效订单量'] += toNum(r['用户实付订单量'])
+        t['有效买家数'] += toNum(r['交易用户数'])
+        t['预计毛利(含平台后返)'] += toNum(r['预计毛利'])
+        t['预计毛利'] += toNum(r['预计毛利'])
+        t['预计线上收入'] += toNum(r['预计线上收入'])
+        t['退款金额'] += toNum(r['退款金额'])
+        t['退款订单量'] += toNum(r['退款订单量'])
+      })
+      cities = Object.values(cityAgg).map((t) => ({
+        ...t,
+        '毛利率(含平台后返)': toNum(t['总营业额']) ? t['预计毛利(含平台后返)'] / t['总营业额'] : 0,
+        毛利率: toNum(t['总营业额']) ? t['预计毛利'] / t['总营业额'] : 0,
+      }))
+    }
+
     const channelStores = chDay.map((r) => {
       const m = pickMetrics(r)
       const short = normStoreName(r['门店'])
@@ -435,8 +499,13 @@ for (const folder of weekDirs) {
         partial_refund_orders: overview?.partial_refund_orders || 0,
         full_refund_orders: overview?.full_refund_orders || 0,
       },
-      weekId,
+      weekId: isMonthPack ? fridayOfWeek(iso) : weekId,
     }
+  }
+
+  if (isMonthPack) {
+    console.log('synced month-pack', folder, 'days', days.length)
+    continue
   }
 
   // 周汇总
@@ -589,6 +658,182 @@ for (const folder of weekDirs) {
   }
 
   console.log('synced week', folder, 'days', days.length, 'weekId', weekId)
+}
+
+/** 按周五→周四重建周列表与 W: 汇总（纳入月初补数） */
+Object.keys(byDay)
+  .filter((k) => k.startsWith('W:'))
+  .forEach((k) => {
+    delete byDay[k]
+  })
+weeks.length = 0
+
+{
+  const dayKeys = Object.keys(byDay)
+    .filter((k) => !k.startsWith('M:'))
+    .sort()
+  const byFri = {}
+  dayKeys.forEach((iso) => {
+    const fri = fridayOfWeek(iso)
+    if (!byFri[fri]) byFri[fri] = []
+    byFri[fri].push(iso)
+  })
+  for (const fri of Object.keys(byFri).sort()) {
+    const days = byFri[fri].sort()
+    const weekId = `${fri}_${days[days.length - 1]}`
+    weeks.push({
+      id: weekId,
+      label: calendarWeekLabel(fri),
+      start: fri,
+      end: days[days.length - 1],
+      days,
+    })
+
+    const weekStoreMap = {}
+    const weekCityMap = {}
+    const weekChannel = []
+    days.forEach((iso) => {
+      const day = byDay[iso]
+      if (!day) return
+      day.storeRank.forEach((r) => {
+        const key = normStoreName(r['门店名称'])
+        if (!weekStoreMap[key]) weekStoreMap[key] = { ...r, 日期: weekId }
+        else {
+          const t = weekStoreMap[key]
+          ;[
+            '总营业额',
+            '总优惠金额',
+            '用户实付营业额',
+            '用户实付订单量',
+            '交易用户数',
+            '预计毛利',
+            '预计毛利_不含后返',
+            '预计线上收入',
+            '预计线上支出',
+            '采购成本',
+            '商家自配送费用',
+            '退款订单量',
+            '退款金额',
+            '平台后返',
+            '营销活动费用',
+          ].forEach((k) => {
+            t[k] = toNum(t[k]) + toNum(r[k])
+          })
+        }
+      })
+      day.cities.forEach((r) => {
+        const key = r['城市']
+        if (!key) return
+        if (!weekCityMap[key]) weekCityMap[key] = { ...r, 日期: weekId }
+        else {
+          const t = weekCityMap[key]
+          Object.keys(r).forEach((k) => {
+            if (k === '城市' || k === '日期' || typeof r[k] === 'string') return
+            t[k] = toNum(t[k]) + toNum(r[k])
+          })
+        }
+      })
+      weekChannel.push(...(day.channelStores || []))
+    })
+    Object.values(weekStoreMap).forEach((t) => {
+      t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利']) / toNum(t['总营业额']) : 0
+    })
+    Object.values(weekCityMap).forEach((t) => {
+      t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利(含平台后返)'] || t['预计毛利']) / toNum(t['总营业额']) : 0
+      t['毛利率(含平台后返)'] = t['毛利率']
+    })
+    const chWeekMap = {}
+    weekChannel.forEach((r) => {
+      const key = `${r['渠道']}__${normStoreName(r['门店名称'])}`
+      if (!chWeekMap[key]) chWeekMap[key] = { ...r, 日期: weekId }
+      else {
+        const t = chWeekMap[key]
+        ;[
+          '总营业额',
+          '用户实付营业额',
+          '用户实付订单量',
+          '交易用户数',
+          '预计毛利',
+          '预计线上收入',
+          '退款订单量',
+          '退款金额',
+          '平台后返',
+          '营销活动费用',
+          '商品成本',
+          '平台配送服务费',
+          '自配送费用',
+          '佣金&其他平台费用',
+          '推广费用',
+          '平台补贴',
+        ].forEach((k) => {
+          t[k] = toNum(t[k]) + toNum(r[k])
+        })
+      }
+    })
+    Object.values(chWeekMap).forEach((t) => {
+      t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利']) / toNum(t['总营业额']) : 0
+    })
+    const weekOverview = metricsFromRows(
+      days.flatMap((iso) => {
+        const ov = byDay[iso]?.overview
+        if (!ov) return []
+        return [
+          {
+            总营业额: ov.total_gmv,
+            '有效订单金额（实付）': ov.paid_amount,
+            有效订单量: ov.effective_orders,
+            有效买家数: ov.buyer_cnt,
+            '预计毛利(含平台后返)': ov.est_profit,
+            预计毛利: ov.est_profit_raw,
+            '毛利率(含平台后返)': ov.profit_rate,
+            毛利率: ov.profit_rate_raw,
+            平台后返: ov.rebate,
+            预计线上收入: ov.online_income,
+            预计线上支出: ov.est_expense,
+            商品成本: ov.purchase_cost,
+            营销活动费用: ov.marketing_cost,
+            '佣金&其他平台费用': ov.commission,
+            平台配送服务费: ov.platform_delivery,
+            自配送费用: ov.self_delivery,
+            推广费用: ov.promo_cost,
+            平台补贴: ov.platform_subsidy,
+            负毛利订单占比: ov.neg_profit_order_rate,
+            商家补贴率: ov.merchant_subsidy_rate,
+            退款率: ov.refund_rate,
+            退款金额: ov.refund_amount,
+            退款订单量: ov.refund_orders,
+            取消订单量: ov.cancel_orders,
+            部分退款订单量: ov.partial_refund_orders,
+            整单退款订单量: ov.full_refund_orders,
+            售中售后退款比: ov.inafter_refund_ratio,
+            '有效客单价（实付）': ov.arpu,
+          },
+        ]
+      }),
+    )
+    byDay[`W:${weekId}`] = {
+      overview: {
+        ...weekOverview,
+        store_cnt: storeListGlobal.filter((s) => s.status === '已营业').length,
+        active_store_cnt: Object.values(weekStoreMap).filter((r) => toNum(r['用户实付订单量']) > 0).length,
+      },
+      cities: Object.values(weekCityMap),
+      storeRank: Object.values(weekStoreMap),
+      channelStores: Object.values(chWeekMap),
+      storeList: storeListGlobal,
+      costs: costFromMetrics(weekOverview),
+      reverse: {
+        refund_rate: weekOverview?.refund_rate || 0,
+        refund_amount: weekOverview?.refund_amount || 0,
+        refund_orders: weekOverview?.refund_orders || 0,
+        inafter_refund_ratio: weekOverview?.inafter_refund_ratio || 0,
+        partial_refund_orders: weekOverview?.partial_refund_orders || 0,
+        full_refund_orders: weekOverview?.full_refund_orders || 0,
+      },
+      weekId,
+    }
+    console.log('rebuilt week', weekId, 'label', calendarWeekLabel(fri), 'days', days.length)
+  }
 }
 
 const allDays = Object.keys(byDay)
@@ -912,7 +1157,9 @@ const payload = {
 }
 
 const out = path.join(root, 'web', 'src', 'data', 'dashboard.json')
-fs.writeFileSync(out, JSON.stringify(payload))
+const tmp = `${out}.tmp`
+fs.writeFileSync(tmp, JSON.stringify(payload))
+fs.renameSync(tmp, out)
 console.log('synced ->', out)
 console.log(
   'days',

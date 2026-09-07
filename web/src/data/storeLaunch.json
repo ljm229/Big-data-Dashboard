@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-05 04:16:56",
+  "generatedAt": "2026-09-07 10:42:15",
   "source": "数据源/8.28-9.3/淘宝便利店门店信息表.xlsx",
   "summary": {
     "total": 33,
-    "launched": 17,
-    "pending": 16,
-    "scheduled": 15,
+    "launched": 18,
+    "pending": 15,
+    "scheduled": 14,
     "unscheduled": 1
   },
   "cities": [
@@ -42,18 +42,11 @@
     {
       "city": "其他",
       "total": 9,
-      "launched": 3,
-      "pending": 6
+      "launched": 4,
+      "pending": 5
     }
   ],
   "schedule": [
-    {
-      "date": "09-15",
-      "dateISO": "2026-09-15",
-      "store": "淮南街店",
-      "city": "郑州",
-      "address": "郑州市二七区沅江路33号2号楼1-3层附22"
-    },
     {
       "date": "09-15",
       "dateISO": "2026-09-15",
