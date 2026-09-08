@@ -5,32 +5,46 @@
       <span class="dash-select__caret" aria-hidden="true" />
     </button>
     <Teleport to="body">
-      <ul
+      <div
         v-if="open"
         ref="menuEl"
-        class="dash-select__menu"
+        class="dash-select__panel"
         :class="{ light: variant === 'light' }"
         :style="panelStyle"
-        role="listbox"
         @mousedown.stop
       >
-        <li
-          v-for="opt in options"
-          :key="String(opt.value)"
-          role="option"
-          class="dash-select__option"
-          :class="{ active: String(opt.value) === String(modelValue) }"
-          @click="pick(opt.value)"
-        >
-          {{ opt.label }}
-        </li>
-      </ul>
+        <div v-if="searchable" class="dash-select__search">
+          <input
+            ref="searchEl"
+            v-model="query"
+            type="search"
+            class="dash-select__input"
+            :placeholder="searchPlaceholder"
+            autocomplete="off"
+            @keydown.esc.stop="close"
+            @keydown.enter.prevent="pickFirst"
+          />
+        </div>
+        <ul class="dash-select__menu" role="listbox">
+          <li
+            v-for="opt in filtered"
+            :key="String(opt.value)"
+            role="option"
+            class="dash-select__option"
+            :class="{ active: String(opt.value) === String(modelValue) }"
+            @click="pick(opt.value)"
+          >
+            {{ opt.label }}
+          </li>
+          <li v-if="!filtered.length" class="dash-select__empty">无匹配结果</li>
+        </ul>
+      </div>
     </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useFloatingPanel } from '../composables/useScale'
 
 export type DashSelectOption = { value: string; label: string }
@@ -42,20 +56,57 @@ const props = withDefaults(
     disabled?: boolean
     variant?: 'dark' | 'light'
     placeholder?: string
+    searchable?: boolean
+    searchPlaceholder?: string
   }>(),
-  { disabled: false, variant: 'dark', placeholder: '请选择' },
+  {
+    disabled: false,
+    variant: 'dark',
+    placeholder: '请选择',
+    searchable: true,
+    searchPlaceholder: '输入关键词搜索',
+  },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [string]; change: [string] }>()
 
 const open = ref(false)
+const query = ref('')
 const root = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
-const { panelStyle } = useFloatingPanel(root, open, Math.min(320, 48 + props.options.length * 42))
+const searchEl = ref<HTMLInputElement | null>(null)
+const { panelStyle } = useFloatingPanel(root, open, 380)
 
 const displayLabel = computed(() => {
   const hit = props.options.find((o) => String(o.value) === String(props.modelValue))
   return hit?.label || props.placeholder
+})
+
+function norm(s: string) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+}
+
+/** 包含匹配 + 连续子序列（支持拼音缩写式手感的模糊） */
+function fuzzyMatch(q: string, text: string) {
+  const nq = norm(q)
+  if (!nq) return true
+  const nt = norm(text)
+  if (nt.includes(nq)) return true
+  let i = 0
+  for (const ch of nt) {
+    if (ch === nq[i]) i++
+    if (i >= nq.length) return true
+  }
+  return false
+}
+
+const filtered = computed(() => {
+  const list = props.options || []
+  if (!props.searchable || !query.value.trim()) return list
+  return list.filter((o) => fuzzyMatch(query.value, o.label) || fuzzyMatch(query.value, String(o.value)))
 })
 
 function toggle() {
@@ -63,11 +114,29 @@ function toggle() {
   open.value = !open.value
 }
 
+function close() {
+  open.value = false
+}
+
 function pick(value: string) {
   emit('update:modelValue', value)
   emit('change', value)
   open.value = false
 }
+
+function pickFirst() {
+  const first = filtered.value[0]
+  if (first) pick(first.value)
+}
+
+watch(open, async (v) => {
+  if (!v) {
+    query.value = ''
+    return
+  }
+  await nextTick()
+  searchEl.value?.focus()
+})
 
 function onDoc(e: MouseEvent) {
   if (!open.value) return
@@ -136,18 +205,48 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
 </style>
 
 <style lang="scss">
-/* Teleport 到 body，非 scoped */
+.dash-select__panel {
+  min-width: 168px;
+  max-width: min(420px, 92vw);
+  margin: 0;
+  border: 1px solid rgba(94, 200, 255, 0.5);
+  border-radius: 8px;
+  background: #0a1e3c;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 380px;
+}
+.dash-select__search {
+  padding: 8px 8px 4px;
+  flex-shrink: 0;
+}
+.dash-select__input {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid rgba(94, 200, 255, 0.35);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8f3ff;
+  font-size: 13px;
+  outline: none;
+  &::placeholder {
+    color: rgba(232, 243, 255, 0.45);
+  }
+  &:focus {
+    border-color: rgba(154, 223, 255, 0.8);
+  }
+}
 .dash-select__menu {
-  min-width: 148px;
-  max-height: 320px;
-  overflow: auto;
   margin: 0;
   padding: 4px 0;
   list-style: none;
-  border: 1px solid rgba(94, 200, 255, 0.5);
-  border-radius: 6px;
-  background: #0a1e3c;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
 }
 .dash-select__option {
   padding: 10px 14px;
@@ -156,6 +255,8 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   font-weight: 600;
   line-height: 1.3;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 .dash-select__option:hover,
@@ -163,17 +264,37 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   background: linear-gradient(135deg, rgba(154, 223, 255, 0.95), rgba(58, 160, 255, 0.95));
   color: #04122a;
 }
-.dash-select__menu.light {
+.dash-select__empty {
+  padding: 14px;
+  text-align: center;
+  color: rgba(232, 243, 255, 0.5);
+  font-size: 13px;
+}
+.dash-select__panel.light {
   background: #fff;
   border-color: #e2e8f0;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
 }
-.dash-select__menu.light .dash-select__option {
+.dash-select__panel.light .dash-select__input {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #1f2937;
+  &::placeholder {
+    color: #94a3b8;
+  }
+  &:focus {
+    border-color: #1d6bff;
+  }
+}
+.dash-select__panel.light .dash-select__option {
   color: #1f2937;
 }
-.dash-select__menu.light .dash-select__option:hover,
-.dash-select__menu.light .dash-select__option.active {
-  background: #1e293b;
-  color: #fff;
+.dash-select__panel.light .dash-select__option:hover,
+.dash-select__panel.light .dash-select__option.active {
+  background: #eff6ff;
+  color: #1d6bff;
+}
+.dash-select__panel.light .dash-select__empty {
+  color: #94a3b8;
 }
 </style>

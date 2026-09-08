@@ -1152,47 +1152,77 @@ export type AssessmentRow = {
   shortName: string
   code?: string
   city: string
-  sellout_rate: number
-  pick_error_rate: number
-  warehouse_t: number
-  im_reply_rate: number
-  merchant_issue_rate: number
-  shop_score?: number
+  sellout_rate: number | null
+  pick_error_rate: number | null
+  warehouse_t: number | null
+  im_reply_rate: number | null
+  merchant_issue_rate: number | null
+  shop_score?: number | null
 }
 
-/** 取不晚于某日的最近考核周（日更后无新考核时，看板仍联动最近一周） */
+/** 取不晚于某日的最近考核键（优先日 → 月 → 周区间） */
 function latestAssessmentOnOrBefore(iso: string): string | null {
   const ids = Object.keys(data.assessment || {})
   if (!ids.length) return null
+
+  const score = (id: string) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(id)) return id
+    if (id.startsWith('M:')) return `${id.slice(2)}-31`
+    if (id.includes('_')) return id.split('_')[1] || id
+    return id
+  }
+
   const ranked = ids
-    .map((id) => ({ id, end: id.includes('_') ? id.split('_')[1] : id }))
-    .filter((x) => !iso || x.end <= iso)
+    .map((id) => ({ id, end: score(id) }))
+    .filter((x) => !iso || x.end.slice(0, 10) <= iso)
     .sort((a, b) => a.end.localeCompare(b.end))
   if (ranked.length) return ranked[ranked.length - 1].id
-  // 所选日早于全部考核周时，回退最早一周
   return [...ids].sort()[0] || null
 }
 
-/** 日 → 所在周 id；周键 W:xxx → 直接取周；月键 M:xxx → 取月末所在周 */
+/**
+ * 解析考核取数键：
+ * - 日 ISO → 当日考核
+ * - M:YYYY-MM → 整月考核
+ * - W:weekId / 周 id → 周考核
+ * 无精确命中时回退到不晚于该日的最近考核
+ */
 export function resolveAssessmentWeekId(dateKey: string): string | null {
   if (!dateKey) return null
+  if (data.assessment?.[dateKey]?.length) return dateKey
+
   if (dateKey.startsWith('W:')) {
     const id = dateKey.slice(2)
-    if (data.assessment?.[id]) return id
+    if (data.assessment?.[id]?.length) return id
     const end = id.includes('_') ? id.split('_')[1] : ''
     return latestAssessmentOnOrBefore(end)
   }
+
   if (dateKey.startsWith('M:')) {
+    if (data.assessment?.[dateKey]?.length) return dateKey
     const id = dateKey.slice(2)
     const month = (data.months || []).find((m) => m.id === id)
-    const end = month?.end || month?.days?.[month.days.length - 1] || ''
-    return end ? resolveAssessmentWeekId(end) : latestAssessmentOnOrBefore('')
+    const end = month?.end || month?.days?.[month.days.length - 1] || `${id}-28`
+    // 月内任意有日考核也可；否则回退
+    const dayHit = (month?.days || []).slice().reverse().find((d) => data.assessment?.[d]?.length)
+    if (dayHit) return dayHit
+    return latestAssessmentOnOrBefore(end)
   }
-  if (data.assessment?.[dateKey]) return dateKey
+
+  // 自然日
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    if (data.assessment?.[dateKey]?.length) return dateKey
+    const mKey = `M:${dateKey.slice(0, 7)}`
+    if (data.assessment?.[mKey]?.length) return mKey
+    const weeks = data.weeks || []
+    const hit = weeks.find((w) => w.id === dateKey || w.days?.includes(dateKey))
+    if (hit && data.assessment?.[hit.id]?.length) return hit.id
+    return latestAssessmentOnOrBefore(dateKey)
+  }
+
   const weeks = data.weeks || []
   const hit = weeks.find((w) => w.id === dateKey || w.days?.includes(dateKey))
-  if (hit && data.assessment?.[hit.id]) return hit.id
-  // 日更已到但考核周未更新：回退到不晚于该日的最近考核周
+  if (hit && data.assessment?.[hit.id]?.length) return hit.id
   return latestAssessmentOnOrBefore(dateKey)
 }
 
@@ -1243,7 +1273,13 @@ export async function fetchAssessmentCityOptions(dateKey: string) {
 export async function fetchAssessmentStoreOptions(dateKey: string, cityName = '全部') {
   const rows = await fetchAssessmentStores(dateKey, cityName === '全部' ? '全国' : cityName)
   return rows
-    .map((r) => ({ id: r.shortName || r.name, shortName: r.shortName || r.name, name: r.name, city: r.city }))
+    .map((r) => ({
+      id: r.shortName || r.name,
+      shortName: r.shortName || r.name,
+      name: r.name,
+      code: r.code || '',
+      city: r.city,
+    }))
     .sort((a, b) => a.shortName.localeCompare(b.shortName, 'zh'))
 }
 

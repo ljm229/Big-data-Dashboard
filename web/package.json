@@ -8,7 +8,8 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview --host",
     "data:sync": "node ../scripts/sync-excel.mjs",
-    "data:sync-ops": "node ../scripts/sync-ops-excel.mjs"
+    "data:sync-ops": "node ../scripts/sync-ops-excel.mjs",
+    "data:sync-pack": "node ../scripts/sync-ops-pack.mjs"
   },
   "dependencies": {
     "@vueuse/core": "^14.4.0",

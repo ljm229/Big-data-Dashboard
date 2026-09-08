@@ -41,7 +41,7 @@ const summary = computed(() => {
   }
 })
 
-const COLORS = ['#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#94a3b8']
+const COLORS = ['#1d6bff', '#0ea5e9', '#22d3ee', '#38bdf8', '#10b981', '#f59e0b', '#f97316', '#64748b']
 
 async function reload() {
   const res = await fetchCategoryMix(props.dateKey, props.city || '全部', props.storeId || '全部')
@@ -70,7 +70,7 @@ async function reload() {
     yAxis: {
       type: 'category',
       data: top.map((r) => r.name),
-      axisLabel: { color: '#5c6f80', fontSize: 12 },
+      axisLabel: { color: '#8a8a8a', fontSize: 12 },
       axisTick: { show: false },
       axisLine: { show: false },
     },
@@ -88,7 +88,7 @@ async function reload() {
         label: {
           show: true,
           position: 'right',
-          color: '#1e2d3a',
+          color: '#2c2c2c',
           fontSize: 11,
           fontWeight: 600,
           formatter: (p: unknown) => {
@@ -113,7 +113,7 @@ watch(() => [props.dateKey, props.city, props.storeId], () => void reload(), { i
   border-radius: var(--ops-radius, 12px);
   padding: 14px 16px 10px;
   box-shadow: var(--ops-shadow, 0 1px 2px rgba(30, 45, 58, 0.04));
-  border: 1px solid var(--ops-border, #e2eaf2);
+  border: 1px solid var(--ops-border, #ececec);
 }
 .card__head {
   display: flex;
@@ -124,13 +124,13 @@ watch(() => [props.dateKey, props.city, props.storeId], () => void reload(), { i
     margin: 0;
     font-size: 15px;
     font-weight: 800;
-    color: var(--ops-text, #1e2d3a);
+    color: var(--ops-text, #2c2c2c);
     white-space: nowrap;
   }
   p {
     margin: 0;
     font-size: 12px;
-    color: var(--ops-muted, #8b9aab);
+    color: var(--ops-muted, #8a8a8a);
   }
 }
 .chart {

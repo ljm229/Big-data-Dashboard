@@ -30,15 +30,6 @@
             <em>立体饼图 · 标百分比</em>
           </div>
           <div ref="channelPieEl" class="chart chart--pie3d" />
-          <div v-if="channelCards.length" class="ch-cards">
-            <div v-for="c in channelCards" :key="c.channel" class="ch-card">
-              <b :style="{ color: channelColor(c.channel) }">{{ c.channel }}</b>
-              <span>订单 {{ Math.round(c.orders).toLocaleString() }}</span>
-              <span>实付 ¥{{ fmtMoney(c.paid) }}</span>
-              <span>单均 ¥{{ c.aov.toFixed(1) }}</span>
-              <span>毛利 ¥{{ fmtMoney(c.profit) }}</span>
-            </div>
-          </div>
         </section>
         <section class="card">
           <div class="sec-head">
@@ -50,9 +41,26 @@
         </section>
       </div>
 
-      <section class="card">
+      <section v-if="channelCards.length" class="card">
         <div class="sec-head">
           <span class="no">4</span>
+          渠道数据
+          <em>订单 / 实付 / 单均 / 毛利</em>
+        </div>
+        <div class="ch-cards" :style="{ gridTemplateColumns: `repeat(${channelCards.length}, minmax(0, 1fr))` }">
+          <div v-for="c in channelCards" :key="c.channel" class="ch-card">
+            <b :style="{ color: channelColor(c.channel) }">{{ c.channel }}</b>
+            <div class="ch-card__row"><span>订单</span><em>{{ Math.round(c.orders).toLocaleString() }}</em></div>
+            <div class="ch-card__row"><span>实付</span><em>¥{{ fmtMoney(c.paid) }}</em></div>
+            <div class="ch-card__row"><span>单均</span><em>¥{{ c.aov.toFixed(1) }}</em></div>
+            <div class="ch-card__row"><span>毛利</span><em>¥{{ fmtMoney(c.profit) }}</em></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="sec-head">
+          <span class="no">5</span>
           门店 × 渠道明细
           <em>实付订单 / 实付金额 / 单均实付 / 毛利 · 可滑动</em>
         </div>
@@ -91,11 +99,11 @@
 
       <div class="split">
         <section class="card">
-          <div class="sec-head"><span class="no">5</span>规模 Top10<em>实付金额</em></div>
+          <div class="sec-head"><span class="no">6</span>规模 Top10<em>实付金额</em></div>
           <div ref="storePaidEl" class="chart chart--md" />
         </section>
         <section class="card">
-          <div class="sec-head"><span class="no">6</span>周增长榜<em>相对上周</em></div>
+          <div class="sec-head"><span class="no">7</span>周增长榜<em>相对上周</em></div>
           <div ref="storeDeltaEl" class="chart chart--md" />
         </section>
       </div>
@@ -562,22 +570,38 @@ watch(
 }
 .ch-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
 }
 .ch-card {
-  display: grid;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
-  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
+  border: 1px solid #e8eef5;
+  font-size: 12px;
   color: #64748b;
   b {
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 800;
     margin-bottom: 2px;
+  }
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    span {
+      color: #94a3b8;
+    }
+    em {
+      font-style: normal;
+      font-weight: 700;
+      font-family: var(--ops-font-num, Rajdhani, monospace);
+      color: #0f172a;
+      font-size: 13px;
+    }
   }
 }
 .chart {
@@ -644,9 +668,16 @@ table {
   .kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .split,
-  .ch-cards {
+  .split {
     grid-template-columns: 1fr;
+  }
+  .ch-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+@media (max-width: 720px) {
+  .ch-cards {
+    grid-template-columns: 1fr !important;
   }
 }
 </style>

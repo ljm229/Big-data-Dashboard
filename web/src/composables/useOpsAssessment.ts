@@ -20,7 +20,7 @@ export function useOpsAssessment() {
   const city = ref('全部')
   const storeId = ref('全部')
   const cityOptions = ref<string[]>(['全部'])
-  const storeOptions = ref<Array<{ id: string; shortName: string }>>([])
+  const storeOptions = ref<Array<{ id: string; shortName: string; code?: string }>>([])
 
   const assessKey = computed(() => dataKey.value || selectedDate.value)
   const hasAssessData = computed(() => hasAssessment(assessKey.value))
@@ -28,21 +28,23 @@ export function useOpsAssessment() {
 
   const assessWeekLabel = computed(() => {
     const weekId = resolveAssessmentWeekId(assessKey.value)
-    if (weekId) {
-      const fromCockpit = COCKPIT_WEEKS.find((x) => x.id === weekId)
-      if (fromCockpit?.label) return fromCockpit.label
-      const fromRaw = ((dashRaw as { weeks?: Array<{ id: string; label: string }> }).weeks || []).find(
-        (x) => x.id === weekId,
-      )
-      if (fromRaw?.label) return fromRaw.label
-      return weekId.replace('_', '～')
+    if (!weekId) return selectedDate.value
+    if (weekId.startsWith('M:')) {
+      const id = weekId.slice(2)
+      const [y, mo] = id.split('-')
+      return COCKPIT_MONTHS.find((m) => m.id === id)?.label || `${Number(y)}年${Number(mo)}月`
     }
-    const key = assessKey.value
-    if (key.startsWith('M:')) {
-      const id = key.slice(2)
-      return COCKPIT_MONTHS.find((m) => m.id === id)?.label || id
+    if (/^\d{4}-\d{2}-\d{2}$/.test(weekId)) {
+      const [, m, d] = weekId.split('-')
+      return `${Number(m)}月${Number(d)}日考核`
     }
-    return selectedDate.value
+    const fromCockpit = COCKPIT_WEEKS.find((x) => x.id === weekId)
+    if (fromCockpit?.label) return fromCockpit.label
+    const fromRaw = ((dashRaw as { weeks?: Array<{ id: string; label: string }> }).weeks || []).find(
+      (x) => x.id === weekId,
+    )
+    if (fromRaw?.label) return fromRaw.label
+    return weekId.replace('_', '～')
   })
 
   const assessBoard = ref<AssessBoard | null>(null)
