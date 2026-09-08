@@ -6,6 +6,7 @@ import {
   fetchAssessmentCityOptions,
   fetchAssessmentStoreOptions,
   hasAssessment,
+  resolveAssessmentWeekId,
 } from '../api/dashboard'
 import dashRaw from '../data/dashboard.json'
 import { fetchAssessmentBoard, healthFromMetrics, type AssessBoard } from '../api/opsDashboard'
@@ -26,16 +27,22 @@ export function useOpsAssessment() {
   const updatedHint = String((dashRaw as { updated_at?: string }).updated_at || '').slice(0, 16)
 
   const assessWeekLabel = computed(() => {
+    const weekId = resolveAssessmentWeekId(assessKey.value)
+    if (weekId) {
+      const fromCockpit = COCKPIT_WEEKS.find((x) => x.id === weekId)
+      if (fromCockpit?.label) return fromCockpit.label
+      const fromRaw = ((dashRaw as { weeks?: Array<{ id: string; label: string }> }).weeks || []).find(
+        (x) => x.id === weekId,
+      )
+      if (fromRaw?.label) return fromRaw.label
+      return weekId.replace('_', '～')
+    }
     const key = assessKey.value
     if (key.startsWith('M:')) {
       const id = key.slice(2)
       return COCKPIT_MONTHS.find((m) => m.id === id)?.label || id
     }
-    const weekId = key.startsWith('W:')
-      ? key.slice(2)
-      : COCKPIT_WEEKS.find((w) => w.days.includes(selectedDate.value))?.id
-    const w = COCKPIT_WEEKS.find((x) => x.id === weekId)
-    return w?.label || weekId || selectedDate.value
+    return selectedDate.value
   })
 
   const assessBoard = ref<AssessBoard | null>(null)
