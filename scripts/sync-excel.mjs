@@ -85,14 +85,22 @@ function normCity(city) {
   return c.endsWith('市') ? c : `${c}市`
 }
 
-function toNum(v) {
-  if (v == null || v === '') return 0
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+function toNumOrNull(v) {
+  if (v == null || v === '') return null
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
   const s = String(v).trim().replace(/,/g, '')
-  if (!s) return 0
-  if (s.endsWith('%')) return parseFloat(s) / 100 || 0
+  if (!s || s === '--' || s === '-' || s === '—' || s.toUpperCase() === 'N/A') return null
+  if (s.endsWith('%')) {
+    const n = parseFloat(s) / 100
+    return Number.isFinite(n) ? n : null
+  }
   const n = Number(s)
-  return Number.isFinite(n) ? n : 0
+  return Number.isFinite(n) ? n : null
+}
+
+function toNum(v) {
+  const n = toNumOrNull(v)
+  return n == null ? 0 : n
 }
 
 function sumField(rows, key) {
@@ -230,6 +238,96 @@ function findFile(files, ...preds) {
   return files.find((f) => isExcelFile(f) && preds.every((p) => (typeof p === 'string' ? f.includes(p) : p(f))))
 }
 
+function mapAssessRow(r) {
+  return {
+    name: String(r['门店名称'] || ''),
+    shortName: normStoreName(r['门店名称']),
+    code: String(r['门店编码'] || ''),
+    sellout_rate: toNumOrNull(r['动销商品售罄率']),
+    pick_error_rate: toNumOrNull(r['错漏拣率']),
+    warehouse_t: toNumOrNull(r['仓T']),
+    im_reply_rate: toNumOrNull(r['IM 3分钟回复率']),
+    merchant_issue_rate: toNumOrNull(r['商责问题订单率']),
+    shop_score: toNumOrNull(r['店铺分']),
+  }
+}
+
+function isAssessHeaderRow(r) {
+  const name = String(r['门店名称'] || '').trim()
+  const code = String(r['门店编码'] || '').trim()
+  return !name || name === '门店名称' || code === '门店编码'
+}
+
+/** 支持：按日序列号、整月区块（如「8月」小节后的门店行） */
+function ingestAssessmentSheet(file, assessment, fallbackWeekId) {
+  const rows = readSheet(file)
+  const hasDateCol = rows.some((r) => r['日期'] != null && String(r['日期']).trim() !== '')
+  if (!hasDateCol) {
+    if (!fallbackWeekId) return
+    assessment[fallbackWeekId] = rows.filter((r) => !isAssessHeaderRow(r) && r['门店名称']).map(mapAssessRow)
+    return
+  }
+
+  let monthSection = '' // e.g. 8月
+  let dayCount = 0
+  let monthCount = 0
+  for (const r of rows) {
+    const dateRaw = r['日期']
+    const dateStr = String(dateRaw ?? '').trim()
+
+    // 小节标题行：日期=「8月」且门店列仍是表头
+    if (/^\d{1,2}月$/.test(dateStr) && isAssessHeaderRow(r)) {
+      monthSection = dateStr
+      continue
+    }
+    if (isAssessHeaderRow(r)) continue
+    if (!r['门店名称']) continue
+
+    const iso = toIsoDate(dateRaw)
+    if (iso) {
+      if (!assessment[iso]) assessment[iso] = []
+      assessment[iso].push(mapAssessRow(r))
+      dayCount++
+      continue
+    }
+
+    // 新口径：日期列直接写「8月」+ 门店行 → 整月键
+    if (/^\d{1,2}月$/.test(dateStr)) {
+      const monthNum = Number(dateStr.replace('月', ''))
+      if (monthNum >= 1 && monthNum <= 12) {
+        const key = `M:2026-${pad(monthNum)}`
+        if (!assessment[key]) assessment[key] = []
+        assessment[key].push(mapAssessRow(r))
+        monthSection = dateStr
+        monthCount++
+        continue
+      }
+    }
+
+    // 旧口径：小节标题后，日期列脏值仍归入该月
+    if (monthSection && /^\d{1,2}月$/.test(monthSection)) {
+      const monthNum = Number(monthSection.replace('月', ''))
+      if (monthNum >= 1 && monthNum <= 12) {
+        const key = `M:2026-${pad(monthNum)}`
+        if (!assessment[key]) assessment[key] = []
+        assessment[key].push(mapAssessRow(r))
+        monthCount++
+        continue
+      }
+    }
+  }
+  console.log(
+    'assessment ingest',
+    path.basename(file),
+    'dayRows',
+    dayCount,
+    'monthRows',
+    monthCount,
+    'keys',
+    Object.keys(assessment).filter((k) => k.includes('2026-09') || k.startsWith('M:')).join(','),
+  )
+}
+
 const weekDirs = fs
   .readdirSync(sourceRoot)
   .filter((name) => {
@@ -324,17 +422,7 @@ for (const folder of weekDirs) {
   }
 
   if (assessFile) {
-    assessment[weekId] = readSheet(path.join(dir, assessFile)).map((r) => ({
-      name: String(r['门店名称'] || ''),
-      shortName: normStoreName(r['门店名称']),
-      code: String(r['门店编码'] || ''),
-      sellout_rate: toNum(r['动销商品售罄率']),
-      pick_error_rate: toNum(r['错漏拣率']),
-      warehouse_t: toNum(r['仓T']),
-      im_reply_rate: toNum(r['IM 3分钟回复率']),
-      merchant_issue_rate: toNum(r['商责问题订单率']),
-      shop_score: toNum(r['店铺分']),
-    }))
+    ingestAssessmentSheet(path.join(dir, assessFile), assessment, isMonthPack ? '' : weekId)
   }
 
   for (const iso of days) {
@@ -1159,7 +1247,16 @@ const payload = {
 const out = path.join(root, 'web', 'src', 'data', 'dashboard.json')
 const tmp = `${out}.tmp`
 fs.writeFileSync(tmp, JSON.stringify(payload))
-fs.renameSync(tmp, out)
+try {
+  fs.renameSync(tmp, out)
+} catch {
+  fs.copyFileSync(tmp, out)
+  try {
+    fs.unlinkSync(tmp)
+  } catch {
+    /* ignore */
+  }
+}
 console.log('synced ->', out)
 console.log(
   'days',

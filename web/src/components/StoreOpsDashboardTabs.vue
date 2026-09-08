@@ -31,36 +31,42 @@
 
     <div class="ops-tabs__main">
       <header class="topbar">
-        <div class="topbar__row">
-          <h1>{{ currentTab?.label }}</h1>
-          <div v-if="hasAssessData" class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
-            <div class="health__grade" :style="{ color: softGrade(health.grade.grade) }">
-              {{ health.grade.grade }}
-            </div>
-            <strong>{{ headerScore }}</strong>
-            <div>
-              <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
-              <span>{{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} 合格店</span>
-            </div>
-          </div>
-        </div>
-
+        <h1>{{ currentTab?.label }}</h1>
         <div class="topbar__filters">
           <DateFilterBar variant="light" scope="ops" />
           <div class="filter-divider" />
           <label class="filter">
             <span>城市</span>
-            <select v-model="city">
-              <option v-for="c in cityOptions" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <DashSelect
+              class="filter__select"
+              variant="light"
+              :model-value="city"
+              :options="citySelectOptions"
+              search-placeholder="搜索城市"
+              @update:model-value="city = $event"
+            />
           </label>
           <label class="filter">
             <span>门店</span>
-            <select v-model="storeId">
-              <option value="全部">全部门店</option>
-              <option v-for="s in storeOptions" :key="s.id" :value="s.id">{{ s.shortName }}</option>
-            </select>
+            <DashSelect
+              class="filter__select filter__select--store"
+              variant="light"
+              :model-value="storeId"
+              :options="storeSelectOptions"
+              search-placeholder="搜索门店名/编码"
+              @update:model-value="storeId = $event"
+            />
           </label>
+        </div>
+        <div v-if="hasAssessData" class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
+          <div class="health__grade" :style="{ color: softGrade(health.grade.grade) }">
+            {{ health.grade.grade }}
+          </div>
+          <strong>{{ headerScore }}</strong>
+          <div class="health__meta">
+            <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
+            <span>{{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} 合格店</span>
+          </div>
         </div>
       </header>
 
@@ -82,8 +88,26 @@
           :city="city"
           :store-id="storeId"
         />
-        <OpsTabTraffic v-else-if="activeTab === 'traffic'" />
-        <OpsTabSupply v-else-if="activeTab === 'supply'" :date-key="assessKey" :city="city" :store-id="storeId" />
+        <OpsTabTraffic
+          v-else-if="activeTab === 'traffic'"
+          :date-key="assessKey"
+          :city="city"
+          :store-id="storeId"
+          :store-hint="storeHint"
+        />
+        <OpsTabSupply
+          v-else-if="activeTab === 'supply'"
+          :date-key="assessKey"
+          :city="city"
+          :store-id="storeId"
+          :store-hint="storeHint"
+        />
+        <OpsTabReverse
+          v-else-if="activeTab === 'reverse'"
+          :date-key="assessKey"
+          :store-id="storeId"
+          :store-hint="storeHint"
+        />
         <OpsTabCoach
           v-else-if="activeTab === 'coach'"
           :watch-stores="watchStores"
@@ -104,11 +128,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import DateFilterBar from './DateFilterBar.vue'
+import DashSelect from './DashSelect.vue'
 import { useOpsAssessment } from '../composables/useOpsAssessment'
 import OpsTabOverview from './ops-tabs/OpsTabOverview.vue'
 import OpsTabResult from './ops-tabs/OpsTabResult.vue'
 import OpsTabTraffic from './ops-tabs/OpsTabTraffic.vue'
 import OpsTabSupply from './ops-tabs/OpsTabSupply.vue'
+import OpsTabReverse from './ops-tabs/OpsTabReverse.vue'
 import OpsTabCoach from './ops-tabs/OpsTabCoach.vue'
 import OpsTabPlaceholder from './ops-tabs/OpsTabPlaceholder.vue'
 import '../styles/ops-theme.scss'
@@ -144,26 +170,22 @@ const tabs: TabDef[] = [
     id: 'traffic',
     no: '03',
     label: '流量与活动',
-    desc: '漏斗与活动质量',
-    soon: true,
-    hint: '门店/汇总漏斗；商品流量明细回翱象',
-    source: '现有大屏流量/活动字段（框架）',
+    desc: '漏斗与来源效率',
+    soon: false,
   },
   {
     id: 'supply',
     no: '04',
     label: '商品供给',
-    desc: '品类结构与毛利',
+    desc: '出勤·缺货损失·组套',
     soon: false,
   },
   {
     id: 'reverse',
     no: '05',
     label: '逆向客诉',
-    desc: '退款与客诉',
-    soon: true,
-    hint: '门店退款摘要；负毛利订单明细回翱象',
-    source: '逆向/问题单（待补）',
+    desc: '退款·差评·缺货连带',
+    soon: false,
   },
   {
     id: 'coach',
@@ -195,15 +217,31 @@ const {
   failTags,
 } = useOpsAssessment()
 
+const citySelectOptions = computed(() =>
+  cityOptions.value.map((c) => ({ value: c, label: c === '全部' ? '全部城市' : c })),
+)
+const storeSelectOptions = computed(() => [
+  { value: '全部', label: '全部门店' },
+  ...storeOptions.value.map((s) => ({
+    value: s.id,
+    label: s.code ? `${s.shortName}（${s.code}）` : s.shortName,
+  })),
+])
+
+const storeHint = computed(() => {
+  if (storeId.value === '全部') return ''
+  return storeOptions.value.find((s) => s.id === storeId.value)?.shortName || storeId.value
+})
+
 const GRADE_SOFT: Record<string, string> = {
   S: '#10b981',
-  A: '#3b82f6',
+  A: '#1d6bff',
   B: '#f59e0b',
   C: '#f97316',
   D: '#ef4444',
 }
 function softGrade(g: string) {
-  return GRADE_SOFT[g] || '#3b82f6'
+  return GRADE_SOFT[g] || '#1d6bff'
 }
 </script>
 
@@ -337,62 +375,84 @@ nav {
 }
 .topbar {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 14px;
-  padding: 14px 16px;
+  align-items: center;
+  gap: 12px 14px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
   border-radius: var(--ops-radius);
   background: var(--ops-surface);
   border: 1px solid var(--ops-border);
   box-shadow: var(--ops-shadow);
-}
-.topbar__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  min-height: 44px;
   h1 {
     margin: 0;
-    font-size: 20px;
+    flex-shrink: 0;
+    font-size: 16px;
     font-weight: 800;
     color: var(--ops-text);
     letter-spacing: 0.01em;
+    white-space: nowrap;
   }
 }
 .topbar__filters {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid var(--ops-border-soft);
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  :deep(.date-bar.light .seg button) {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  :deep(.date-bar.light .ctrl-date),
+  :deep(.date-bar.light .ctrl-select),
+  :deep(.date-bar.light .ctrl-select--week),
+  :deep(.date-bar.light .ctrl-select--month) {
+    height: 30px;
+  }
+  :deep(.dash-select.light .dash-select__trigger) {
+    height: 30px;
+    font-size: 12px;
+    padding: 0 28px 0 10px;
+  }
+  :deep(.filter__select) {
+    font-size: 12px;
+  }
 }
 .filter-divider {
   width: 1px;
-  height: 22px;
+  height: 18px;
   background: var(--ops-border);
   flex-shrink: 0;
 }
 .filter {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
+  gap: 5px;
+  font-size: 12px;
   color: var(--ops-muted);
+  white-space: nowrap;
   span {
     flex-shrink: 0;
   }
+  :deep(.filter__select) {
+    min-width: 96px;
+  }
+  :deep(.filter__select--store) {
+    min-width: 140px;
+  }
   select {
-    min-width: 108px;
-    height: 36px;
+    min-width: 96px;
+    height: 30px;
     border: 1px solid var(--ops-border);
     border-radius: 6px;
-    padding: 0 10px;
+    padding: 0 8px;
     color: var(--ops-text);
     font-weight: 600;
-    font-size: 14px;
+    font-size: 12px;
     background: #fff;
     box-sizing: border-box;
   }
@@ -400,38 +460,46 @@ nav {
 .health {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: var(--ops-primary-soft);
+  gap: 8px;
+  margin-left: auto;
+  padding: 4px 10px 4px 6px;
+  border-radius: 8px;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
   flex-shrink: 0;
   &__grade {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
     display: grid;
     place-items: center;
-    font-weight: 900;
+    font-weight: 800;
     background: #fff;
-    border: 1px solid var(--ops-border);
+    border: 1px solid #bfdbfe;
     font-family: var(--ops-font-num);
-    font-size: 14px;
+    font-size: 12px;
   }
   strong {
-    font-size: 26px;
+    font-size: 18px;
     font-family: var(--ops-font-num);
     line-height: 1;
     color: var(--ops-num);
     font-variant-numeric: tabular-nums;
+    font-weight: 800;
   }
-  b {
-    display: block;
-    font-size: 12px;
-    color: var(--ops-text);
-  }
-  span {
-    font-size: 11px;
-    color: var(--ops-muted);
+  &__meta {
+    b {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ops-text);
+      line-height: 1.2;
+    }
+    span {
+      font-size: 10px;
+      color: var(--ops-muted);
+      line-height: 1.2;
+    }
   }
   &.ok strong {
     color: var(--ops-ok);

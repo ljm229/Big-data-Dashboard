@@ -22,6 +22,7 @@ import {
   calcCompositeScore,
   displayValue,
   gradeOf,
+  isEmptyAssessRaw,
   isPass,
   type AssessKey,
   type AssessRaw,
@@ -380,8 +381,15 @@ export async function fetchAssessmentBoard(
       rows: [],
     }
   }
-  const agg = aggregateAssess(rawRows as AssessRaw[])!
-  const scored = calcCompositeScore(agg)
+  const agg = aggregateAssess(rawRows as AssessRaw[])
+  const scored = agg
+    ? calcCompositeScore(agg)
+    : {
+        composite: 0,
+        grade: gradeOf(0),
+        parts: [] as ReturnType<typeof calcCompositeScore>['parts'],
+        empty: true as const,
+      }
   const rows = rawRows
     .map((r) => {
       const s = calcCompositeScore(r as AssessRaw)
@@ -389,10 +397,14 @@ export async function fetchAssessmentBoard(
     })
     .sort((a, b) => b.composite - a.composite)
 
-  const composites = rows.map((r) => r.composite).sort((a, b) => a - b)
+  const scoredForMedian = rows.filter((r) => !isEmptyAssessRaw(r as AssessRaw))
+  const composites = (scoredForMedian.length ? scoredForMedian : rows)
+    .map((r) => r.composite)
+    .sort((a, b) => a - b)
   const mid = Math.floor(composites.length / 2)
-  const medianComposite =
-    composites.length % 2
+  const medianComposite = !composites.length
+    ? 0
+    : composites.length % 2
       ? composites[mid]
       : Math.round(((composites[mid - 1] + composites[mid]) / 2) * 10) / 10
   const passStoreCnt = rows.filter((r) => r.composite >= 80).length
@@ -445,22 +457,116 @@ export type WeeklySuggestion = {
   desc: string
 }
 
+export type AssessmentPeriodKind = 'day' | 'week' | 'month'
+
 export type AssessmentWeeklyReport = {
   weekId: string
   prevWeekId: string | null
   weekLabel: string
   prevLabel: string | null
+  periodKind: AssessmentPeriodKind
+  /** 本日 / 本周 / 本月 */
+  curColLabel: string
+  /** 昨日 / 上周 / 上月 */
+  prevColLabel: string
+  /** 日环比 / 周环比 / 月环比 */
+  deltaColLabel: string
   storeCnt: number
   failMetricCnt: number
   metrics: WeeklyMetricCard[]
   rowsAsc: WeeklyStoreRow[]
   gradeDist: Array<(typeof GRADE_RULES)[number] & { count: number; share: number }>
-  merchantRank: Array<{ shortName: string; name: string; value: number; pass: boolean }>
+  merchantRank: Array<{ shortName: string; name: string; value: number; pass: boolean; missing?: boolean }>
   suggestions: WeeklySuggestion[]
   summaryNote: string
 }
 
-/** 对齐营运周报：本周 vs 上周 + 门店达标率 + 升序明细 + 改善建议 */
+function assessPeriodKind(id: string): AssessmentPeriodKind {
+  if (id.startsWith('M:')) return 'month'
+  if (/^\d{4}-\d{2}-\d{2}$/.test(id)) return 'day'
+  return 'week'
+}
+
+function formatAssessDayLabel(iso: string) {
+  const [, m, d] = iso.split('-')
+  return `${Number(m)}月${Number(d)}日`
+}
+
+function formatAssessMonthLabel(key: string) {
+  const id = key.startsWith('M:') ? key.slice(2) : key
+  const [y, mo] = id.split('-')
+  return `${Number(y)}年${Number(mo)}月`
+}
+
+function periodUiLabels(kind: AssessmentPeriodKind) {
+  if (kind === 'day') return { cur: '本日', prev: '昨日', delta: '日环比' }
+  if (kind === 'month') return { cur: '本月', prev: '上月', delta: '月环比' }
+  return { cur: '本周', prev: '上周', delta: '周环比' }
+}
+
+type DashAssessBlob = {
+  weeks?: Array<{ id: string; label?: string }>
+  months?: Array<{ id: string; label?: string }>
+  assessment?: Record<string, unknown[]>
+}
+
+/** 按考核键类型找上一期（日→前一有数日；月→上月；周→上一考核周） */
+function resolvePrevAssessmentKey(
+  curKey: string,
+  dash: DashAssessBlob,
+): { id: string | null; label: string | null } {
+  const kind = assessPeriodKind(curKey)
+  const assessment = dash.assessment || {}
+
+  if (kind === 'day') {
+    const days = Object.keys(assessment)
+      .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k) && (assessment[k]?.length || 0) > 0)
+      .sort()
+    const i = days.indexOf(curKey)
+    if (i > 0) return { id: days[i - 1], label: formatAssessDayLabel(days[i - 1]) }
+    return { id: null, label: null }
+  }
+
+  if (kind === 'month') {
+    const months = Object.keys(assessment)
+      .filter((k) => k.startsWith('M:') && (assessment[k]?.length || 0) > 0)
+      .sort()
+    const i = months.indexOf(curKey)
+    if (i > 0) {
+      const id = months[i - 1]
+      const meta = (dash.months || []).find((m) => m.id === id.slice(2))
+      return { id, label: meta?.label || formatAssessMonthLabel(id) }
+    }
+    return { id: null, label: null }
+  }
+
+  const weeks = dash.weeks || []
+  const weekIdx = weeks.findIndex((w) => w.id === curKey)
+  if (weekIdx > 0) {
+    const id = weeks[weekIdx - 1].id
+    return { id, label: weeks[weekIdx - 1]?.label || id }
+  }
+  // 考核周不在 weeks 元数据时，按周 id 字典序回退
+  const weekKeys = Object.keys(assessment)
+    .filter((k) => k.includes('_') && (assessment[k]?.length || 0) > 0)
+    .sort()
+  const wi = weekKeys.indexOf(curKey)
+  if (wi > 0) return { id: weekKeys[wi - 1], label: weekKeys[wi - 1].replace('_', '～') }
+  return { id: null, label: null }
+}
+
+function formatCurrentAssessLabel(curKey: string, dash: DashAssessBlob) {
+  const kind = assessPeriodKind(curKey)
+  if (kind === 'day') return formatAssessDayLabel(curKey)
+  if (kind === 'month') {
+    const meta = (dash.months || []).find((m) => m.id === curKey.slice(2))
+    return meta?.label || formatAssessMonthLabel(curKey)
+  }
+  const w = (dash.weeks || []).find((x) => x.id === curKey)
+  return w?.label || curKey.replace('_', '～')
+}
+
+/** 对齐营运周报：当前期 vs 上一期 + 门店达标率 + 升序明细 + 改善建议 */
 export async function fetchAssessmentWeeklyReport(
   isoDate: string,
   city = '全部',
@@ -470,37 +576,53 @@ export async function fetchAssessmentWeeklyReport(
   if (!weekId) return null
 
   const dashMod = await import('../data/dashboard.json')
-  const dash = (dashMod as unknown as { default?: { weeks?: Array<{ id: string; label?: string }> } }).default || (dashMod as { weeks?: Array<{ id: string; label?: string }> })
-  const weeks = dash.weeks || []
-  const weekIdx = weeks.findIndex((w) => w.id === weekId)
-  const prevWeekId = weekIdx > 0 ? weeks[weekIdx - 1].id : null
-  const weekLabel = weeks[weekIdx]?.label || weekId
-  const prevLabel = prevWeekId ? weeks[weekIdx - 1]?.label || prevWeekId : null
+  const dash = ((dashMod as unknown as { default?: DashAssessBlob }).default ||
+    (dashMod as DashAssessBlob)) as DashAssessBlob
+
+  const periodKind = assessPeriodKind(weekId)
+  const ui = periodUiLabels(periodKind)
+  const weekLabel = formatCurrentAssessLabel(weekId, dash)
+  const prev = resolvePrevAssessmentKey(weekId, dash)
+  const prevWeekId = prev.id
+  const prevLabel = prev.label
 
   const cityKey = !city || city === '全部' ? '全国' : city
   const curRows = await fetchAssessmentStores(isoDate, cityKey, storeId)
   if (!curRows.length) return null
 
-  const prevRows = prevWeekId
-    ? await fetchAssessmentStores(`W:${prevWeekId}`, cityKey, storeId === '全部' ? '全部' : storeId)
+  const prevFetchKey =
+    prevWeekId == null
+      ? null
+      : periodKind === 'week'
+        ? `W:${prevWeekId}`
+        : prevWeekId
+  const prevRows = prevFetchKey
+    ? await fetchAssessmentStores(prevFetchKey, cityKey, storeId === '全部' ? '全部' : storeId)
     : []
   const prevMap = new Map(prevRows.map((r) => [r.shortName || r.name, r]))
 
-  const curAgg = aggregateAssess(curRows as AssessRaw[])!
+  const curAgg = aggregateAssess(curRows as AssessRaw[])
   const prevAgg = prevRows.length ? aggregateAssess(prevRows as AssessRaw[]) : null
+
+  if (!curAgg) return null
 
   const scoredRows = curRows.map((r) => {
     const s = calcCompositeScore(r as AssessRaw)
-    const prev = prevMap.get(r.shortName) || prevMap.get(r.name)
-    const prevScore = prev ? calcCompositeScore(prev as AssessRaw) : null
+    const prevRow = prevMap.get(r.shortName) || prevMap.get(r.name)
+    const prevScore = prevRow ? calcCompositeScore(prevRow as AssessRaw) : null
     const deltas: Partial<Record<AssessKey, number | null>> = {}
+    const empty = s.empty
     ASSESS_DEFS.forEach((d) => {
-      const curV = displayValue(d.key, r[d.key] ?? 0)
-      if (!prev) {
+      if (empty) {
         deltas[d.key] = null
         return
       }
-      const prevV = displayValue(d.key, prev[d.key] ?? 0)
+      const curV = displayValue(d.key, r[d.key] ?? 0)
+      if (!prevRow || isEmptyAssessRaw(prevRow as AssessRaw)) {
+        deltas[d.key] = null
+        return
+      }
+      const prevV = displayValue(d.key, prevRow[d.key] ?? 0)
       deltas[d.key] = Math.round((curV - prevV) * 100) / 100
     })
     const failCnt = s.parts.filter((p) => !p.pass).length
@@ -509,7 +631,7 @@ export async function fetchAssessmentWeeklyReport(
       composite: s.composite,
       grade: s.grade,
       parts: s.parts,
-      prevComposite: prevScore?.composite ?? null,
+      prevComposite: prevScore?.empty ? null : (prevScore?.composite ?? null),
       deltas,
       failCnt,
     } satisfies WeeklyStoreRow
@@ -521,26 +643,29 @@ export async function fetchAssessmentWeeklyReport(
   >
   const metrics: WeeklyMetricCard[] = REPORT_METRIC_ORDER.map((key) => {
     const d = defByKey[key]
-    const value = displayValue(d.key, curAgg[d.key] ?? 0)
-    const prev = prevAgg ? displayValue(d.key, prevAgg[d.key] ?? 0) : null
+    const rawCur = curAgg[d.key]
+    const value = rawCur == null ? null : displayValue(d.key, Number(rawCur))
+    const rawPrev = prevAgg ? prevAgg[d.key] : null
+    const prevVal = rawPrev == null ? null : displayValue(d.key, Number(rawPrev))
     const storePassCnt = scoredRows.filter((r) => {
       const part = r.parts.find((p) => p.key === d.key)
-      return part?.pass
+      return part && !part.missing && part.pass
     }).length
+    const scoredCnt = scoredRows.filter((r) => !r.parts.find((p) => p.key === d.key)?.missing).length
     return {
       key: d.key,
       name: d.name,
       shortName: d.shortName,
       unit: d.unit,
-      value: Number(value.toFixed(2)),
-      prev: prev == null ? null : Number(prev.toFixed(2)),
-      delta: prev == null ? null : Number((value - prev).toFixed(2)),
-      pass: isPass(d.key, value),
+      value: value == null ? Number.NaN : Number(value.toFixed(2)),
+      prev: prevVal == null ? null : Number(prevVal.toFixed(2)),
+      delta: value == null || prevVal == null ? null : Number((value - prevVal).toFixed(2)),
+      pass: value == null ? false : isPass(d.key, value),
       passLine: d.passLine,
       lowerBetter: d.lowerBetter,
       storePassCnt,
-      storeCnt: scoredRows.length,
-      storePassRate: scoredRows.length ? storePassCnt / scoredRows.length : 0,
+      storeCnt: scoredCnt || scoredRows.length,
+      storePassRate: scoredCnt ? storePassCnt / scoredCnt : 0,
     }
   })
 
@@ -558,11 +683,17 @@ export async function fetchAssessmentWeeklyReport(
       return {
         shortName: r.shortName,
         name: r.name,
-        value: part.value,
-        pass: part.pass,
+        value: part.missing ? Number.NaN : part.value,
+        pass: !part.missing && part.pass,
+        missing: part.missing,
       }
     })
-    .sort((a, b) => b.value - a.value)
+    .sort((a, b) => {
+      if (Number.isNaN(a.value) && Number.isNaN(b.value)) return 0
+      if (Number.isNaN(a.value)) return 1
+      if (Number.isNaN(b.value)) return -1
+      return b.value - a.value
+    })
 
   const suggestions: WeeklySuggestion[] = []
   metrics
@@ -583,9 +714,11 @@ export async function fetchAssessmentWeeklyReport(
     })
   const dStores = scoredRows.filter((r) => r.grade.grade === 'D')
   if (dStores.length) {
+    const actionHint =
+      periodKind === 'day' ? '今日内' : periodKind === 'month' ? '本月内' : '本周内'
     suggestions.push({
       title: `D 红线店 ${dStores.length} 家`,
-      desc: `${dStores.map((s) => s.name || s.shortName).join('、')}。逐店挂账跟踪，本周内制定一店一策专项改善动作。`,
+      desc: `${dStores.map((s) => s.name || s.shortName).join('、')}。逐店挂账跟踪，${actionHint}制定一店一策专项改善动作。`,
     })
   }
 
@@ -599,11 +732,22 @@ export async function fetchAssessmentWeeklyReport(
     })
     .join('；')
 
+  const noCompareNote =
+    periodKind === 'day'
+      ? '本日无对比日数据'
+      : periodKind === 'month'
+        ? '本月无对比月数据'
+        : '本周无对比周数据'
+
   return {
     weekId,
     prevWeekId,
     weekLabel,
     prevLabel,
+    periodKind,
+    curColLabel: ui.cur,
+    prevColLabel: ui.prev,
+    deltaColLabel: ui.delta,
     storeCnt: scoredRows.length,
     failMetricCnt,
     metrics,
@@ -611,7 +755,7 @@ export async function fetchAssessmentWeeklyReport(
     gradeDist,
     merchantRank,
     suggestions,
-    summaryNote: summaryNote ? `关键变化：${summaryNote}` : '本周无对比周数据',
+    summaryNote: summaryNote ? `关键变化：${summaryNote}` : noCompareNote,
   }
 }
 

@@ -1,11 +1,14 @@
 <template>
   <div class="report">
-    <p v-if="loading" class="hint">加载周报中…</p>
-    <p v-else-if="!report" class="hint">当前筛选下暂无周报数据</p>
+    <p v-if="loading" class="hint">加载考核报告中…</p>
+    <p v-else-if="!report" class="hint">当前筛选下暂无考核数据</p>
 
     <template v-else>
       <details class="card standards">
-        <summary>营运核心指标考核标准 & 综合打分规则</summary>
+        <summary>
+          <span class="standards__arrow" aria-hidden="true">></span>
+          <span>营运核心指标考核标准 & 综合打分规则</span>
+        </summary>
         <div class="std-grid">
           <table>
             <thead>
@@ -39,13 +42,8 @@
       </details>
 
       <section class="card">
-        <div class="sec-head"><span class="no">1</span>服务商维度 · 营运指标周环比</div>
-        <div class="banner">
-          优沃森/YOWATSON · 门店 {{ report.storeCnt }} 家 · 五项指标不合格
-          {{ report.failMetricCnt }} 项
-          <template v-if="report.prevLabel">
-            · 本周 {{ report.weekLabel }} vs 上周 {{ report.prevLabel }}
-          </template>
+        <div class="sec-head">
+          <span class="no">1</span>服务商维度 · 营运指标{{ report.deltaColLabel }}
         </div>
 
         <div class="metric-cards">
@@ -55,11 +53,20 @@
             class="mc"
             :class="m.pass ? 'pass' : 'fail'"
           >
-            <div class="name">{{ m.name }}</div>
-            <div class="val" :class="m.pass ? 'ok' : 'bad'">{{ fmtVal(m.value, m.unit) }}</div>
-            <div class="prev">上周: {{ m.prev == null ? '—' : fmtVal(m.prev, m.unit) }}</div>
-            <div class="chg" :class="deltaClass(m)">{{ fmtDelta(m) }}</div>
-            <div class="tag" :class="m.pass ? 'pass' : 'fail'">{{ m.pass ? '合格' : '不合格' }}</div>
+            <div class="mc__head">
+              <div class="name">{{ m.name }}</div>
+              <div class="tag" :class="m.pass ? 'pass' : 'fail'">{{ m.pass ? '合格' : '不合格' }}</div>
+            </div>
+            <div class="mc__body">
+              <div class="val" :class="m.pass ? 'ok' : 'bad'">{{ fmtVal(m.value, m.unit) }}</div>
+              <div class="mc__meta">
+                <div class="prev">
+                  {{ report.prevColLabel }}
+                  {{ m.prev == null ? '—' : fmtVal(m.prev, m.unit) }}
+                </div>
+                <div class="chg" :class="deltaClass(m)">{{ fmtDelta(m) }}</div>
+              </div>
+            </div>
             <div class="reach">
               门店达标 {{ m.storePassCnt }}/{{ m.storeCnt }}
               ({{ Math.round(m.storePassRate * 100) }}%)
@@ -72,9 +79,9 @@
             <thead>
               <tr>
                 <th class="lbl">指标</th>
-                <th>本周</th>
-                <th>上周</th>
-                <th>周环比变化</th>
+                <th>{{ report.curColLabel }}</th>
+                <th>{{ report.prevColLabel }}</th>
+                <th>{{ report.deltaColLabel }}变化</th>
                 <th>合格标准</th>
                 <th>判定</th>
                 <th>门店达标</th>
@@ -115,8 +122,8 @@
               </tr>
               <tr>
                 <template v-for="m in report.metrics" :key="'h2-' + m.key">
-                  <th>本周</th>
-                  <th>环比</th>
+                  <th>{{ report.curColLabel }}</th>
+                  <th>{{ report.deltaColLabel }}</th>
                 </template>
               </tr>
             </thead>
@@ -128,7 +135,7 @@
               >
                 <td class="lbl">{{ row.name || row.shortName }}</td>
                 <template v-for="m in report.metrics" :key="row.shortName + m.key">
-                  <td :class="partOf(row, m.key)?.pass ? 'ok' : 'bad'">
+                  <td :class="partOf(row, m.key)?.missing ? 'flat' : partOf(row, m.key)?.pass ? 'ok' : 'bad'">
                     {{ fmtPart(row, m.key) }}
                   </td>
                   <td :class="rowDeltaClass(row, m.key)" class="delta-cell">
@@ -136,7 +143,7 @@
                   </td>
                 </template>
                 <td>
-                  <b>{{ Math.round(row.composite) }}</b>
+                  <b>{{ row.parts.every((p) => p.missing) ? '--' : Math.round(row.composite) }}</b>
                 </td>
                 <td>
                   <span class="badge" :class="'b' + row.grade.grade">{{ row.grade.grade }}</span>
@@ -174,7 +181,7 @@
           </p>
           <p><b>基线(B)</b>：{{ bCnt }} 家（{{ pct(bCnt) }}%）</p>
           <p>
-            <b>不合格(C)+红线(D)</b>：{{ cdCnt }} 家（{{ pct(cdCnt) }}%）— 下周重点整改
+            <b>不合格(C)+红线(D)</b>：{{ cdCnt }} 家（{{ pct(cdCnt) }}%）— {{ nextFocusLabel }}重点整改
           </p>
           <p>
             <b>D 红线店</b>：{{ dCnt }} 家（{{ pct(dCnt) }}%）— 一店一策，逐店挂账
@@ -183,19 +190,22 @@
       </section>
 
       <section class="card">
-        <div class="sec-head"><span class="no">4</span>商责问题单率概览</div>
-        <div v-if="merchantMetric" class="merchant-hero" :class="merchantMetric.pass ? 'pass' : 'fail'">
-          <div class="name">优沃森/YOWATSON 商责问题单率</div>
-          <div class="val" :class="merchantMetric.pass ? 'ok' : 'bad'">
-            {{ fmtVal(merchantMetric.value, '%') }}
-          </div>
-          <div class="prev">
-            上周: {{ merchantMetric.prev == null ? '—' : fmtVal(merchantMetric.prev, '%') }}
-          </div>
-          <div class="chg" :class="deltaClass(merchantMetric)">{{ fmtDelta(merchantMetric) }}</div>
-          <div class="tag" :class="merchantMetric.pass ? 'pass' : 'fail'">
-            {{ merchantMetric.pass ? '合格' : '不合格' }} (>{{ merchantMetric.passLine }}%)
-          </div>
+        <div class="sec-head">
+          <span class="no">4</span>商责问题单率概览
+          <template v-if="merchantMetric">
+            <em class="merchant-sum">
+              汇总
+              <b :class="merchantMetric.pass ? 'ok' : 'bad'">{{ fmtVal(merchantMetric.value, '%') }}</b>
+              ·
+              <span :class="merchantMetric.pass ? 'ok' : 'bad'">
+                {{ merchantMetric.pass ? '合格' : '不合格' }}(>{{ merchantMetric.passLine }}%)
+              </span>
+              · {{ report.prevColLabel }}
+              {{ merchantMetric.prev == null ? '--' : fmtVal(merchantMetric.prev, '%') }}
+              ·
+              <span :class="deltaClass(merchantMetric)">{{ fmtDelta(merchantMetric) }}</span>
+            </em>
+          </template>
         </div>
         <div class="scroll">
           <table>
@@ -211,8 +221,12 @@
               <tr v-for="(r, i) in report.merchantRank" :key="r.shortName">
                 <td>{{ i + 1 }}</td>
                 <td class="lbl">{{ r.name || r.shortName }}</td>
-                <td :class="r.pass ? 'ok' : 'bad'">{{ r.value.toFixed(2) }}%</td>
-                <td :class="r.pass ? 'ok' : 'bad'">{{ r.pass ? '合格' : '不合格' }}</td>
+                <td :class="r.missing ? 'flat' : r.pass ? 'ok' : 'bad'">
+                  {{ r.missing || Number.isNaN(r.value) ? '--' : r.value.toFixed(2) + '%' }}
+                </td>
+                <td :class="r.missing ? 'flat' : r.pass ? 'ok' : 'bad'">
+                  {{ r.missing ? '--' : r.pass ? '合格' : '不合格' }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -221,7 +235,9 @@
 
       <section class="card">
         <div class="sec-head"><span class="no">5</span>改善意见与建议</div>
-        <div v-if="!report.suggestions.length" class="note">本周五项指标均达标，暂无专项整改建议。</div>
+        <div v-if="!report.suggestions.length" class="note">
+          {{ report.curColLabel }}五项指标均达标，暂无专项整改建议。
+        </div>
         <div v-for="(s, i) in report.suggestions" :key="i" class="imp">
           <h4>▪ {{ s.title }}</h4>
           <p>{{ s.desc }}</p>
@@ -255,6 +271,13 @@ const merchantMetric = computed(
   () => report.value?.metrics.find((m) => m.key === 'merchant_issue_rate') || null,
 )
 
+const nextFocusLabel = computed(() => {
+  const kind = report.value?.periodKind
+  if (kind === 'day') return '次日'
+  if (kind === 'month') return '下月'
+  return '下周'
+})
+
 function gradeCount(g: string) {
   return report.value?.gradeDist.find((x) => x.grade === g)?.count || 0
 }
@@ -267,9 +290,10 @@ function pct(n: number) {
   return total ? Math.round((n / total) * 100) : 0
 }
 
-function fmtVal(v: number, unit: '%' | 'min' | string) {
-  if (unit === 'min') return v.toFixed(2)
-  return `${v.toFixed(2)}%`
+function fmtVal(v: number | null | undefined, unit: '%' | 'min' | string) {
+  if (v == null || !Number.isFinite(Number(v))) return '--'
+  if (unit === 'min') return Number(v).toFixed(2)
+  return `${Number(v).toFixed(2)}%`
 }
 
 function isWorse(m: Pick<WeeklyMetricCard, 'lowerBetter' | 'delta'>) {
@@ -298,7 +322,7 @@ function partOf(row: WeeklyStoreRow, key: AssessKey) {
 
 function fmtPart(row: WeeklyStoreRow, key: AssessKey) {
   const p = partOf(row, key)
-  if (!p) return '—'
+  if (!p || p.missing) return '--'
   return p.unit === 'min' ? p.value.toFixed(2) : `${p.value.toFixed(2)}%`
 }
 
@@ -361,14 +385,35 @@ watch(
   box-shadow: var(--ops-shadow, none);
 }
 .standards summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
   font-weight: 700;
   color: var(--ops-text, #1f2937);
   font-size: 14px;
   list-style: none;
+  user-select: none;
   &::-webkit-details-marker {
     display: none;
   }
+}
+.standards__arrow {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--ops-primary, #2563eb);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 0.18s ease;
+}
+.standards[open] > summary .standards__arrow {
+  transform: rotate(90deg);
 }
 .std-grid {
   margin-top: 12px;
@@ -376,6 +421,7 @@ watch(
 .sec-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   font-size: 16px;
   font-weight: 800;
@@ -396,15 +442,6 @@ watch(
     flex-shrink: 0;
   }
 }
-.banner {
-  background: var(--ops-primary-soft, #eff6ff);
-  color: var(--ops-primary, #3b82f6);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 14px;
-}
 .metric-cards {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -412,129 +449,115 @@ watch(
   margin-bottom: 12px;
 }
 .mc {
-  border: 1px solid var(--ops-border, #e8eaef);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--ops-border, #dbe3ef);
   border-radius: 10px;
   padding: 12px 14px;
-  background: var(--ops-info-bg, #eff6ff);
+  background: #f8fbff;
+  min-width: 0;
   &.pass {
-    background: var(--ops-info-bg, #eff6ff);
+    background: #eff6ff;
+    border-color: #bfdbfe;
   }
   &.fail {
-    background: var(--ops-bad-bg, #fef2f2);
-    border-color: #fecaca;
-  }
-  .name {
-    font-size: 12px;
-    color: var(--ops-muted, #94a3b8);
-    font-weight: 600;
-  }
-  .val {
-    display: block;
-    font-size: 26px;
-    font-weight: 800;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.15;
-    margin: 6px 0 4px;
-    &.ok {
-      color: var(--ops-primary, #3b82f6);
-    }
-    &.bad {
-      color: var(--ops-bad, #ef4444);
-    }
-  }
-  .prev {
-    font-size: 12px;
-    color: var(--ops-muted, #94a3b8);
-  }
-  .chg {
-    font-size: 13px;
-    font-weight: 700;
-    margin-top: 2px;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
-  }
-  .tag {
-    display: inline-block;
-    margin-top: 8px;
-    font-size: 11px;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-weight: 700;
-    &.pass {
-      background: #dbeafe;
-      color: #2563eb;
-    }
-    &.fail {
-      background: #fee2e2;
-      color: #dc2626;
-    }
-  }
-  .reach {
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--ops-muted, #94a3b8);
-    line-height: 1.5;
+    background: #fff7ed;
+    border-color: #fed7aa;
   }
 }
-.merchant-hero {
-  display: inline-flex;
+.mc__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mc__body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.mc__meta {
+  display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 2px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  margin-bottom: 12px;
-  border: 1px solid var(--ops-border, #e8eaef);
-  min-width: 220px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.mc .name {
+  font-size: 12px;
+  color: var(--ops-muted, #64748b);
+  font-weight: 600;
+  line-height: 1.35;
+  min-width: 0;
+}
+.mc .val {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--ops-font-num, Rajdhani, monospace);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  &.ok {
+    color: var(--ops-primary, #1d6bff);
+  }
+  &.bad {
+    color: var(--ops-bad, #ef4444);
+  }
+}
+.mc .prev {
+  font-size: 11px;
+  color: var(--ops-muted, #64748b);
+  white-space: nowrap;
+}
+.mc .chg {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--ops-font-num, Rajdhani, monospace);
+  white-space: nowrap;
+}
+.mc .tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 700;
   &.pass {
-    background: var(--ops-info-bg, #eff6ff);
+    background: #dbeafe;
+    color: #1d6bff;
   }
   &.fail {
-    background: var(--ops-bad-bg, #fef2f2);
-    border-color: #fecaca;
+    background: #fee2e2;
+    color: #dc2626;
   }
-  .name {
-    font-size: 13px;
-    color: var(--ops-muted, #94a3b8);
-    font-weight: 600;
-  }
-  .val {
-    font-size: 28px;
+}
+.mc .reach {
+  font-size: 11px;
+  color: var(--ops-muted, #64748b);
+  line-height: 1.4;
+  padding-top: 6px;
+  border-top: 1px dashed var(--ops-border-soft, #e8eef6);
+}
+.merchant-sum {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ops-muted, #64748b);
+  b {
+    font-family: var(--ops-font-num, Rajdhani, monospace);
+    font-size: 16px;
     font-weight: 800;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
-    line-height: 1.15;
-    margin: 4px 0;
-    &.ok {
-      color: var(--ops-primary, #3b82f6);
-    }
-    &.bad {
-      color: var(--ops-bad, #ef4444);
-    }
+    margin: 0 2px;
   }
-  .prev {
-    font-size: 12px;
-    color: var(--ops-muted, #94a3b8);
+  .ok {
+    color: var(--ops-primary, #1d6bff);
   }
-  .chg {
-    font-size: 13px;
-    font-weight: 700;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
-  }
-  .tag {
-    display: inline-block;
-    margin-top: 8px;
-    font-size: 11px;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-weight: 700;
-    width: fit-content;
-    &.pass {
-      background: #dbeafe;
-      color: #2563eb;
-    }
-    &.fail {
-      background: #fee2e2;
-      color: #dc2626;
-    }
+  .bad {
+    color: var(--ops-bad, #ef4444);
   }
 }
 .scroll {
@@ -542,13 +565,31 @@ watch(
   overflow: auto;
   border: 1px solid var(--ops-border-soft, #f0f2f5);
   border-radius: 8px;
-  thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: #fff;
-    box-shadow: 0 1px 0 var(--ops-border-soft, #f0f2f5);
-  }
+}
+.scroll table.detail {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.scroll table.detail thead tr:first-child th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f8fafc;
+  box-shadow: inset 0 -1px 0 var(--ops-border-soft, #f0f2f5);
+}
+.scroll table.detail thead tr:nth-child(2) th {
+  position: sticky;
+  top: 32px;
+  z-index: 2;
+  background: #fff;
+  box-shadow: 0 1px 0 var(--ops-border-soft, #f0f2f5);
+}
+.scroll table:not(.detail) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: 0 1px 0 var(--ops-border-soft, #f0f2f5);
 }
 table {
   width: 100%;
@@ -633,19 +674,21 @@ table {
 }
 .gcell {
   border-radius: 10px;
-  padding: 14px 8px;
+  padding: 12px 10px;
   text-align: center;
   border: 1px solid transparent;
+  min-width: 0;
   .n {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 800;
     font-family: var(--ops-font-num, Rajdhani, monospace);
     line-height: 1.1;
   }
   .t {
     font-size: 12px;
-    margin-top: 4px;
+    margin-top: 6px;
     font-weight: 600;
+    line-height: 1.35;
   }
 }
 .gS {
@@ -655,7 +698,7 @@ table {
 }
 .gA {
   background: #eff6ff;
-  color: #3b82f6;
+  color: #1d6bff;
   border-color: #bfdbfe;
 }
 .gB {
@@ -675,14 +718,20 @@ table {
 }
 .grade-note {
   margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
   font-size: 13px;
   color: var(--ops-text-2, #64748b);
-  line-height: 1.9;
   p {
     margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f8fafc;
+    line-height: 1.5;
   }
   b {
-    color: var(--ops-text, #1f2937);
+    color: var(--ops-text, #0f172a);
   }
 }
 .badge {
@@ -804,10 +853,39 @@ tr.f5 > td:first-child {
     line-height: 1.55;
   }
 }
-@media (max-width: 1280px) {
+@media (max-width: 1100px) {
+  .metric-cards {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .mc:nth-child(1),
+  .mc:nth-child(2) {
+    grid-column: span 3;
+  }
+  .mc:nth-child(n + 3) {
+    grid-column: span 2;
+  }
+  .ggrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+@media (max-width: 780px) {
   .metric-cards,
   .ggrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mc:nth-child(1),
+  .mc:nth-child(2),
+  .mc:nth-child(n + 3) {
+    grid-column: auto;
+  }
+  .grade-note {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .metric-cards,
+  .ggrid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

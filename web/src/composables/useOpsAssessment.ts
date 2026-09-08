@@ -6,6 +6,7 @@ import {
   fetchAssessmentCityOptions,
   fetchAssessmentStoreOptions,
   hasAssessment,
+  resolveAssessmentWeekId,
 } from '../api/dashboard'
 import dashRaw from '../data/dashboard.json'
 import { fetchAssessmentBoard, healthFromMetrics, type AssessBoard } from '../api/opsDashboard'
@@ -19,23 +20,31 @@ export function useOpsAssessment() {
   const city = ref('全部')
   const storeId = ref('全部')
   const cityOptions = ref<string[]>(['全部'])
-  const storeOptions = ref<Array<{ id: string; shortName: string }>>([])
+  const storeOptions = ref<Array<{ id: string; shortName: string; code?: string }>>([])
 
   const assessKey = computed(() => dataKey.value || selectedDate.value)
   const hasAssessData = computed(() => hasAssessment(assessKey.value))
   const updatedHint = String((dashRaw as { updated_at?: string }).updated_at || '').slice(0, 16)
 
   const assessWeekLabel = computed(() => {
-    const key = assessKey.value
-    if (key.startsWith('M:')) {
-      const id = key.slice(2)
-      return COCKPIT_MONTHS.find((m) => m.id === id)?.label || id
+    const weekId = resolveAssessmentWeekId(assessKey.value)
+    if (!weekId) return selectedDate.value
+    if (weekId.startsWith('M:')) {
+      const id = weekId.slice(2)
+      const [y, mo] = id.split('-')
+      return COCKPIT_MONTHS.find((m) => m.id === id)?.label || `${Number(y)}年${Number(mo)}月`
     }
-    const weekId = key.startsWith('W:')
-      ? key.slice(2)
-      : COCKPIT_WEEKS.find((w) => w.days.includes(selectedDate.value))?.id
-    const w = COCKPIT_WEEKS.find((x) => x.id === weekId)
-    return w?.label || weekId || selectedDate.value
+    if (/^\d{4}-\d{2}-\d{2}$/.test(weekId)) {
+      const [, m, d] = weekId.split('-')
+      return `${Number(m)}月${Number(d)}日考核`
+    }
+    const fromCockpit = COCKPIT_WEEKS.find((x) => x.id === weekId)
+    if (fromCockpit?.label) return fromCockpit.label
+    const fromRaw = ((dashRaw as { weeks?: Array<{ id: string; label: string }> }).weeks || []).find(
+      (x) => x.id === weekId,
+    )
+    if (fromRaw?.label) return fromRaw.label
+    return weekId.replace('_', '～')
   })
 
   const assessBoard = ref<AssessBoard | null>(null)

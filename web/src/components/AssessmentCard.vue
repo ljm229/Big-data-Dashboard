@@ -126,13 +126,15 @@ const tierText = computed(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 14px 12px;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--ops-radius-sm, 8px);
+  background: var(--ops-surface, #ffffff);
+  border: 1px solid var(--ops-border, #e2e8f4);
+  box-shadow: var(--ops-shadow, 0 1px 3px rgba(15, 23, 42, 0.04));
   overflow: hidden;
   min-width: 0;
+  min-height: 0;
 }
 .assess__top {
   position: absolute;
@@ -148,8 +150,8 @@ const tierText = computed(() => {
   h3 {
     margin: 0;
     color: #3d3d3d;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 650;
     white-space: nowrap;
   }
 }
@@ -160,21 +162,21 @@ const tierText = computed(() => {
   border-radius: 999px;
   font-weight: 700;
   &.met {
-    color: #2f7d48;
-    background: #e8f5ec;
+    color: var(--ops-ok, #2f7d48);
+    background: var(--ops-ok-bg, #e8f5ec);
   }
   &.warn {
     color: #b78000;
-    background: #fff6e0;
+    background: var(--ops-warn-bg, #fff6e0);
   }
   &.unmet {
-    color: #c83238;
-    background: #fdecec;
+    color: var(--ops-bad, #c83238);
+    background: var(--ops-bad-bg, #fdecec);
   }
 }
 .assess__value {
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 750;
   line-height: 1;
   font-family: Rajdhani, Bahnschrift, 'DIN Alternate', Consolas, monospace;
   font-variant-numeric: tabular-nums;
@@ -195,7 +197,7 @@ const tierText = computed(() => {
   font-size: 12px;
   color: #8c8c8c;
   .contrib {
-    color: #2a5c82;
+    color: var(--primary, #1d6bff);
     font-weight: 700;
   }
 }
