@@ -14,12 +14,10 @@ npm run dev
 
 ## 数据
 
-- 当前数据来自 `数据源/` 下 Excel，已转换为 `web/src/data/dashboard.json`
-- `8.28` 映射为「今日」，`8.21` 映射为「昨日」
-- 接入 API 时修改 `web/src/api/dashboard.ts` 中 `USE_API = true`
+- 当前数据来自 `数据源/` 下 Excel，经根目录 `scripts/` 同步为 `web/src/data/*.json`
+- 常用同步：`npm run data:sync` / `data:sync-ops` / `data:sync-pack`
 
 ## 设计基准
 
-- 画布 1920×1080，`transform: scale` 等比适配
-- 背景图 `public/images/beijing.png`
-- 交互参考 `js/index.html` + `index.css`（背景环动效、滚动列表、模块边框）
+- 画布 1920×1080，`transform: scale` 等比适配（仅数据大屏）
+- 支持切换：数据大屏 / 运营·经典 / 运营·Tab

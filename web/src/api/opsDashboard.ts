@@ -4,10 +4,10 @@
  * - 人货场财/逆向等：opsDashboard.json（有则展示）
  */
 import raw from '../data/opsDashboard.json'
-import type { AssessMetric } from '../components/AssessmentCard.vue'
+import type { AssessMetric } from '../components/ScoreCard.vue'
 import {
   fetchAssessmentStores,
-  fetchChannelMix,
+  fetchChannelShare,
   fetchStoreChannelBoard,
   fetchStoreRank,
   resolveAssessmentWeekId,
@@ -1006,8 +1006,8 @@ export async function fetchStoreBusinessReport(
   const topGain = [...withDelta].sort((a, b) => (b.deltaPaid || 0) - (a.deltaPaid || 0)).slice(0, 5)
   const topDown = [...withDelta].sort((a, b) => (a.deltaPaid || 0) - (b.deltaPaid || 0)).slice(0, 5)
 
-  const curChannels = await fetchChannelMix(curKey, cityKey)
-  const prevChannels = prevKey ? await fetchChannelMix(prevKey, cityKey) : []
+  const curChannels = await fetchChannelShare(curKey, cityKey)
+  const prevChannels = prevKey ? await fetchChannelShare(prevKey, cityKey) : []
   const prevChMap = new Map(prevChannels.map((c) => [c.channel, c]))
   const channels: BizChannelRow[] = curChannels.map((c) => {
     const prev = prevChMap.get(c.channel)

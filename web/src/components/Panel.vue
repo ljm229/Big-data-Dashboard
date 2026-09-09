@@ -1,3 +1,4 @@
+<!-- 中文名：图表外框 -->
 <template>
   <section class="panel" :class="{ 'is-loading': loading, 'is-error': !!error, 'has-alert': alert }">
     <i class="panel__corner tl" aria-hidden="true" />

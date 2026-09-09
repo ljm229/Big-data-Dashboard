@@ -844,7 +844,7 @@ export async function fetchStoreSheet(dateKey: string, cityName = '全国', chan
 }
 
 /** 渠道结构：实付/毛利/订单按渠道汇总 */
-export async function fetchChannelMix(dateKey: string, cityName = '全国') {
+export async function fetchChannelShare(dateKey: string, cityName = '全国') {
   const rows = filterChannelStores(dateKey, cityName, '全部')
   const map: Record<
     string,

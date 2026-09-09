@@ -1,3 +1,4 @@
+<!-- 中文名：翻牌数字 -->
 <template>
   <span class="flip" :class="tone">{{ display }}</span>
 </template>

@@ -1,5 +1,6 @@
+<!-- 中文名：应用入口（大屏 / 运营看板切换） -->
 <template>
-  <AccessGate>
+  <PasswordGate>
   <div v-if="activeView === 'cockpit'" class="screen-root">
     <div class="screen-spacer" :style="wrapperStyle">
       <div class="screen" :style="style">
@@ -20,9 +21,9 @@
         </div>
 
         <section class="top-stage">
-          <AppHeader>
+          <TopBar>
             <template #filters>
-              <DateFilterBar variant="dark" scope="cockpit" />
+              <DateFilter variant="dark" scope="cockpit" />
             </template>
             <template #nav>
               <div class="view-switch view-switch--in-header">
@@ -47,46 +48,46 @@
                 </button>
               </div>
             </template>
-          </AppHeader>
-          <KpiBand />
+          </TopBar>
+          <KeyNumbers />
         </section>
 
         <main class="body">
           <div class="body-main">
             <section class="col left">
-              <StoreLaunchPanorama />
-              <ChannelMix />
-              <L3Cost class="col-tail" />
+              <StoreOpen />
+              <ChannelShare />
+              <CostBoard class="col-tail" />
             </section>
 
             <section class="col middle">
-              <C1Map class="c1" />
+              <MapBoard class="c1" />
             </section>
 
             <section class="col right">
-              <R2StoreRank />
-              <CityContribution />
+              <StoreRank />
+              <CityShare />
               <DayTrend class="col-tail" />
             </section>
           </div>
         </main>
 
-        <DetailDrawer />
+        <DetailSide />
       </div>
     </div>
   </div>
 
-  <StoreOpsDashboard
+  <StoreBoard
     v-else-if="opsEdition === 'classic'"
     @switch-view="activeView = 'cockpit'"
     @switch-edition="opsEdition = 'tabs'"
   />
-  <StoreOpsDashboardTabs
+  <StoreBoardTabs
     v-else
     @switch-view="activeView = 'cockpit'"
     @switch-edition="opsEdition = 'classic'"
   />
-  </AccessGate>
+  </PasswordGate>
 </template>
 
 <script setup lang="ts">
@@ -94,20 +95,20 @@ import { computed, provide, ref, watch } from 'vue'
 import { SCREEN_SCALE_KEY, useScreenScale } from './composables/useScale'
 import { useFilterStore, COCKPIT_DATES } from './stores/filter'
 import { hasAssessment } from './api/dashboard'
-import AccessGate from './components/AccessGate.vue'
-import AppHeader from './components/modules/AppHeader.vue'
-import KpiBand from './components/modules/KpiBand.vue'
-import StoreLaunchPanorama from './components/modules/StoreLaunchPanorama.vue'
-import ChannelMix from './components/modules/ChannelMix.vue'
-import L3Cost from './components/modules/L3Cost.vue'
-import C1Map from './components/modules/C1Map.vue'
-import DayTrend from './components/modules/DayTrend.vue'
-import CityContribution from './components/modules/CityContribution.vue'
-import R2StoreRank from './components/modules/R2StoreRank.vue'
-import DetailDrawer from './components/DetailDrawer.vue'
-import StoreOpsDashboard from './components/StoreOpsDashboard.vue'
-import StoreOpsDashboardTabs from './components/StoreOpsDashboardTabs.vue'
-import DateFilterBar from './components/DateFilterBar.vue'
+import PasswordGate from './components/PasswordGate.vue'
+import TopBar from './components/boards/TopBar.vue'
+import KeyNumbers from './components/boards/KeyNumbers.vue'
+import StoreOpen from './components/boards/StoreOpen.vue'
+import ChannelShare from './components/boards/ChannelShare.vue'
+import CostBoard from './components/boards/CostBoard.vue'
+import MapBoard from './components/boards/MapBoard.vue'
+import DayTrend from './components/boards/DayTrend.vue'
+import CityShare from './components/boards/CityShare.vue'
+import StoreRank from './components/boards/StoreRank.vue'
+import DetailSide from './components/DetailSide.vue'
+import StoreBoard from './components/StoreBoard.vue'
+import StoreBoardTabs from './components/StoreBoardTabs.vue'
+import DateFilter from './components/DateFilter.vue'
 
 const activeView = ref<'cockpit' | 'ops'>('cockpit')
 const opsEdition = ref<'classic' | 'tabs'>('classic')

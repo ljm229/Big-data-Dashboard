@@ -1,3 +1,4 @@
+/** 中文名：大屏缩放 */
 import { inject, onMounted, onUnmounted, ref, watch, type InjectionKey, type Ref } from 'vue'
 
 export const SCREEN_SCALE_KEY: InjectionKey<Ref<number>> = Symbol('screenScale')
