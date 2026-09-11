@@ -1,0 +1,265 @@
+/* 经典版驾驶舱共用样式 — 对齐原型三列/八卡布局 */
+.ck-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+.ck-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+.ck-kpi-row--7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.ck-kpi {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 12px 10px 10px;
+  box-shadow: 0 2px 8px rgba(15, 55, 120, 0.04);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ck-kpi__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ck-kpi__icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #38bdf8, #1d6bff);
+}
+.ck-kpi__icon.warn {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+}
+.ck-kpi__icon.bad {
+  background: linear-gradient(135deg, #fb7185, #ef4444);
+}
+.ck-kpi__icon.good {
+  background: linear-gradient(135deg, #34d399, #10b981);
+}
+.ck-kpi__name {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.ck-kpi__val {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.ck-kpi__val.placeholder {
+  color: #cbd5e1;
+  font-size: 18px;
+  font-weight: 700;
+}
+.ck-kpi__delta {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.ck-card {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  box-shadow: 0 2px 8px rgba(15, 55, 120, 0.04);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ck-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.ck-card__head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.ck-card__head p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+.ck-card__link {
+  border: 0;
+  background: transparent;
+  color: #1d6bff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0;
+}
+.ck-slot {
+  flex: 1;
+  min-height: 200px;
+  border-radius: 8px;
+  border: 1px dashed #bfd3f0;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 16px;
+  line-height: 1.5;
+}
+.ck-slot--sm {
+  min-height: 140px;
+}
+.ck-slot--lg {
+  min-height: 280px;
+}
+.ck-slot--map {
+  min-height: 340px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(29, 107, 255, 0.08), transparent 55%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+}
+/* 原型：主体模块固定三列一排 */
+.ck-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+}
+/* 城市页中段：左地图宽 + 右两卡叠放 */
+.ck-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+}
+.ck-grid-2eq {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+.ck-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 100%;
+}
+.ck-stack > .ck-card {
+  flex: 1;
+}
+.ck-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+}
+.ck-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e8eef6;
+}
+.ck-stat b {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+.ck-stat em {
+  font-style: normal;
+  font-size: 18px;
+  font-weight: 800;
+  font-family: Rajdhani, Bahnschrift, Consolas, monospace;
+  color: #94a3b8;
+}
+.ck-table-ph {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ck-table-ph th,
+.ck-table-ph td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #eef2f6;
+  text-align: left;
+  color: #94a3b8;
+}
+.ck-table-ph th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+}
+.ck-table-ph td {
+  font-weight: 600;
+}
+.ck-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ck-chip {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #dbe3ef;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+.ck-chip.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d6bff;
+}
+
+/* 仅很窄屏才折行，桌面始终保持原型行列 */
+@media (max-width: 1100px) {
+  .ck-kpi-row,
+  .ck-kpi-row--7 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 860px) {
+  .ck-kpi-row,
+  .ck-kpi-row--7 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ck-grid-3,
+  .ck-grid-2,
+  .ck-grid-2eq {
+    grid-template-columns: 1fr;
+  }
+}
