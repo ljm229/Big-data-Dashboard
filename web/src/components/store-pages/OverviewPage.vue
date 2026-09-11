@@ -5,61 +5,19 @@
     <p v-else-if="!report" class="hint">当前筛选下暂无考核数据</p>
 
     <template v-else>
-      <details class="card standards">
-        <summary>
-          <span class="standards__arrow" aria-hidden="true">></span>
-          <span>营运核心指标考核标准 & 综合打分规则</span>
-        </summary>
-        <div class="std-grid">
-          <table>
-            <thead>
-              <tr>
-                <th class="lbl">指标</th>
-                <th>合格标准</th>
-                <th>不合格标准</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="d in assessDefs" :key="d.key">
-                <td class="lbl">{{ d.name }}</td>
-                <td class="ok">
-                  {{ d.lowerBetter ? '≤' : '≥' }}{{ d.passLine }}{{ d.unit === 'min' ? '分钟' : '%' }}
-                </td>
-                <td class="bad">
-                  {{ d.lowerBetter ? '>' : '<' }}{{ d.passLine }}{{ d.unit === 'min' ? '分钟' : '%' }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p class="note">
-            满分 100 = 售罄×40% + 错漏拣×20% + 仓T×10% + 商责×20% + IM×10% ·
-            <b class="g-s">S 90–100</b> ·
-            <b class="g-a">A 80–90</b> ·
-            <b class="g-b">B 60–80</b> ·
-            <b class="g-c">C 40–60</b> ·
-            <b class="g-d">D 0–40</b>
-          </p>
-        </div>
-      </details>
-
       <section class="card">
         <div class="sec-head">
           <span class="no">1</span>服务商维度 · 营运指标{{ report.deltaColLabel }}
         </div>
 
         <div class="metric-cards">
-          <div
-            v-for="m in report.metrics"
-            :key="m.key"
-            class="mc"
-            :class="m.pass ? 'pass' : 'fail'"
-          >
+          <div v-for="m in report.metrics" :key="m.key" class="mc">
             <div class="mc__head">
               <div class="name">{{ m.name }}</div>
-              <div class="tag" :class="m.pass ? 'pass' : 'fail'">{{ m.pass ? '合格' : '不合格' }}</div>
+              <span class="pill" :class="m.pass ? 'ok' : 'bad'">{{ m.pass ? '合格' : '不合格' }}</span>
             </div>
             <div class="mc__body">
-              <div class="val" :class="m.pass ? 'ok' : 'bad'">{{ fmtVal(m.value, m.unit) }}</div>
+              <div class="val">{{ fmtVal(m.value, m.unit) }}</div>
               <div class="mc__meta">
                 <div class="prev">
                   {{ report.prevColLabel }}
@@ -68,10 +26,7 @@
                 <div class="chg" :class="deltaClass(m)">{{ fmtDelta(m) }}</div>
               </div>
             </div>
-            <div class="reach">
-              门店达标 {{ m.storePassCnt }}/{{ m.storeCnt }}
-              ({{ Math.round(m.storePassRate * 100) }}%)
-            </div>
+            <div class="reach">门店达标 {{ m.storePassCnt }}/{{ m.storeCnt }}（{{ Math.round(m.storePassRate * 100) }}%）</div>
           </div>
         </div>
 
@@ -89,23 +44,22 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in report.metrics" :key="'t-' + m.key">
+              <tr v-for="(m, idx) in report.metrics" :key="'t-' + m.key" :class="'zebra-' + (idx % 2)">
                 <td class="lbl">{{ m.name }}</td>
-                <td>{{ fmtVal(m.value, m.unit) }}</td>
-                <td>{{ m.prev == null ? '—' : fmtVal(m.prev, m.unit) }}</td>
-                <td :class="deltaClass(m)">{{ fmtDelta(m) }}</td>
-                <td>
-                  {{ m.lowerBetter ? '≤' : '≥' }}{{ m.passLine }}{{ m.unit === 'min' ? 'min' : '%' }}
+                <td class="num">{{ fmtVal(m.value, m.unit) }}</td>
+                <td class="num muted">{{ m.prev == null ? '—' : fmtVal(m.prev, m.unit) }}</td>
+                <td class="num" :class="deltaClass(m)">{{ fmtDelta(m) }}</td>
+                <td class="muted">
+                  {{ m.lowerBetter ? '≤' : '≥' }}{{ m.passLine }}{{ m.unit === 'min' ? '' : '%' }}
                 </td>
-                <td :class="m.pass ? 'ok' : 'bad'">{{ m.pass ? '合格' : '不合格' }}</td>
                 <td>
-                  {{ m.storePassCnt }}/{{ m.storeCnt }} ({{ Math.round(m.storePassRate * 100) }}%)
+                  <span class="pill" :class="m.pass ? 'ok' : 'bad'">{{ m.pass ? '合格' : '不合格' }}</span>
                 </td>
+                <td class="num muted">{{ m.storePassCnt }}/{{ m.storeCnt }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="note">{{ report.summaryNote }}</p>
       </section>
 
       <section class="card">
@@ -130,63 +84,44 @@
             </thead>
             <tbody>
               <tr
-                v-for="row in report.rowsAsc"
+                v-for="(row, idx) in report.rowsAsc"
                 :key="row.shortName"
-                :class="'f' + Math.min(row.failCnt, 5)"
+                :class="['zebra-' + (idx % 2), 'g-' + rowGrade(row)]"
               >
                 <td class="lbl">{{ row.name || row.shortName }}</td>
                 <template v-for="m in report.metrics" :key="row.shortName + m.key">
-                  <td :class="partOf(row, m.key)?.missing ? 'flat' : partOf(row, m.key)?.pass ? 'ok' : 'bad'">
-                    {{ fmtPart(row, m.key) }}
+                  <td class="num">
+                    <span
+                      v-if="!partOf(row, m.key)?.missing"
+                      class="val-chip"
+                      :class="partOf(row, m.key)?.pass ? '' : 'warn'"
+                    >{{ fmtPart(row, m.key) }}</span>
+                    <span v-else class="muted">--</span>
                   </td>
-                  <td :class="rowDeltaClass(row, m.key)" class="delta-cell">
+                  <td class="num delta-cell" :class="rowDeltaClass(row, m.key)">
                     {{ fmtRowDelta(row, m.key) }}
                   </td>
                 </template>
-                <td>
+                <td class="num score">
                   <b>{{ row.parts.every((p) => p.missing) ? '--' : Math.round(row.composite) }}</b>
                 </td>
                 <td>
-                  <span class="badge" :class="'b' + row.grade.grade">{{ row.grade.grade }}</span>
+                  <span class="badge" :class="'b' + rowGrade(row)">{{ rowGrade(row) === 'N' ? '—' : rowGrade(row) }}</span>
                 </td>
               </tr>
             </tbody>
           </table>
-        </div>
-        <p class="note">
-          合格标准：售罄率≤8% · 错漏拣率≤0.5% · 仓T≤5min · IM≥90% · 商责问题单率≤1.5%。绿色=合格，红色=不合格。
-        </p>
-        <div class="flegend">
-          <span v-for="n in 6" :key="n" class="it">
-            <i class="sw" :class="'sw' + (n - 1)" />不合格 {{ n - 1 }} 项
-          </span>
         </div>
       </section>
 
       <section class="card">
         <div class="sec-head"><span class="no">3</span>门店综合评级分档</div>
         <div class="ggrid">
-          <div
-            v-for="g in report.gradeDist"
-            :key="g.grade"
-            class="gcell"
-            :class="'g' + g.grade"
-          >
+          <div v-for="g in report.gradeDist" :key="g.grade" class="gcell" :class="'g' + g.grade">
             <div class="n">{{ g.count }}</div>
-            <div class="t">{{ g.grade }} {{ g.label }} ({{ Math.round(g.share * 100) }}%)</div>
+            <div class="t">{{ g.grade }} · {{ g.label }}</div>
+            <div class="p">{{ Math.round(g.share * 100) }}%</div>
           </div>
-        </div>
-        <div class="grade-note">
-          <p>
-            <b>标杆(S)+合格(A)</b>：{{ saCnt }} 家（{{ pct(saCnt) }}%）
-          </p>
-          <p><b>基线(B)</b>：{{ bCnt }} 家（{{ pct(bCnt) }}%）</p>
-          <p>
-            <b>不合格(C)+红线(D)</b>：{{ cdCnt }} 家（{{ pct(cdCnt) }}%）— {{ nextFocusLabel }}重点整改
-          </p>
-          <p>
-            <b>D 红线店</b>：{{ dCnt }} 家（{{ pct(dCnt) }}%）— 一店一策，逐店挂账
-          </p>
         </div>
       </section>
 
@@ -195,15 +130,14 @@
           <span class="no">4</span>商责问题单率概览
           <template v-if="merchantMetric">
             <em class="merchant-sum">
-              汇总
-              <b :class="merchantMetric.pass ? 'ok' : 'bad'">{{ fmtVal(merchantMetric.value, '%') }}</b>
-              ·
-              <span :class="merchantMetric.pass ? 'ok' : 'bad'">
-                {{ merchantMetric.pass ? '合格' : '不合格' }}(>{{ merchantMetric.passLine }}%)
+              汇总 <b>{{ fmtVal(merchantMetric.value, '%') }}</b>
+              <span class="pill" :class="merchantMetric.pass ? 'ok' : 'bad'">
+                {{ merchantMetric.pass ? '合格' : '不合格' }}
               </span>
-              · {{ report.prevColLabel }}
-              {{ merchantMetric.prev == null ? '--' : fmtVal(merchantMetric.prev, '%') }}
-              ·
+              <span class="muted">
+                {{ report.prevColLabel }}
+                {{ merchantMetric.prev == null ? '--' : fmtVal(merchantMetric.prev, '%') }}
+              </span>
               <span :class="deltaClass(merchantMetric)">{{ fmtDelta(merchantMetric) }}</span>
             </em>
           </template>
@@ -219,14 +153,20 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(r, i) in report.merchantRank" :key="r.shortName">
-                <td>{{ i + 1 }}</td>
+              <tr v-for="(r, i) in report.merchantRank" :key="r.shortName" :class="'zebra-' + (i % 2)">
+                <td class="muted">{{ i + 1 }}</td>
                 <td class="lbl">{{ r.name || r.shortName }}</td>
-                <td :class="r.missing ? 'flat' : r.pass ? 'ok' : 'bad'">
-                  {{ r.missing || Number.isNaN(r.value) ? '--' : r.value.toFixed(2) + '%' }}
+                <td class="num">
+                  <span v-if="!r.missing && !Number.isNaN(r.value)" class="val-chip" :class="r.pass ? '' : 'warn'">
+                    {{ r.value.toFixed(2) }}%
+                  </span>
+                  <span v-else class="muted">--</span>
                 </td>
-                <td :class="r.missing ? 'flat' : r.pass ? 'ok' : 'bad'">
-                  {{ r.missing ? '--' : r.pass ? '合格' : '不合格' }}
+                <td>
+                  <span v-if="!r.missing" class="pill" :class="r.pass ? 'ok' : 'bad'">
+                    {{ r.pass ? '合格' : '不合格' }}
+                  </span>
+                  <span v-else class="muted">--</span>
                 </td>
               </tr>
             </tbody>
@@ -236,26 +176,27 @@
 
       <section class="card">
         <div class="sec-head"><span class="no">5</span>改善意见与建议</div>
-        <div v-if="!report.suggestions.length" class="note">
-          {{ report.curColLabel }}五项指标均达标，暂无专项整改建议。
-        </div>
-        <div v-for="(s, i) in report.suggestions" :key="i" class="imp">
-          <h4>▪ {{ s.title }}</h4>
-          <p>{{ s.desc }}</p>
-        </div>
+        <ul v-if="report.suggestions.length" class="tips">
+          <li v-for="(s, i) in report.suggestions" :key="i" :class="'tip-' + (i % 5)">
+            <strong>{{ s.title.replace(/（当前.*?）/, '') }}</strong>
+            <span>{{ cleanTip(s.desc) }}</span>
+          </li>
+        </ul>
+        <p v-else class="empty-tip">{{ report.curColLabel }}五项指标均达标</p>
       </section>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { onUnmounted, ref, watch, computed } from 'vue'
 import {
   fetchAssessmentWeeklyReport,
   type AssessmentWeeklyReport,
   type WeeklyMetricCard,
   type WeeklyStoreRow,
 } from '../../api/opsDashboard'
+import { fetchDatabaseReport, subscribeQualityUpdates } from '../../api/qualityDatabase'
 import { ASSESS_DEFS, type AssessKey } from '../../utils/opsAssessment'
 
 const props = defineProps<{
@@ -264,7 +205,6 @@ const props = defineProps<{
   storeId: string
 }>()
 
-const assessDefs = ASSESS_DEFS
 const loading = ref(false)
 const report = ref<AssessmentWeeklyReport | null>(null)
 
@@ -272,23 +212,16 @@ const merchantMetric = computed(
   () => report.value?.metrics.find((m) => m.key === 'merchant_issue_rate') || null,
 )
 
-const nextFocusLabel = computed(() => {
-  const kind = report.value?.periodKind
-  if (kind === 'day') return '次日'
-  if (kind === 'month') return '下月'
-  return '下周'
-})
-
-function gradeCount(g: string) {
-  return report.value?.gradeDist.find((x) => x.grade === g)?.count || 0
+function cleanTip(text: string) {
+  return String(text || '')
+    .replace(/百分点/g, '')
+    .replace(/分钟/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
 }
-const saCnt = computed(() => gradeCount('S') + gradeCount('A'))
-const bCnt = computed(() => gradeCount('B'))
-const cdCnt = computed(() => gradeCount('C') + gradeCount('D'))
-const dCnt = computed(() => gradeCount('D'))
-function pct(n: number) {
-  const total = report.value?.storeCnt || 0
-  return total ? Math.round((n / total) * 100) : 0
+
+function rowGrade(row: WeeklyStoreRow) {
+  return row.parts.every((p) => p.missing) ? 'N' : row.grade.grade
 }
 
 function fmtVal(v: number | null | undefined, unit: '%' | 'min' | string) {
@@ -313,8 +246,7 @@ function fmtDelta(m: WeeklyMetricCard) {
   if (m.delta === 0) return '→ 0'
   const arrow = m.delta > 0 ? '↑' : '↓'
   const sign = m.delta > 0 ? '+' : ''
-  const unit = m.unit === 'min' ? '' : 'pp'
-  return `${arrow} ${sign}${m.delta}${unit}`
+  return `${arrow} ${sign}${m.delta}`
 }
 
 function partOf(row: WeeklyStoreRow, key: AssessKey) {
@@ -341,8 +273,7 @@ function fmtRowDelta(row: WeeklyStoreRow, key: AssessKey) {
   if (d === 0) return '→ 0'
   const arrow = d > 0 ? '↑' : '↓'
   const sign = d > 0 ? '+' : ''
-  const unit = key === 'warehouse_t' ? '' : 'pp'
-  return `${arrow} ${sign}${d}${unit}`
+  return `${arrow} ${sign}${d}`
 }
 
 async function reload() {
@@ -352,7 +283,15 @@ async function reload() {
   }
   loading.value = true
   try {
-    report.value = await fetchAssessmentWeeklyReport(props.dateKey, props.city, props.storeId)
+    try {
+      report.value = await fetchDatabaseReport(props.dateKey, props.city, props.storeId)
+    } catch {
+      try {
+        report.value = await fetchAssessmentWeeklyReport(props.dateKey, props.city, props.storeId)
+      } catch {
+        report.value = null
+      }
+    }
   } finally {
     loading.value = false
   }
@@ -363,82 +302,51 @@ watch(
   () => void reload(),
   { immediate: true },
 )
+
+const unsubscribe = subscribeQualityUpdates(() => void reload())
+onUnmounted(unsubscribe)
 </script>
 
 <style scoped lang="scss">
 .report {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 24px;
-  color: var(--ops-text, #1f2937);
+  gap: 14px;
+  padding-bottom: 28px;
+  color: var(--ops-text);
 }
 .hint {
   text-align: center;
-  color: var(--ops-muted, #94a3b8);
-  padding: 32px;
+  color: var(--ops-muted);
+  padding: 36px;
 }
 .card {
-  background: var(--ops-surface, #fff);
-  border-radius: var(--ops-radius, 10px);
-  padding: 16px 18px;
-  border: 1px solid var(--ops-border, #e8eaef);
-  box-shadow: var(--ops-shadow, none);
-}
-.standards summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: 700;
-  color: var(--ops-text, #1f2937);
-  font-size: 14px;
-  list-style: none;
-  user-select: none;
-  &::-webkit-details-marker {
-    display: none;
-  }
-}
-.standards__arrow {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--ops-primary, #2563eb);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  transform: rotate(0deg);
-  transition: transform 0.18s ease;
-}
-.standards[open] > summary .standards__arrow {
-  transform: rotate(90deg);
-}
-.std-grid {
-  margin-top: 12px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 20px 18px;
+  border: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 .sec-head {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--ops-text, #1f2937);
-  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ops-text);
+  margin-bottom: 16px;
   .no {
     display: inline-flex;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 6px;
-    background: var(--ops-primary-soft, #eff6ff);
-    color: var(--ops-primary, #3b82f6);
+    background: var(--ops-primary-soft);
+    color: var(--ops-primary);
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
+    font-size: 12px;
+    font-family: var(--ops-font-num);
     font-weight: 700;
     flex-shrink: 0;
   }
@@ -446,26 +354,18 @@ watch(
 .metric-cards {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 .mc {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border: 1px solid var(--ops-border, #dbe3ef);
+  gap: 10px;
+  border: 0;
   border-radius: 10px;
-  padding: 12px 14px;
-  background: #f8fbff;
+  padding: 14px;
+  background: #fafafa;
   min-width: 0;
-  &.pass {
-    background: #eff6ff;
-    border-color: #bfdbfe;
-  }
-  &.fail {
-    background: #fff7ed;
-    border-color: #fed7aa;
-  }
 }
 .mc__head {
   display: flex;
@@ -489,108 +389,116 @@ watch(
   flex-shrink: 0;
 }
 .mc .name {
-  font-size: 12px;
-  color: var(--ops-muted, #64748b);
+  font-size: 13px;
+  color: var(--ops-text-2);
   font-weight: 600;
   line-height: 1.35;
-  min-width: 0;
 }
 .mc .val {
   font-size: 24px;
-  font-weight: 800;
-  font-family: var(--ops-font-num, Rajdhani, monospace);
+  font-weight: 700;
+  font-family: var(--ops-font-num);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  color: var(--ops-num);
   letter-spacing: -0.02em;
-  &.ok {
-    color: var(--ops-primary, #1d6bff);
-  }
-  &.bad {
-    color: var(--ops-bad, #ef4444);
-  }
 }
 .mc .prev {
   font-size: 11px;
-  color: var(--ops-muted, #64748b);
+  color: var(--ops-muted);
   white-space: nowrap;
 }
 .mc .chg {
   font-size: 12px;
-  font-weight: 700;
-  font-family: var(--ops-font-num, Rajdhani, monospace);
+  font-weight: 600;
+  font-family: var(--ops-font-num);
   white-space: nowrap;
-}
-.mc .tag {
-  flex-shrink: 0;
-  font-size: 11px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-weight: 700;
-  &.pass {
-    background: #dbeafe;
-    color: #1d6bff;
-  }
-  &.fail {
-    background: #fee2e2;
-    color: #dc2626;
-  }
 }
 .mc .reach {
   font-size: 11px;
-  color: var(--ops-muted, #64748b);
+  color: var(--ops-muted);
   line-height: 1.4;
-  padding-top: 6px;
-  border-top: 1px dashed var(--ops-border-soft, #e8eef6);
+  padding-top: 8px;
+  border-top: 0;
+  margin-top: 2px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  &.ok {
+    background: var(--ops-ok-bg);
+    color: var(--ops-ok);
+  }
+  &.bad {
+    background: var(--ops-bad-bg);
+    color: var(--ops-bad);
+  }
+}
+.val-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--ops-text);
+  background: transparent;
+  &.warn {
+    background: var(--ops-bad-bg);
+    color: var(--ops-bad);
+  }
 }
 .merchant-sum {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   font-style: normal;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--ops-muted, #64748b);
+  font-weight: 500;
+  color: var(--ops-text-2);
   b {
-    font-family: var(--ops-font-num, Rajdhani, monospace);
+    font-family: var(--ops-font-num);
     font-size: 16px;
-    font-weight: 800;
-    margin: 0 2px;
-  }
-  .ok {
-    color: var(--ops-primary, #1d6bff);
-  }
-  .bad {
-    color: var(--ops-bad, #ef4444);
+    font-weight: 700;
+    color: var(--ops-num);
   }
 }
 .scroll {
-  max-height: 280px;
+  max-height: 320px;
   overflow: auto;
-  border: 1px solid var(--ops-border-soft, #f0f2f5);
+  border: 0;
   border-radius: 8px;
-}
-.scroll table.detail {
-  border-collapse: separate;
-  border-spacing: 0;
+  background: transparent;
 }
 .scroll table.detail thead tr:first-child th {
   position: sticky;
   top: 0;
   z-index: 3;
-  background: #f8fafc;
-  box-shadow: inset 0 -1px 0 var(--ops-border-soft, #f0f2f5);
+  background: #f7f8fa;
+  box-shadow: none;
 }
 .scroll table.detail thead tr:nth-child(2) th {
   position: sticky;
-  top: 32px;
+  top: 34px;
   z-index: 2;
-  background: #fff;
-  box-shadow: 0 1px 0 var(--ops-border-soft, #f0f2f5);
+  background: #fafafa;
+  box-shadow: none;
 }
 .scroll table:not(.detail) thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #fff;
-  box-shadow: 0 1px 0 var(--ops-border-soft, #f0f2f5);
+  background: #f7f8fa;
+  box-shadow: none;
 }
 table {
   width: 100%;
@@ -598,261 +506,178 @@ table {
   font-size: 13px;
   th,
   td {
-    padding: 8px 10px;
+    padding: 11px 12px;
     text-align: center;
-    border-bottom: 1px solid var(--ops-border-soft, #f0f2f5);
-    font-variant-numeric: tabular-nums;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
+    border: 0;
+    border-bottom: 1px solid #ebebeb;
   }
   td.lbl,
   th.lbl {
-    font-family: var(--ops-font, inherit);
+    font-family: var(--ops-font);
   }
   thead th {
-    background: #f8fafc;
-    font-weight: 700;
-    color: var(--ops-muted, #94a3b8);
+    background: #f7f8fa;
+    font-weight: 600;
+    color: var(--ops-text-2);
     font-size: 12px;
-    font-family: var(--ops-font, inherit);
+    font-family: var(--ops-font);
+    border-bottom: 1px solid #ebebeb;
   }
   .lbl {
     text-align: left;
     font-weight: 600;
-    color: var(--ops-text, #1f2937);
+    color: var(--ops-text);
+  }
+  .num {
+    font-family: var(--ops-font-num);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ops-text);
+  }
+  .score b {
+    font-size: 14px;
+    color: var(--ops-num);
   }
 }
 .detail thead th {
   white-space: nowrap;
 }
 .delta-cell {
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
-.ok {
-  color: var(--ops-ok, #10b981);
-  font-weight: 700;
-}
-.bad {
-  color: var(--ops-bad, #ef4444);
-  font-weight: 700;
+.muted {
+  color: var(--ops-muted);
+  font-weight: 500;
 }
 .worse {
-  color: var(--ops-bad, #ef4444);
-  font-weight: 700;
+  color: var(--ops-bad);
+  font-weight: 600;
 }
 .better {
-  color: var(--ops-ok, #10b981);
-  font-weight: 700;
+  color: var(--ops-ok);
+  font-weight: 600;
 }
 .flat {
-  color: var(--ops-muted, #94a3b8);
-}
-.note {
-  font-size: 12px;
-  color: var(--ops-muted, #94a3b8);
-  margin-top: 10px;
-  line-height: 1.7;
-  .g-s {
-    color: #10b981;
-  }
-  .g-a {
-    color: #3b82f6;
-  }
-  .g-b {
-    color: #f59e0b;
-  }
-  .g-c {
-    color: #f97316;
-  }
-  .g-d {
-    color: #ef4444;
-  }
+  color: var(--ops-muted);
 }
 .ggrid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 .gcell {
   border-radius: 10px;
-  padding: 12px 10px;
+  padding: 16px 12px;
   text-align: center;
-  border: 1px solid transparent;
+  border: 0;
+  border-top: 3px solid transparent;
   min-width: 0;
+  box-shadow: none;
   .n {
-    font-size: 26px;
-    font-weight: 800;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--ops-font-num);
     line-height: 1.1;
+    color: var(--ops-num);
   }
   .t {
-    font-size: 12px;
-    margin-top: 6px;
+    font-size: 13px;
+    margin-top: 8px;
     font-weight: 600;
-    line-height: 1.35;
+    color: var(--ops-text-2);
+  }
+  .p {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--ops-font-num);
+    color: var(--ops-muted);
   }
 }
 .gS {
-  background: #ecfdf5;
-  color: #10b981;
-  border-color: #a7f3d0;
+  background: rgba(0, 180, 42, 0.06);
+  border-top-color: #00b42a;
 }
 .gA {
-  background: #eff6ff;
-  color: #1d6bff;
-  border-color: #bfdbfe;
+  background: rgba(22, 93, 255, 0.06);
+  border-top-color: #165dff;
 }
 .gB {
-  background: #fffbeb;
-  color: #d97706;
-  border-color: #fde68a;
+  background: rgba(114, 46, 209, 0.06);
+  border-top-color: #722ed1;
 }
 .gC {
-  background: #fff7ed;
-  color: #ea580c;
-  border-color: #fed7aa;
+  background: rgba(255, 125, 0, 0.06);
+  border-top-color: #ff7d00;
 }
 .gD {
-  background: #fef2f2;
-  color: #ef4444;
-  border-color: #fecaca;
-}
-.grade-note {
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
-  font-size: 13px;
-  color: var(--ops-text-2, #64748b);
-  p {
-    margin: 0;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: #f8fafc;
-    line-height: 1.5;
-  }
-  b {
-    color: var(--ops-text, #0f172a);
-  }
+  background: rgba(245, 63, 63, 0.06);
+  border-top-color: #f53f3f;
 }
 .badge {
-  display: inline-block;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 4px;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 12px;
-  font-family: var(--ops-font-num, Rajdhani, monospace);
+  font-family: var(--ops-font-num);
 }
-.bS {
-  background: #ecfdf5;
-  color: #10b981;
-}
-.bA {
-  background: #eff6ff;
-  color: #3b82f6;
-}
-.bB {
-  background: #fffbeb;
-  color: #d97706;
-}
-.bC {
-  background: #fff7ed;
-  color: #ea580c;
-}
-.bD {
-  background: #fef2f2;
-  color: #ef4444;
-}
-tr.f0 > td {
-  background: #f8fafc;
-}
-tr.f1 > td {
-  background: #fffbeb;
-}
-tr.f2 > td {
-  background: #fff7ed;
-}
-tr.f3 > td {
-  background: #ffedd5;
-}
-tr.f4 > td {
-  background: #fee2e2;
-}
-tr.f5 > td {
-  background: #fecaca;
-}
-tr.f0 > td:first-child {
-  box-shadow: inset 3px 0 0 #10b981;
-}
-tr.f1 > td:first-child {
-  box-shadow: inset 3px 0 0 #f59e0b;
-}
-tr.f2 > td:first-child {
-  box-shadow: inset 3px 0 0 #f97316;
-}
-tr.f3 > td:first-child {
-  box-shadow: inset 3px 0 0 #ef4444;
-}
-tr.f4 > td:first-child {
-  box-shadow: inset 3px 0 0 #dc2626;
-}
-tr.f5 > td:first-child {
-  box-shadow: inset 3px 0 0 #b91c1c;
-}
-.flegend {
+.bS { background: var(--ops-ok-bg); color: var(--ops-ok); }
+.bA { background: var(--ops-primary-soft); color: var(--ops-primary); }
+.bB { background: #f5e8ff; color: #722ed1; }
+.bC { background: var(--ops-warn-bg); color: var(--ops-warn); }
+.bD { background: var(--ops-bad-bg); color: var(--ops-bad); }
+.bN { background: #f2f3f5; color: var(--ops-muted); }
+tr.zebra-0 > td { background: #fff; }
+tr.zebra-1 > td { background: #fafafa; }
+tr.g-S > td:first-child { box-shadow: inset 3px 0 0 #00b42a; }
+tr.g-A > td:first-child { box-shadow: inset 3px 0 0 #165dff; }
+tr.g-B > td:first-child { box-shadow: inset 3px 0 0 #722ed1; }
+tr.g-C > td:first-child { box-shadow: inset 3px 0 0 #ff7d00; }
+tr.g-D > td:first-child { box-shadow: inset 3px 0 0 #f53f3f; }
+.tips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--ops-text-2, #64748b);
-  .it {
+  flex-direction: column;
+  gap: 10px;
+  li {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 6px;
-  }
-  .sw {
-    width: 22px;
-    height: 14px;
-    border-radius: 4px;
-    border: 1px solid var(--ops-border, #e8eaef);
-  }
-  .sw0 {
-    background: #f8fafc;
-  }
-  .sw1 {
-    background: #fffbeb;
-  }
-  .sw2 {
-    background: #fff7ed;
-  }
-  .sw3 {
-    background: #ffedd5;
-  }
-  .sw4 {
-    background: #fee2e2;
-  }
-  .sw5 {
-    background: #fecaca;
-  }
-}
-.imp {
-  border-left: 3px solid var(--ops-primary, #3b82f6);
-  background: #f8fafc;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-  border-radius: 0 8px 8px 0;
-  h4 {
-    color: var(--ops-text, #1f2937);
-    font-size: 14px;
-    margin: 0 0 6px;
-  }
-  p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--ops-text-2, #64748b);
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: 0;
+    border-left: 3px solid transparent;
     line-height: 1.55;
   }
+  strong {
+    font-size: 13px;
+    color: var(--ops-text);
+  }
+  span {
+    font-size: 12px;
+    color: var(--ops-text-2);
+  }
+}
+.tip-0 { background: #f0f5ff; border-left-color: #165dff; }
+.tip-1 { background: #fff7e8; border-left-color: #ff7d00; }
+.tip-2 { background: #ffece8; border-left-color: #f53f3f; }
+.tip-3 { background: #f5e8ff; border-left-color: #722ed1; }
+.tip-4 { background: #e8ffea; border-left-color: #00b42a; }
+.empty-tip {
+  margin: 0;
+  padding: 18px;
+  text-align: center;
+  color: var(--ops-muted);
+  background: #fafafa;
+  border-radius: 8px;
 }
 @media (max-width: 1100px) {
   .metric-cards {
@@ -865,9 +690,6 @@ tr.f5 > td:first-child {
   .mc:nth-child(n + 3) {
     grid-column: span 2;
   }
-  .ggrid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
 }
 @media (max-width: 780px) {
   .metric-cards,
@@ -878,9 +700,6 @@ tr.f5 > td:first-child {
   .mc:nth-child(2),
   .mc:nth-child(n + 3) {
     grid-column: auto;
-  }
-  .grade-note {
-    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 520px) {

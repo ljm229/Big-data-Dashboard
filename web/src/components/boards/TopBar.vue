@@ -182,9 +182,9 @@ onUnmounted(() => clearInterval(timer))
 
 .header__top {
   display: grid;
-  grid-template-columns: minmax(360px, 1.1fr) auto minmax(220px, 1fr);
+  grid-template-columns: minmax(520px, 1.35fr) auto minmax(260px, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 16px 20px;
   min-height: 56px;
   padding: 4px 20px 0;
 }
@@ -192,8 +192,9 @@ onUnmounted(() => clearInterval(timer))
 .header__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
+  overflow: visible;
 }
 
 .header__right {

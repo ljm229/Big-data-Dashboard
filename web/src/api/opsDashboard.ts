@@ -27,6 +27,7 @@ import {
   type AssessKey,
   type AssessRaw,
 } from '../utils/opsAssessment'
+import { formatStoreName, sameStore } from '../utils/storeName'
 
 /** 周报展示顺序：售罄 → 错漏拣 → 仓T → IM → 商责 */
 const REPORT_METRIC_ORDER: AssessKey[] = [
@@ -878,13 +879,17 @@ export async function fetchStoreBusinessReport(
     curKey = isoDate
   }
   if (storeId && storeId !== '全部') {
-    curRows = curRows.filter((r) => r.name === storeId || r.fullName === storeId || r.code === storeId)
+    curRows = curRows.filter(
+      (r) => sameStore(r.name, storeId) || sameStore(r.fullName, storeId) || r.code === storeId,
+    )
   }
   if (!curRows.length) return null
 
   let prevRows = prevKey ? await fetchStoreRank(prevKey, cityKey, '全部') : []
   if (storeId && storeId !== '全部' && prevRows.length) {
-    prevRows = prevRows.filter((r) => r.name === storeId || r.fullName === storeId || r.code === storeId)
+    prevRows = prevRows.filter(
+      (r) => sameStore(r.name, storeId) || sameStore(r.fullName, storeId) || r.code === storeId,
+    )
   }
   const prevMap = new Map(prevRows.map((r) => [r.name || r.fullName, r]))
 
@@ -986,8 +991,8 @@ export async function fetchStoreBusinessReport(
     const prev = prevMap.get(r.name) || prevMap.get(r.fullName)
     const rowAov = r.paid_orders ? r.paid_amount / r.paid_orders : r.avg_item_price || 0
     return {
-      name: r.name,
-      fullName: r.fullName,
+      name: formatStoreName(r.name) || r.name,
+      fullName: formatStoreName(r.fullName || r.name) || r.fullName,
       city: r.city,
       paid: r.paid_amount,
       orders: r.paid_orders,

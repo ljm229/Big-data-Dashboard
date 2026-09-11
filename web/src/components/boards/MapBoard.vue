@@ -20,7 +20,7 @@
               :model-value="storeFocus"
               :options="storeSelectOptions"
               :disabled="!storeOptions.length"
-              :placeholder="cityName === '全国' ? '先选城市' : '全部门店'"
+              placeholder="全部门店"
               @update:model-value="onStoreSelect"
             />
           </label>
@@ -98,6 +98,7 @@ import {
 } from '../../api/dashboard'
 import { useChart } from '../../composables/useChart'
 import { formatMoney, formatInt, formatPercent } from '../../utils/format'
+import { bareStoreName } from '../../utils/storeName'
 import { resolveProvince, type ProvinceMeta } from '../../data/geoMeta'
 import { loadProvinceGeo } from '../../utils/loadProvinceGeo'
 import chinaGeo from '../../assets/china.json'
@@ -133,6 +134,8 @@ const mapReady = ref(false)
 const registeredProvinces = new Set<string>()
 const activeProvince = ref<ProvinceMeta | null>(null)
 const storeFocus = ref('')
+/** 全国选店后切城市时保留焦点，避免 cityName watch 清空 */
+const pendingStoreFocus = ref('')
 /** 地图数据编码：大小看规模，颜色看毛利率 */
 const mapMetric = ref<'paid' | 'orders' | 'profit'>('paid')
 const lastMode = ref<'nation' | 'province'>('nation')
@@ -149,16 +152,19 @@ function matchCityLocal(a: string, b: string) {
   return a.replace(/市$/, '') === b.replace(/市$/, '') || a === b
 }
 
-/** 门店下拉：全国时不列门店；选城市后仅该城门店 */
+/** 门店下拉：全国列出全部门店；选城市后仅该城门店 */
 const storeOptions = computed(() => {
-  if (!cityName.value || cityName.value === '全国') return []
+  if (!cityName.value || cityName.value === '全国') return stores.value
   return stores.value.filter((s) => matchCityLocal(s.city, cityName.value))
 })
 
 const citySelectOptions = computed(() => cities.value.map((c) => ({ value: c.id, label: c.name })))
 const storeSelectOptions = computed(() => [
-  { value: '', label: cityName.value === '全国' ? '先选城市' : '全部门店' },
-  ...storeOptions.value.map((s) => ({ value: s.shortName, label: s.shortName })),
+  { value: '', label: '全部门店' },
+  ...storeOptions.value.map((s) => ({
+    value: s.shortName,
+    label: cityName.value === '全国' && s.city ? `${s.shortName} · ${s.city}` : s.shortName,
+  })),
 ])
 const metricOptions = [
   { value: 'paid', label: '气泡=实付 · 颜色=毛利率' },
@@ -241,14 +247,38 @@ function backNationwide() {
   closePopup()
 }
 
+function findStoreByFocus(value: string) {
+  if (!value) return undefined
+  return stores.value.find(
+    (s) => s.shortName === value || bareStoreName(s.shortName) === bareStoreName(value),
+  )
+}
+
 function onStoreSelect(value: string) {
+  if (!value) {
+    pendingStoreFocus.value = ''
+    storeFocus.value = ''
+    closePopup()
+    void paint()
+    return
+  }
+  const store = findStoreByFocus(value)
+  // 全国选店：先切到所属城市，再聚焦门店
+  if (store && (!cityName.value || cityName.value === '全国')) {
+    const cityOpt = cities.value.find((c) => c.id !== 'all' && matchCityLocal(c.name, store.city))
+    if (cityOpt) {
+      pendingStoreFocus.value = store.shortName
+      filter.setCity(cityOpt.id, cityOpt.name)
+      return
+    }
+  }
   storeFocus.value = value
   onStoreFocus()
 }
 
 /** 下拉选门店：只高亮并微微放大到点位，不弹经营窗（弹窗仅地图点击） */
 function onStoreFocus() {
-  const store = storeOptions.value.find((s) => s.shortName === storeFocus.value)
+  const store = findStoreByFocus(storeFocus.value)
   closePopup()
   if (store) {
     highlightProvinceStores()
@@ -805,13 +835,20 @@ async function load() {
 watch([dataKey, loadingTick, channel], load, { immediate: true })
 watch([cityName, channel], async () => {
   if (!list.value.length) return
-  storeFocus.value = ''
+  const keepFocus = pendingStoreFocus.value
+  pendingStoreFocus.value = ''
+  storeFocus.value = keepFocus || ''
   stores.value = await fetchMapStores(
     dataKey.value,
     cityName.value === '全国' ? '全国' : cityName.value,
     channel.value,
   )
   await paint()
+  if (keepFocus) {
+    storeFocus.value = keepFocus
+    await nextTick()
+    onStoreFocus()
+  }
 })
 
 onUnmounted(() => {
@@ -839,20 +876,22 @@ onUnmounted(() => {
 .map-toolbar__filters {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px 20px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .city-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 14px;
   color: var(--c-muted);
+  flex-shrink: 0;
   .city-filter__select {
-    width: 140px;
+    width: 168px;
   }
   .city-filter__select--metric {
-    width: 220px;
+    width: 240px;
   }
 }
 .summary {

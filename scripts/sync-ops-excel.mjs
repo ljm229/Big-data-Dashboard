@@ -29,12 +29,19 @@ function toNum(v) {
   return Number.isFinite(n) ? n : 0
 }
 
-function shortName(name) {
+function bareName(name) {
   return String(name || '')
     .replace(/^优沃森超市\(/, '')
     .replace(/\)$/, '')
-    .replace(/^淘宝便利店（/, '')
-    .replace(/）$/, '')
+    .replace(/^淘宝便利店[（(]/, '')
+    .replace(/[）)]$/, '')
+    .replace(/[（()）\s]/g, '')
+    .trim()
+}
+
+function shortName(name) {
+  const bare = bareName(name)
+  return bare ? `淘宝便利店（${bare}）` : ''
 }
 
 function readData(file) {

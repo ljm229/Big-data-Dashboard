@@ -29,7 +29,8 @@ const error = ref('')
 
 onMounted(() => {
   try {
-    if (sessionStorage.getItem(ACCESS_STORAGE_KEY) === '1') unlocked.value = true
+    const localPreview = ['127.0.0.1', 'localhost'].includes(window.location.hostname)
+    if (localPreview || sessionStorage.getItem(ACCESS_STORAGE_KEY) === '1') unlocked.value = true
   } catch {
     /* ignore */
   }

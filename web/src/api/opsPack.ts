@@ -4,6 +4,7 @@
  */
 import pack from '../data/opsPack.json'
 import dash from '../data/dashboard.json'
+import { bareStoreName, formatStoreName, sameStore } from '../utils/storeName'
 
 type WeekMeta = { id: string; label?: string; start?: string; end?: string; days?: string[] }
 type MonthMeta = { id: string; days?: string[] }
@@ -177,14 +178,17 @@ export function resolvePackDays(dateKey: string): string[] {
   return []
 }
 
+function toIsoLocal(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function expandRange(from: string, to: string): string[] {
   const out: string[] = []
   const d = new Date(`${from}T12:00:00`)
   const end = new Date(`${to}T12:00:00`)
   if (Number.isNaN(d.getTime()) || Number.isNaN(end.getTime())) return []
   while (d <= end) {
-    const iso = d.toISOString().slice(0, 10)
-    out.push(iso)
+    out.push(toIsoLocal(d))
     d.setDate(d.getDate() + 1)
   }
   return out
@@ -198,13 +202,21 @@ function daysLabel(days: string[]): string {
 
 function matchStore(row: { shortName?: string; name?: string; id?: string }, storeId: string, storeHint?: string) {
   if (!storeId || storeId === '全部') return true
-  if (row.id && row.id === storeId) return true
-  const hint = (storeHint || storeId).replace(/^淘宝便利店/, '').replace(/^优沃森超市/, '')
-  if (row.shortName && (row.shortName === hint || hint.includes(row.shortName) || row.shortName.includes(hint))) {
+  if (row.id && (row.id === storeId || sameStore(row.id, storeId))) return true
+  const hint = storeHint || storeId
+  if (row.shortName && sameStore(row.shortName, hint)) return true
+  if (row.name && sameStore(row.name, hint)) return true
+  const bareHint = bareStoreName(hint)
+  if (bareHint && row.shortName && (bareHint.includes(bareStoreName(row.shortName)) || bareStoreName(row.shortName).includes(bareHint))) {
     return true
   }
-  if (row.name && (row.name.includes(hint) || hint.includes(row.name))) return true
   return false
+}
+
+function withStoreLabel<T extends { shortName?: string; name?: string }>(row: T): T {
+  const shortName = formatStoreName(row.shortName || row.name) || row.shortName
+  const name = formatStoreName(row.name || row.shortName) || row.name
+  return { ...row, shortName, name }
 }
 
 function matchCity(city: string, rowCity?: string) {
@@ -232,7 +244,7 @@ function prevDaysOf(days: string[]): string[] {
   if (days.length === 1) {
     const d = new Date(`${days[0]}T12:00:00`)
     d.setDate(d.getDate() - 1)
-    return [d.toISOString().slice(0, 10)]
+    return [`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`]
   }
   const span = days.length
   const first = new Date(`${days[0]}T12:00:00`)
@@ -241,7 +253,7 @@ function prevDaysOf(days: string[]): string[] {
   for (let i = 0; i < span; i++) {
     const x = new Date(first)
     x.setDate(first.getDate() + i)
-    out.push(x.toISOString().slice(0, 10))
+    out.push(toIsoLocal(x))
   }
   return out
 }
@@ -315,6 +327,7 @@ export function fetchTrafficBoard(
       orderRate: round(rate(st.orderUsers, st.enter)),
       overallRate: round(rate(st.orderUsers, st.expose)),
     }))
+    .map(withStoreLabel)
     .sort((a, b) => (a.overallRate ?? 1) - (b.overallRate ?? 1))
 
   if (!stores.length) return null
@@ -330,10 +343,10 @@ export function fetchTrafficBoard(
     .sort((a, b) => b.expose - a.expose)
     .slice(0, 12)
 
-  // 环比：上一同等跨度
+  // 环比：上一同等跨度且天数对齐才展示（避免残周对完整周）
   const prevDays = prevDaysOf(days).filter((d) => data.traffic![d])
   let prevFunnel: Funnel | null = null
-  if (prevDays.length) {
+  if (prevDays.length === days.length) {
     const prevStores: Funnel[] = []
     for (const d of prevDays) {
       for (const st of data.traffic![d].stores) {
@@ -468,7 +481,7 @@ export function fetchSupplyBoard(
     }
   }
 
-  const stores = [...map.values()].sort((a, b) => (b.absentLoss || 0) - (a.absentLoss || 0))
+  const stores = [...map.values()].map(withStoreLabel).sort((a, b) => (b.absentLoss || 0) - (a.absentLoss || 0))
   if (!stores.length) return null
 
   const attVals = stores.map((s) => s.attendance).filter((v): v is number => v != null)
@@ -541,7 +554,7 @@ export function fetchProductBoard(dateKey: string, storeId = '全部', storeHint
     from: hit.from,
     to: hit.to,
     label: hit.kind === 'period' ? `${hit.from}～${hit.to} 区间` : hit.from,
-    stores: storeId === '全部' ? stores : stores,
+    stores: stores.map(withStoreLabel),
     topLossSku: hit.topLossSku,
     topRefundSku: hit.topRefundSku,
     refundReasons: hit.refundReasons || [],

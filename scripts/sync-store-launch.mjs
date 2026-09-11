@@ -9,18 +9,32 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
-const src = path.join(root, '数据源', '8.28-9.3', '淘宝便利店门店信息表.xlsx')
+const srcCandidates = [
+  path.join(root, '数据源', '淘宝便利店门店信息表.xlsx'),
+  path.join(root, '数据源', '8.28-9.3', '淘宝便利店门店信息表.xlsx'),
+  path.join(root, '数据源', '8.28', '淘宝便利店门店信息表.xlsx'),
+]
+const src = srcCandidates.find((p) => fs.existsSync(p))
+if (!src) {
+  console.error('未找到 淘宝便利店门店信息表.xlsx')
+  process.exit(1)
+}
 const out = path.join(root, 'web', 'src', 'data', 'storeLaunch.json')
 
 /** 人工确认已营业、覆盖表内「待营业」口径 */
 const FORCE_LAUNCHED = new Set(['淮南街店', '淘宝便利店（淮南街店）'])
 
-function shortStore(name) {
+function bareStore(name) {
   return String(name || '')
     .replace(/淘宝便利店/g, '')
     .replace(/[（(]/g, '')
     .replace(/[）)]/g, '')
     .trim()
+}
+
+function shortStore(name) {
+  const bare = bareStore(name)
+  return bare ? `淘宝便利店（${bare}）` : ''
 }
 
 const CITY_ALIAS = {
@@ -149,7 +163,7 @@ const schedule = [...pendingRows]
 
 const payload = {
   generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-  source: '数据源/8.28-9.3/淘宝便利店门店信息表.xlsx',
+  source: path.relative(root, src).replaceAll('\\', '/'),
   summary: {
     total,
     launched: launchedCount,

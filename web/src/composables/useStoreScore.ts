@@ -2,15 +2,23 @@
 import { computed, onUnmounted, ref, watch, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { AssessMetric } from '../components/ScoreCard.vue'
-import { useFilterStore, COCKPIT_WEEKS, COCKPIT_MONTHS } from '../stores/filter'
+import { useFilterStore } from '../stores/filter'
+import {
+  fetchAssessmentBoard,
+  healthFromMetrics,
+  type AssessBoard,
+} from '../api/opsDashboard'
 import {
   fetchAssessmentCityOptions,
   fetchAssessmentStoreOptions,
-  hasAssessment,
-  resolveAssessmentWeekId,
+  getAssessmentAvailableDates,
 } from '../api/dashboard'
-import dashRaw from '../data/dashboard.json'
-import { fetchAssessmentBoard, healthFromMetrics, type AssessBoard } from '../api/opsDashboard'
+import {
+  fetchDatabaseBoard,
+  fetchDatabaseCoverage,
+  fetchDatabaseOptions,
+  subscribeQualityUpdates,
+} from '../api/qualityDatabase'
 import { GRADE_RULES, type AssessKey } from '../utils/opsAssessment'
 
 /** 运营看板考核数据（经典版 / Tab 版共用） */
@@ -21,31 +29,29 @@ export function useStoreScore() {
   const city = ref('全部')
   const storeId = ref('全部')
   const cityOptions = ref<string[]>(['全部'])
-  const storeOptions = ref<Array<{ id: string; shortName: string; code?: string }>>([])
+  const storeOptions = ref<Array<{ id: string; shortName: string; code?: string; city?: string; name?: string }>>([])
 
   const assessKey = computed(() => dataKey.value || selectedDate.value)
-  const hasAssessData = computed(() => hasAssessment(assessKey.value))
-  const updatedHint = String((dashRaw as { updated_at?: string }).updated_at || '').slice(0, 16)
+  const databaseDates = ref<string[]>([])
+  const dataSource = ref<'database' | 'static' | 'unavailable'>('unavailable')
+  const hasAssessData = computed(
+    () => !!assessBoard.value,
+  )
+  const updatedHint = ref('')
+
+  function formatUpdatedAt(value: string) {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace('T', ' ')
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).replaceAll('/', '-')
+  }
 
   const assessWeekLabel = computed(() => {
-    const weekId = resolveAssessmentWeekId(assessKey.value)
-    if (!weekId) return selectedDate.value
-    if (weekId.startsWith('M:')) {
-      const id = weekId.slice(2)
-      const [y, mo] = id.split('-')
-      return COCKPIT_MONTHS.find((m) => m.id === id)?.label || `${Number(y)}年${Number(mo)}月`
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(weekId)) {
-      const [, m, d] = weekId.split('-')
-      return `${Number(m)}月${Number(d)}日考核`
-    }
-    const fromCockpit = COCKPIT_WEEKS.find((x) => x.id === weekId)
-    if (fromCockpit?.label) return fromCockpit.label
-    const fromRaw = ((dashRaw as { weeks?: Array<{ id: string; label: string }> }).weeks || []).find(
-      (x) => x.id === weekId,
-    )
-    if (fromRaw?.label) return fromRaw.label
-    return weekId.replace('_', '～')
+    const key = assessKey.value
+    if (key.startsWith('M:')) return key.slice(2) + ' 月考核'
+    if (key.startsWith('W:')) return key.slice(2).replace('_','～') + ' 考核'
+    return key + ' 日考核'
   })
 
   const assessBoard = ref<AssessBoard | null>(null)
@@ -68,10 +74,10 @@ export function useStoreScore() {
     })),
   )
 
-  const watchStores = computed(() => assessRows.value.filter((r) => r.composite < 60).slice(0, 12))
+  const watchStores = computed(() => assessRows.value.filter((r) => r.composite < 60 && r.parts.some((p) => !p.missing)).slice(0, 12))
 
   function failTags(row: AssessBoard['rows'][number]) {
-    return row.parts.filter((p) => !p.pass).map((p) => p.shortName)
+    return row.parts.filter((p) => !p.missing && !p.pass).map((p) => p.shortName)
   }
   function partPass(row: AssessBoard['rows'][number], key: AssessKey) {
     return row.parts.find((p) => p.key === key)?.pass ?? true
@@ -93,21 +99,45 @@ export function useStoreScore() {
 
   async function reloadFilters() {
     const key = assessKey.value
-    cityOptions.value = await fetchAssessmentCityOptions(key)
+    try {
+      const options = await fetchDatabaseOptions(key)
+      cityOptions.value = options.cities
+      storeOptions.value = options.stores
+      dataSource.value = 'database'
+    } catch {
+      try {
+        cityOptions.value = await fetchAssessmentCityOptions(key)
+        storeOptions.value = await fetchAssessmentStoreOptions(key, city.value)
+        dataSource.value = 'static'
+      } catch {
+        cityOptions.value = ['全部']
+        storeOptions.value = []
+        dataSource.value = 'unavailable'
+      }
+    }
     if (!cityOptions.value.includes(city.value)) city.value = '全部'
-    storeOptions.value = await fetchAssessmentStoreOptions(key, city.value)
+    if ((dataSource.value === 'database' || dataSource.value === 'static') && city.value !== '全部') {
+      storeOptions.value = storeOptions.value.filter((store) => store.city === city.value)
+    }
     if (storeId.value !== '全部' && !storeOptions.value.some((s) => s.id === storeId.value)) {
       storeId.value = '全部'
     }
   }
 
   async function reload() {
-    if (!hasAssessData.value) {
-      assessBoard.value = null
-      metrics.value = []
-      return
+    let board: AssessBoard | null = null
+    try {
+      board = await fetchDatabaseBoard(assessKey.value, city.value, storeId.value)
+      dataSource.value = 'database'
+    } catch {
+      try {
+        board = await fetchAssessmentBoard(assessKey.value, city.value, storeId.value)
+        dataSource.value = board ? 'static' : 'unavailable'
+      } catch {
+        dataSource.value = 'unavailable'
+        updatedHint.value = ''
+      }
     }
-    const board = await fetchAssessmentBoard(assessKey.value, city.value, storeId.value)
     assessBoard.value = board
     metrics.value = board?.metrics || []
   }
@@ -118,9 +148,30 @@ export function useStoreScore() {
   })
 
   void (async () => {
+    try {
+      const coverage = await fetchDatabaseCoverage()
+      databaseDates.value = coverage.dates.map((item) => item.date)
+      if (coverage.state?.updated_at) updatedHint.value = formatUpdatedAt(coverage.state.updated_at)
+    } catch {
+      databaseDates.value = getAssessmentAvailableDates()
+    }
     await reloadFilters()
     void reload()
   })()
+
+  const unsubscribe = subscribeQualityUpdates(async () => {
+    try {
+      const coverage = await fetchDatabaseCoverage()
+      databaseDates.value = coverage.dates.map((item) => item.date)
+      if (coverage.state?.updated_at) updatedHint.value = formatUpdatedAt(coverage.state.updated_at)
+    } catch {
+      databaseDates.value = getAssessmentAvailableDates()
+    } finally {
+      await reloadFilters()
+      await reload()
+    }
+  })
+  onUnmounted(unsubscribe)
 
   return {
     city,
@@ -130,6 +181,7 @@ export function useStoreScore() {
     assessKey,
     hasAssessData,
     updatedHint,
+    dataSource,
     assessWeekLabel,
     storeCntText,
     assessBoard,

@@ -32,53 +32,85 @@
 
     <div class="ops-tabs__main">
       <header class="topbar">
-        <h1>{{ currentTab?.label }}</h1>
-        <div class="topbar__filters">
-          <DateFilter variant="light" scope="ops" />
-          <div class="filter-divider" />
-          <label class="filter">
-            <span>城市</span>
-            <SelectMenu
-              class="filter__select"
-              variant="light"
-              :model-value="city"
-              :options="citySelectOptions"
-              search-placeholder="搜索城市"
-              @update:model-value="city = $event"
-            />
-          </label>
-          <label class="filter">
-            <span>门店</span>
-            <SelectMenu
-              class="filter__select filter__select--store"
-              variant="light"
-              :model-value="storeId"
-              :options="storeSelectOptions"
-              search-placeholder="搜索门店名/编码"
-              @update:model-value="storeId = $event"
-            />
-          </label>
-        </div>
-        <div v-if="hasAssessData" class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
-          <div class="health__grade" :style="{ color: softGrade(health.grade.grade) }">
-            {{ health.grade.grade }}
+        <div class="topbar__row">
+          <h1>{{ currentTab?.label }}</h1>
+          <div class="source-pill" :class="dataSource">
+            <i />{{
+              dataSource === 'database'
+                ? '数据库 · 考核数据'
+                : dataSource === 'static'
+                  ? '静态包 · 考核数据'
+                  : '数据库暂未连接'
+            }}
+            <span v-if="updatedHint">{{ updatedHint }}</span>
           </div>
-          <strong>{{ headerScore }}</strong>
-          <div class="health__meta">
-            <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
-            <span>{{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} 合格店</span>
-          </div>
+          <details class="rules">
+            <summary>考核规则</summary>
+            <div class="rules__panel">
+              <div class="rules__block">
+                <b>合格标准</b>
+                <ul>
+                  <li v-for="d in assessDefs" :key="d.key">
+                    {{ d.shortName }}
+                    {{ d.lowerBetter ? '≤' : '≥' }}{{ d.passLine }}{{ d.unit === 'min' ? '' : '%' }}
+                  </li>
+                </ul>
+              </div>
+              <div class="rules__block">
+                <b>综合打分</b>
+                <p>满分 100 = 售罄 40% + 错漏拣 20% + 仓配 10% + 商责 20% + 回复 10%</p>
+              </div>
+              <div class="rules__block">
+                <b>等级划分</b>
+                <p>
+                  <span v-for="g in gradeRules" :key="g.grade" class="rules__grade" :class="'g-' + g.grade">
+                    {{ g.grade }} {{ g.label }} {{ g.min }}–{{ g.max }}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </details>
         </div>
+          <div class="filter-toolbar">
+            <DateFilter variant="light" scope="ops" />
+            <label class="filter">
+              <span>城市</span>
+              <SelectMenu
+                class="filter__select"
+                variant="light"
+                :model-value="city"
+                :options="citySelectOptions"
+                search-placeholder="搜索城市"
+                @update:model-value="city = $event"
+              />
+            </label>
+            <label class="filter">
+              <span>门店</span>
+              <SelectMenu
+                class="filter__select filter__select--store"
+                variant="light"
+                :model-value="storeId"
+                :options="storeSelectOptions"
+                search-placeholder="搜索门店名/编码"
+                @update:model-value="storeId = $event"
+              />
+            </label>
+          </div>
       </header>
 
       <div v-if="!hasAssessData" class="empty-panel">
         <strong>该周期暂无营运考核数据</strong>
-        <p>请切换到 8.21–8.27 或 8.28–9.3（建议按周查看）。</p>
       </div>
 
       <div v-else class="tab-body">
+        <EmptyPage
+          v-if="currentTab?.soon"
+          :title="currentTab?.label || ''"
+          :hint="currentTab?.hint || '当前阶段暂不开发，先完成门店运营质量模块。'"
+          :source="currentTab?.source || ''"
+        />
         <OverviewPage
-          v-if="activeTab === 'overview'"
+          v-else-if="activeTab === 'overview'"
           :date-key="assessKey"
           :city="city"
           :store-id="storeId"
@@ -116,12 +148,7 @@
           :week-label="assessWeekLabel"
           :fail-tags="failTags"
         />
-        <EmptyPage
-          v-else
-          :title="currentTab?.label || ''"
-          :hint="currentTab?.hint || ''"
-          :source="currentTab?.source || ''"
-        />
+        <EmptyPage v-else :title="currentTab?.label || ''" hint="" source="" />
       </div>
     </div>
   </div>
@@ -140,6 +167,7 @@ import SupplyPage from './store-pages/SupplyPage.vue'
 import ReturnPage from './store-pages/ReturnPage.vue'
 import CoachPage from './store-pages/CoachPage.vue'
 import EmptyPage from './store-pages/EmptyPage.vue'
+import { ASSESS_DEFS, GRADE_RULES } from '../utils/opsAssessment'
 import '../styles/ops-theme.scss'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
@@ -168,14 +196,14 @@ const tabs: TabDef[] = [
     no: '02',
     label: '经营结果',
     desc: '订单 / 实付 / 毛利是否达标',
-    soon: false,
+    soon: true,
   },
   {
     id: 'traffic',
     no: '03',
     label: '流量与转化',
     desc: 'UV · P1进店 · P2下单断点',
-    soon: false,
+    soon: true,
   },
   {
     id: 'promo',
@@ -191,21 +219,21 @@ const tabs: TabDef[] = [
     no: '05',
     label: '商品供给',
     desc: '品类 · 数量 · 缺货损失下钻',
-    soon: false,
+    soon: true,
   },
   {
     id: 'reverse',
     no: '06',
     label: '逆向客诉',
     desc: '商责退 · 退款原因 · 负毛利连带',
-    soon: false,
+    soon: true,
   },
   {
     id: 'coach',
     no: '07',
     label: '门店辅导',
     desc: '按断点打标签 · 本周盯店动作',
-    soon: false,
+    soon: true,
   },
 ]
 
@@ -221,11 +249,8 @@ const {
   assessKey,
   hasAssessData,
   assessWeekLabel,
-  storeCntText,
-  assessBoard,
-  headerScore,
-  scoreLabel,
-  health,
+  updatedHint,
+  dataSource,
   watchStores,
   failTags,
 } = useStoreScore()
@@ -237,7 +262,7 @@ const storeSelectOptions = computed(() => [
   { value: '全部', label: '全部门店' },
   ...storeOptions.value.map((s) => ({
     value: s.id,
-    label: s.code ? `${s.shortName}（${s.code}）` : s.shortName,
+    label: s.shortName,
   })),
 ])
 
@@ -246,179 +271,245 @@ const storeHint = computed(() => {
   return storeOptions.value.find((s) => s.id === storeId.value)?.shortName || storeId.value
 })
 
-const GRADE_SOFT: Record<string, string> = {
-  S: '#10b981',
-  A: '#1d6bff',
-  B: '#f59e0b',
-  C: '#f97316',
-  D: '#ef4444',
-}
-function softGrade(g: string) {
-  return GRADE_SOFT[g] || '#1d6bff'
-}
+const assessDefs = ASSESS_DEFS
+const gradeRules = GRADE_RULES
 </script>
 
 <style scoped lang="scss">
 .ops-tabs {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
-  background: var(--ops-bg);
+  grid-template-columns: 200px minmax(0, 1fr);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(22, 93, 255, 0.05), transparent 36%),
+    linear-gradient(180deg, var(--ops-bg-top) 0%, var(--ops-bg) 100%);
   color: var(--ops-text);
   font-family: var(--ops-font);
 }
 .ops-tabs__nav {
-  background: var(--ops-nav);
-  color: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  color: var(--ops-text);
   display: flex;
   flex-direction: column;
-  padding: 18px 10px 14px;
+  padding: 18px 12px 16px;
   min-height: 100vh;
   position: sticky;
   top: 0;
+  border-right: 0;
+  box-shadow: 1px 0 0 #ebebeb;
 }
 .nav-brand {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 2px 8px 18px;
+  padding: 2px 8px 16px;
   b {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
     display: grid;
     place-items: center;
-    background: var(--ops-nav-active);
+    background: linear-gradient(145deg, #4080ff, #165dff 55%, #0e42d2);
     color: #fff;
     font-weight: 800;
     font-size: 14px;
+    box-shadow: 0 4px 14px rgba(29, 107, 255, 0.32);
   }
   strong {
     display: block;
     font-size: 14px;
-    color: #fff;
-    font-weight: 700;
+    color: var(--ops-text);
+    font-weight: 800;
   }
   span {
     font-size: 11px;
-    color: var(--ops-nav-text);
+    color: var(--ops-muted);
   }
 }
 .nav-switch {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 0 0 12px;
-  padding: 0 0 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--ops-border-soft);
   .link {
-    border: 0;
+    border: 1px solid transparent;
     background: transparent;
-    color: var(--ops-nav-text);
+    color: var(--ops-muted);
     text-align: left;
     padding: 8px 10px;
-    border-radius: 8px;
+    border-radius: 999px;
     cursor: pointer;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     &:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: #e2e8f0;
+      background: var(--ops-nav-hover);
+      color: var(--ops-primary);
+      border-color: #bfdbfe;
     }
   }
 }
 nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   button {
     display: grid;
     grid-template-columns: 28px 1fr auto;
     align-items: center;
     gap: 4px;
     text-align: left;
-    border: 0;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--ops-nav-text);
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 10px 10px;
     cursor: pointer;
     font-size: 13px;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     em {
       font-style: normal;
       font-size: 11px;
-      color: #64748b;
+      color: #94a3b8;
       font-family: var(--ops-font-num);
       font-weight: 600;
     }
     i {
       font-style: normal;
       font-size: 10px;
-      padding: 2px 5px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f1f5f9;
       color: #94a3b8;
     }
     &:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: #e2e8f0;
+      background: var(--ops-nav-hover);
+      color: var(--ops-primary);
+      border-color: #dbeafe;
     }
     &.active {
-      background: var(--ops-nav-active);
+      background: linear-gradient(135deg, #165dff, #4080ff);
       color: #fff;
       font-weight: 700;
+      border-color: transparent;
+      box-shadow: 0 6px 16px rgba(22, 93, 255, 0.22);
       em {
-        color: rgba(255, 255, 255, 0.85);
+        color: rgba(255, 255, 255, 0.88);
       }
       i {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.22);
         color: #fff;
       }
     }
     &.soon:not(.active) {
-      opacity: 0.72;
+      opacity: 0.78;
     }
   }
 }
 .ops-tabs__main {
   min-width: 0;
   padding: 16px 20px 28px;
-  background: var(--ops-bg);
+  background: transparent;
+}
+
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: #64748b;
+  background: #f7f8fa;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #94a3b8;
+    flex-shrink: 0;
+  }
+  span {
+    color: #86909c;
+  }
+  &.database,
+  &.static {
+    color: #00b42a;
+    background: #e8ffea;
+    i {
+      background: #00b42a;
+      box-shadow: none;
+    }
+  }
 }
 .topbar {
   display: flex;
-  align-items: center;
-  gap: 12px 14px;
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  border-radius: var(--ops-radius);
-  background: var(--ops-surface);
-  border: 1px solid var(--ops-border);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+  border: 0;
   box-shadow: var(--ops-shadow);
-  min-height: 44px;
   h1 {
     margin: 0;
     flex-shrink: 0;
     font-size: 16px;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--ops-text);
     letter-spacing: 0.01em;
     white-space: nowrap;
   }
 }
-.topbar__filters {
+.topbar__row {
   display: flex;
-  flex: 1;
-  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
-  overflow-x: auto;
+}
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  :deep(.date-bar) {
+    flex-shrink: 0;
+    gap: 4px;
+  }
+  :deep(.date-bar.light .seg) {
+    border: 0;
+    background: transparent;
+    gap: 2px;
+    border-radius: 6px;
+  }
   :deep(.date-bar.light .seg button) {
     height: 30px;
-    padding: 0 10px;
-    font-size: 12px;
+    padding: 0 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    color: #86909c;
+    background: transparent;
+  }
+  :deep(.date-bar.light .seg button:hover) {
+    background: rgba(0, 0, 0, 0.04);
+    color: #4e5969;
+  }
+  :deep(.date-bar.light .seg button.active) {
+    color: #fff;
+    background: #1d2129;
+    font-weight: 700;
   }
   :deep(.date-bar.light .ctrl-date),
   :deep(.date-bar.light .ctrl-select),
@@ -426,28 +517,36 @@ nav {
   :deep(.date-bar.light .ctrl-select--month) {
     height: 30px;
   }
+  :deep(.dash-date.light .dash-date__trigger),
   :deep(.dash-select.light .dash-select__trigger) {
     height: 30px;
-    font-size: 12px;
-    padding: 0 28px 0 10px;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none;
+    font-size: 13px;
+    padding: 0 10px;
+    border-radius: 6px;
+    color: #1d2129;
+  }
+  :deep(.dash-date.light .dash-date__trigger:hover),
+  :deep(.dash-select.light .dash-select__trigger:hover),
+  :deep(.dash-select.light.open .dash-select__trigger),
+  :deep(.dash-date.light.open .dash-date__trigger) {
+    background: rgba(0, 0, 0, 0.04) !important;
   }
   :deep(.filter__select) {
-    font-size: 12px;
+    font-size: 13px;
   }
-}
-.filter-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--ops-border);
-  flex-shrink: 0;
 }
 .filter {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 12px;
   color: var(--ops-muted);
   white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0 4px;
   span {
     flex-shrink: 0;
   }
@@ -457,80 +556,125 @@ nav {
   :deep(.filter__select--store) {
     min-width: 140px;
   }
-  select {
-    min-width: 96px;
-    height: 30px;
-    border: 1px solid var(--ops-border);
-    border-radius: 6px;
-    padding: 0 8px;
-    color: var(--ops-text);
-    font-weight: 600;
-    font-size: 12px;
-    background: #fff;
-    box-sizing: border-box;
-  }
 }
-.health {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.rules {
+  position: relative;
   margin-left: auto;
-  padding: 4px 10px 4px 6px;
-  border-radius: 8px;
-  background: #f8fbff;
-  border: 1px solid #dbeafe;
   flex-shrink: 0;
-  &__grade {
-    width: 24px;
-    height: 24px;
+  summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    height: 32px;
+    padding: 0 8px;
     border-radius: 6px;
-    display: grid;
-    place-items: center;
-    font-weight: 800;
+    border: 0;
+    background: transparent;
+    color: var(--ops-text-2);
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    &::-webkit-details-marker {
+      display: none;
+    }
+    &::after {
+      content: '▾';
+      font-size: 11px;
+      color: var(--ops-muted);
+    }
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+      color: var(--ops-primary);
+    }
+  }
+  &[open] summary {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--ops-primary);
+  }
+  &[open] summary::after {
+    content: '▴';
+  }
+  &__panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 40;
+    width: min(420px, 72vw);
+    padding: 14px;
+    border-radius: 10px;
     background: #fff;
-    border: 1px solid #bfdbfe;
-    font-family: var(--ops-font-num);
-    font-size: 12px;
+    border: 0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    display: grid;
+    gap: 12px;
   }
-  strong {
-    font-size: 18px;
-    font-family: var(--ops-font-num);
-    line-height: 1;
-    color: var(--ops-num);
-    font-variant-numeric: tabular-nums;
-    font-weight: 800;
-  }
-  &__meta {
+  &__block {
     b {
       display: block;
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 12px;
       color: var(--ops-text);
-      line-height: 1.2;
+      margin-bottom: 6px;
     }
-    span {
-      font-size: 10px;
-      color: var(--ops-muted);
-      line-height: 1.2;
+    ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+    }
+    li,
+    p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--ops-text-2);
+      line-height: 1.5;
     }
   }
-  &.ok strong {
-    color: var(--ops-ok);
-  }
-  &.warn strong {
-    color: var(--ops-warn);
+  &__grade {
+    display: inline-block;
+    margin: 0 6px 4px 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f2f3f5;
+    color: var(--ops-text-2);
+    &.g-S {
+      background: var(--ops-ok-bg);
+      color: var(--ops-ok);
+    }
+    &.g-A {
+      background: var(--ops-primary-soft);
+      color: var(--ops-primary);
+    }
+    &.g-B {
+      background: #f5e8ff;
+      color: #722ed1;
+    }
+    &.g-C {
+      background: var(--ops-warn-bg);
+      color: var(--ops-warn);
+    }
+    &.g-D {
+      background: var(--ops-bad-bg);
+      color: var(--ops-bad);
+    }
   }
 }
 .empty-panel {
   margin-top: 20px;
   padding: 28px;
   text-align: center;
-  background: var(--ops-surface);
-  border-radius: var(--ops-radius);
-  border: 1px dashed var(--ops-border);
+  background: #fff;
+  border-radius: 12px;
+  border: 0;
+  box-shadow: var(--ops-shadow);
   strong {
     display: block;
-    color: var(--ops-text);
+    color: var(--ops-primary);
     margin-bottom: 6px;
   }
   p {
@@ -548,6 +692,9 @@ nav {
   .ops-tabs__nav {
     position: relative;
     min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--ops-nav-border);
+    box-shadow: none;
     nav {
       flex-direction: row;
       flex-wrap: wrap;

@@ -57,18 +57,28 @@ function parseDayOrPeriod(v) {
   return day ? { kind: 'day', from: day, to: day, key: day } : null
 }
 
-function shortStore(name) {
+function bareStore(name) {
   const s = String(name || '')
   const m = s.match(/[（(]([^）)]+)[）)]/)
-  return (m ? m[1] : s).replace(/^淘宝便利店/, '').replace(/^优沃森超市/, '') || s
+  return (m ? m[1] : s).replace(/^淘宝便利店/, '').replace(/^优沃森超市/, '').replace(/[（()）\s]/g, '') || s
+}
+
+function shortStore(name) {
+  const bare = bareStore(name)
+  return bare ? `淘宝便利店（${bare}）` : ''
 }
 
 function findFile(pred) {
-  if (!fs.existsSync(SRC)) return null
-  return fs
-    .readdirSync(SRC)
-    .filter((f) => f.endsWith('.xlsx') && !f.startsWith('~$'))
-    .find((f) => pred(f))
+  const dirs = [SRC, path.join(ROOT, '数据源')].filter((d, i, arr) => arr.indexOf(d) === i)
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue
+    const hit = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.xlsx') && !f.startsWith('~$'))
+      .find((f) => pred(f))
+    if (hit) return { dir, file: hit }
+  }
+  return null
 }
 
 function rate(a, b) {
@@ -339,30 +349,31 @@ function main() {
     notes: [],
   }
 
-  const trafficFile = findFile((f) => f.includes('流量分析') && f.includes('分来源'))
+  const trafficFile = findFile((f) => f.includes('流量分析') && (f.includes('分来源') || !f.includes('商品')))
+    || findFile((f) => f.includes('流量分析'))
   const supplyFile = findFile((f) => f.includes('商品分析') && f.includes('店铺汇总'))
   const productFile = findFile((f) => f.includes('商品分析') && f.includes('商品明细'))
   const activityFile = findFile((f) => f.includes('活动') && f.includes('店铺'))
 
   if (trafficFile) {
-    console.log('traffic', trafficFile)
-    pack.traffic = ingestTraffic(path.join(SRC, trafficFile))
+    console.log('traffic', trafficFile.dir, trafficFile.file)
+    pack.traffic = ingestTraffic(path.join(trafficFile.dir, trafficFile.file))
     pack.notes.push(`流量：${Object.keys(pack.traffic).length} 天`)
   } else {
     pack.notes.push('流量：数据源缺失，未接入')
   }
 
   if (supplyFile) {
-    console.log('supply', supplyFile)
-    pack.supply = ingestSupply(path.join(SRC, supplyFile))
+    console.log('supply', supplyFile.file)
+    pack.supply = ingestSupply(path.join(supplyFile.dir, supplyFile.file))
     pack.notes.push(`供给：${Object.keys(pack.supply).length} 天`)
   } else {
     pack.notes.push('供给：数据源缺失，未接入')
   }
 
   if (productFile) {
-    console.log('product', productFile)
-    pack.product = ingestProductAgg(path.join(SRC, productFile))
+    console.log('product', productFile.file)
+    pack.product = ingestProductAgg(path.join(productFile.dir, productFile.file))
     const n = Object.keys(pack.product).length
     const sample = pack.product.period || Object.values(pack.product)[0]
     pack.notes.push(

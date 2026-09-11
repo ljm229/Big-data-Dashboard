@@ -77,10 +77,22 @@ function normStoreName(name) {
     .trim()
 }
 
+function formatStoreName(name) {
+  const bare = normStoreName(name)
+  return bare ? `淘宝便利店（${bare}）` : ''
+}
+
+const CITY_ALIAS = {
+  苏州昆山市: '苏州',
+  泰州姜堰: '泰州',
+  待开业: '',
+}
+
 function normCity(city) {
-  const c = String(city || '')
+  let c = String(city || '')
     .trim()
     .replace(/^城市$/, '')
+  if (CITY_ALIAS[c] !== undefined) c = CITY_ALIAS[c]
   if (!c || c === '全国') return ''
   return c.endsWith('市') ? c : `${c}市`
 }
@@ -229,6 +241,142 @@ function costFromMetrics(ov) {
   }
 }
 
+function metricsToExcelCols(m) {
+  if (!m) return {}
+  return {
+    总营业额: m.total_gmv,
+    '有效订单金额（实付）': m.paid_amount,
+    有效订单量: m.effective_orders,
+    有效买家数: m.buyer_cnt,
+    '有效客单价（实付）': m.arpu,
+    '预计毛利(含平台后返)': m.est_profit,
+    预计毛利: m.est_profit_raw,
+    '毛利率(含平台后返)': m.profit_rate,
+    毛利率: m.profit_rate_raw,
+    平台后返: m.rebate,
+    预计线上收入: m.online_income,
+    预计线上支出: m.est_expense,
+    商品成本: m.purchase_cost,
+    营销活动费用: m.marketing_cost,
+    '佣金&其他平台费用': m.commission,
+    平台配送服务费: m.platform_delivery,
+    自配送费用: m.self_delivery,
+    推广费用: m.promo_cost,
+    平台补贴: m.platform_subsidy,
+    负毛利订单占比: m.neg_profit_order_rate,
+    商家补贴率: m.merchant_subsidy_rate,
+    退款率: m.refund_rate,
+    退款金额: m.refund_amount,
+    退款订单量: m.refund_orders,
+    取消订单量: m.cancel_orders,
+    部分退款订单量: m.partial_refund_orders,
+    整单退款订单量: m.full_refund_orders,
+    售中售后退款比: m.inafter_refund_ratio,
+  }
+}
+
+/** 无门店周期表时：把渠道×门店加总成门店日行 */
+function storeRowsFromChannelRows(channelRows) {
+  const groups = new Map()
+  for (const r of channelRows) {
+    const iso = toIsoDate(r['日期'])
+    const store = String(r['门店'] || '').trim()
+    if (!iso || !store) continue
+    const k = `${iso}||${normStoreName(store)}`
+    if (!groups.has(k)) groups.set(k, { iso, store, dateRaw: r['日期'], rows: [] })
+    groups.get(k).rows.push(r)
+  }
+  return [...groups.values()].map((g) => ({
+    日期: g.dateRaw,
+    门店: formatStoreName(g.store) || g.store,
+    ...metricsToExcelCols(metricsFromRows(g.rows)),
+  }))
+}
+
+/** 城市排行缺失时，按门店所属城市聚合 */
+function citiesFromStoreRank(storeRank, iso) {
+  const cityAgg = {}
+  storeRank.forEach((r) => {
+    const city = r['城市名称']
+    if (!city) return
+    if (!toNum(r['用户实付营业额']) && !toNum(r['总营业额']) && !toNum(r['用户实付订单量'])) return
+    if (!cityAgg[city]) {
+      cityAgg[city] = {
+        城市: city,
+        日期: iso,
+        总营业额: 0,
+        '有效订单金额（实付）': 0,
+        有效订单量: 0,
+        有效买家数: 0,
+        '预计毛利(含平台后返)': 0,
+        预计毛利: 0,
+        预计线上收入: 0,
+        预计线上支出: 0,
+        商品成本: 0,
+        营销活动费用: 0,
+        '佣金&其他平台费用': 0,
+        平台配送服务费: 0,
+        自配送费用: 0,
+        推广费用: 0,
+        平台补贴: 0,
+        平台后返: 0,
+        退款金额: 0,
+        退款订单量: 0,
+        部分退款订单量: 0,
+        整单退款订单量: 0,
+        _negOrders: 0,
+      }
+    }
+    const t = cityAgg[city]
+    t['总营业额'] += toNum(r['总营业额'])
+    t['有效订单金额（实付）'] += toNum(r['用户实付营业额'])
+    t['有效订单量'] += toNum(r['用户实付订单量'])
+    t['有效买家数'] += toNum(r['交易用户数'])
+    t['预计毛利(含平台后返)'] += toNum(r['预计毛利'])
+    t['预计毛利'] += toNum(r['预计毛利'])
+    t['预计线上收入'] += toNum(r['预计线上收入'])
+    t['预计线上支出'] += toNum(r['预计线上支出'])
+    t['商品成本'] += toNum(r['采购成本'] || r['商品成本'])
+    t['营销活动费用'] += toNum(r['营销活动费用'])
+    t['佣金&其他平台费用'] += toNum(r['佣金&其他平台费用'])
+    t['平台配送服务费'] += toNum(r['平台配送服务费'])
+    t['自配送费用'] += toNum(r['商家自配送费用'] || r['自配送费用'])
+    t['推广费用'] += toNum(r['推广费用'])
+    t['平台补贴'] += toNum(r['平台补贴'])
+    t['平台后返'] += toNum(r['平台后返'])
+    t['退款金额'] += toNum(r['退款金额'])
+    t['退款订单量'] += toNum(r['退款订单量'])
+    t._negOrders += toNum(r['负毛利订单占比']) * toNum(r['用户实付订单量'])
+  })
+  return Object.values(cityAgg).map((t) => {
+    const gmv = toNum(t['总营业额'])
+    const paid = toNum(t['有效订单金额（实付）'])
+    const orders = toNum(t['有效订单量'])
+    const buyers = toNum(t['有效买家数'])
+    const profit = toNum(t['预计毛利(含平台后返)'])
+    const { _negOrders, ...rest } = t
+    return {
+      ...rest,
+      '有效客单价（实付）': buyers ? paid / buyers : orders ? paid / orders : 0,
+      '毛利率(含平台后返)': gmv ? profit / gmv : 0,
+      毛利率: gmv ? profit / gmv : 0,
+      退款率: orders ? toNum(t['退款订单量']) / orders : 0,
+      负毛利订单占比: orders ? _negOrders / orders : 0,
+    }
+  })
+}
+
+function lastIsoOfMonth(ym) {
+  const [y, mo] = ym.split('-').map(Number)
+  const last = new Date(y, mo, 0, 12)
+  return `${y}-${pad(mo)}-${pad(last.getDate())}`
+}
+
+function isDummyStore(name) {
+  const n = normStoreName(name)
+  return !n || n.includes('模板')
+}
+
 function isExcelFile(f) {
   // 跳过 Excel 打开时的临时锁文件 ~$xxx.xlsx
   return f.endsWith('.xlsx') && !path.basename(f).startsWith('~$')
@@ -241,7 +389,7 @@ function findFile(files, ...preds) {
 function mapAssessRow(r) {
   return {
     name: String(r['门店名称'] || ''),
-    shortName: normStoreName(r['门店名称']),
+    shortName: formatStoreName(r['门店名称']),
     code: String(r['门店编码'] || ''),
     sellout_rate: toNumOrNull(r['动销商品售罄率']),
     pick_error_rate: toNumOrNull(r['错漏拣率']),
@@ -328,21 +476,39 @@ function ingestAssessmentSheet(file, assessment, fallbackWeekId) {
   )
 }
 
-const weekDirs = fs
-  .readdirSync(sourceRoot)
-  .filter((name) => {
+function isTrendFile(f) {
+  return f.includes('周期趋势') || f.includes('周趋势')
+}
+
+function collectPacks() {
+  const packs = []
+  if (!fs.existsSync(sourceRoot)) return packs
+  const names = fs.readdirSync(sourceRoot)
+  const rootFiles = names.filter(isExcelFile)
+  if (rootFiles.some(isTrendFile)) {
+    packs.push({ folder: '(根目录)', dir: sourceRoot, files: rootFiles, isSpanPack: true })
+  }
+  for (const name of names) {
     const dir = path.join(sourceRoot, name)
-    if (!fs.statSync(dir).isDirectory()) return false
-    const files = fs.readdirSync(dir)
-    return files.some((f) => isExcelFile(f) && f.includes('周趋势'))
-  })
-  .sort((a, b) => {
-    // 整月包（如「8月」）最后处理，覆盖同日周包并补齐月初
-    const ma = a.includes('月') ? 1 : 0
-    const mb = b.includes('月') ? 1 : 0
+    let st
+    try {
+      st = fs.statSync(dir)
+    } catch {
+      continue
+    }
+    if (!st.isDirectory()) continue
+    const files = fs.readdirSync(dir).filter(isExcelFile)
+    if (!files.some(isTrendFile)) continue
+    packs.push({ folder: name, dir, files, isSpanPack: name.includes('月') })
+  }
+  packs.sort((a, b) => {
+    const ma = a.isSpanPack ? 1 : 0
+    const mb = b.isSpanPack ? 1 : 0
     if (ma !== mb) return ma - mb
-    return a.localeCompare(b, 'zh')
+    return a.folder.localeCompare(b.folder, 'zh')
   })
+  return packs
+}
 
 const byDay = {}
 const weeks = []
@@ -350,27 +516,47 @@ const assessment = {}
 const channelSet = new Set()
 let storeListGlobal = []
 
-for (const folder of weekDirs) {
-  const dir = path.join(sourceRoot, folder)
-  const files = fs.readdirSync(dir).filter(isExcelFile)
+for (const pack of collectPacks()) {
+  const { folder, dir, files, isSpanPack } = pack
 
-  const weekFile = findFile(files, '周趋势')
-  const cityFile = findFile(files, '城市')
-  const channelFile = findFile(files, '渠道')
-  const storeFile = files.find((f) => f.includes('门店周期') && !f.includes('渠道'))
-  const infoFile = files.find((f) => f.includes('门店信息'))
+  const weekFile = files.find((f) => isTrendFile(f) && !f.includes('渠道') && !f.includes('门店') && !f.includes('城市'))
+  const cityFile = files.find((f) => f.includes('城市') && isTrendFile(f) || (f.includes('城市') && !f.includes('门店')))
+  const channelStoreFile = files.find((f) => f.includes('渠道门店') || (f.includes('门店周期') && f.includes('渠道')))
+  const channelOnlyFile = files.find(
+    (f) => f.includes('渠道') && f !== channelStoreFile && !f.includes('门店') && isTrendFile(f),
+  )
+  const storeFile = files.find((f) => (f.includes('门店周期') || (f.includes('门店') && isTrendFile(f))) && !f.includes('渠道'))
+  const infoFile =
+    files.find((f) => f.includes('淘宝便利店门店信息')) ||
+    files.find((f) => f.includes('门店信息') && !f.includes('汇总'))
   const assessFile = files.find((f) => f.includes('考核'))
+  const trafficFile = files.find((f) => f.includes('流量分析'))
 
-  if (!weekFile || !cityFile || !storeFile || !channelFile) {
+  if (!weekFile && !storeFile && !channelStoreFile) {
     console.warn('skip incomplete folder', folder)
     continue
   }
 
-  const weekRows = readSheet(path.join(dir, weekFile))
-  const cityRows = readSheet(path.join(dir, cityFile)).filter((r) => normCity(r['城市']))
-  const storeRows = readSheet(path.join(dir, storeFile)).filter((r) => r['门店'])
-  const channelRows = readSheet(path.join(dir, channelFile)).filter((r) => r['门店'] && r['渠道'])
+  const weekRows = weekFile ? readSheet(path.join(dir, weekFile)) : []
+  const cityRows = cityFile
+    ? readSheet(path.join(dir, cityFile)).filter((r) => normCity(r['城市'] || r['城市名称']))
+    : []
+  const channelRows = (channelStoreFile ? readSheet(path.join(dir, channelStoreFile)) : [])
+    .filter((r) => r['门店'] && r['渠道'] && !isDummyStore(r['门店']))
   channelRows.forEach((r) => channelSet.add(String(r['渠道']).trim()))
+  if (channelOnlyFile) {
+    readSheet(path.join(dir, channelOnlyFile)).forEach((r) => {
+      if (r['渠道']) channelSet.add(String(r['渠道']).trim())
+    })
+  }
+
+  let storeRows = storeFile
+    ? readSheet(path.join(dir, storeFile)).filter((r) => r['门店'] && !isDummyStore(r['门店']))
+    : []
+  if (!storeRows.length && channelRows.length) {
+    storeRows = storeRowsFromChannelRows(channelRows)
+    console.log('store rows aggregated from channel×store', folder, storeRows.length)
+  }
 
   // 月包/残周常无「门店信息表」：沿用此前周包的门店→城市映射，避免城市贡献被清空
   const storeCityMap = {}
@@ -381,7 +567,7 @@ for (const folder of weekDirs) {
       .map((r) => ({
         city: normCity(r['城市'] || ''),
         name: String(r['门店名称'] || r['门店'] || ''),
-        shortName: normStoreName(r['门店名称'] || r['门店']),
+        shortName: formatStoreName(r['门店名称'] || r['门店']),
         status: String(r['营业'] || ''),
         address: String(r['__EMPTY'] || r['地址'] || ''),
       }))
@@ -390,7 +576,23 @@ for (const folder of weekDirs) {
     if (r.shortName && r.city) storeCityMap[r.shortName] = r.city
     const nk = normStoreName(r.name)
     if (nk && r.city) storeCityMap[nk] = r.city
+    if (r.name && r.city) storeCityMap[r.name] = r.city
+    const fmt = formatStoreName(r.name)
+    if (fmt && r.city) storeCityMap[fmt] = r.city
   })
+  if (trafficFile) {
+    const tRows = readSheet(path.join(dir, trafficFile))
+    tRows.forEach((r) => {
+      const city = normCity(r['城市名称'] || r['城市'] || '')
+      const store = String(r['门店名称'] || r['门店'] || '')
+      if (!city || !store) return
+      const short = formatStoreName(store)
+      const nk = normStoreName(store)
+      if (short && !storeCityMap[short]) storeCityMap[short] = city
+      if (nk && !storeCityMap[nk]) storeCityMap[nk] = city
+      if (!storeCityMap[store]) storeCityMap[store] = city
+    })
+  }
 
   const daySet = new Set()
   weekRows.forEach((r) => {
@@ -407,7 +609,7 @@ for (const folder of weekDirs) {
     continue
   }
 
-  const isMonthPack = folder.includes('月')
+  const isMonthPack = isSpanPack || folder.includes('月')
   const weekId = `${days[0]}_${days[days.length - 1]}`
   if (!isMonthPack) {
     // 周口径：周五 → 周四；标签按周五所在月第几周
@@ -436,7 +638,7 @@ for (const folder of weekDirs) {
     let cities = cDay.map((r) => {
       const m = pickMetrics(r)
       return {
-        城市: normCity(r['城市']),
+        城市: normCity(r['城市'] || r['城市名称']),
         日期: iso,
         ...Object.fromEntries(
           Object.entries({
@@ -473,7 +675,11 @@ for (const folder of weekDirs) {
     const storeRank = sDay.map((r) => {
       const m = pickMetrics(r)
       const short = normStoreName(r['门店'])
-      const city = storeCityMap[short] || ''
+      const city =
+        storeCityMap[short] ||
+        storeCityMap[formatStoreName(r['门店'])] ||
+        storeCityMap[String(r['门店'] || '')] ||
+        ''
       return {
         日期: iso,
         城市名称: city,
@@ -499,43 +705,9 @@ for (const folder of weekDirs) {
       }
     })
 
-    // 月包城市表无日期时，按门店实付汇总城市
+    // 城市排行表缺失或当日无行：按门店所属城市聚合
     if (!cities.length && storeRank.length) {
-      const cityAgg = {}
-      storeRank.forEach((r) => {
-        const city = r['城市名称']
-        if (!city) return
-        if (!cityAgg[city]) {
-          cityAgg[city] = {
-            城市: city,
-            日期: iso,
-            总营业额: 0,
-            '有效订单金额（实付）': 0,
-            有效订单量: 0,
-            有效买家数: 0,
-            '预计毛利(含平台后返)': 0,
-            预计毛利: 0,
-            预计线上收入: 0,
-            退款金额: 0,
-            退款订单量: 0,
-          }
-        }
-        const t = cityAgg[city]
-        t['总营业额'] += toNum(r['总营业额'])
-        t['有效订单金额（实付）'] += toNum(r['用户实付营业额'])
-        t['有效订单量'] += toNum(r['用户实付订单量'])
-        t['有效买家数'] += toNum(r['交易用户数'])
-        t['预计毛利(含平台后返)'] += toNum(r['预计毛利'])
-        t['预计毛利'] += toNum(r['预计毛利'])
-        t['预计线上收入'] += toNum(r['预计线上收入'])
-        t['退款金额'] += toNum(r['退款金额'])
-        t['退款订单量'] += toNum(r['退款订单量'])
-      })
-      cities = Object.values(cityAgg).map((t) => ({
-        ...t,
-        '毛利率(含平台后返)': toNum(t['总营业额']) ? t['预计毛利(含平台后返)'] / t['总营业额'] : 0,
-        毛利率: toNum(t['总营业额']) ? t['预计毛利'] / t['总营业额'] : 0,
-      }))
+      cities = citiesFromStoreRank(storeRank, iso)
     }
 
     const channelStores = chDay.map((r) => {
@@ -544,7 +716,11 @@ for (const folder of weekDirs) {
       return {
         日期: iso,
         渠道: String(r['渠道']).trim(),
-        城市名称: storeCityMap[short] || '',
+        城市名称:
+          storeCityMap[short] ||
+          storeCityMap[formatStoreName(r['门店'])] ||
+          storeCityMap[String(r['门店'] || '')] ||
+          '',
         门店名称: String(r['门店']),
         总营业额: m.total_gmv,
         用户实付营业额: m.paid_amount,
@@ -590,6 +766,14 @@ for (const folder of weekDirs) {
       weekId: isMonthPack ? fridayOfWeek(iso) : weekId,
     }
   }
+
+  const unmapped = new Set()
+  days.forEach((iso) => {
+    ;(byDay[iso]?.storeRank || []).forEach((r) => {
+      if (!r['城市名称']) unmapped.add(normStoreName(r['门店名称']) || String(r['门店名称']))
+    })
+  })
+  if (unmapped.size) console.warn('unmapped store city', folder, [...unmapped].join(','))
 
   if (isMonthPack) {
     console.log('synced month-pack', folder, 'days', days.length)
@@ -773,8 +957,9 @@ weeks.length = 0
       id: weekId,
       label: calendarWeekLabel(fri),
       start: fri,
-      end: days[days.length - 1],
+      end: thursdayOfWeek(fri),
       days,
+      complete: days.length === 7,
     })
 
     const weekStoreMap = {}
@@ -830,6 +1015,11 @@ weeks.length = 0
       t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利(含平台后返)'] || t['预计毛利']) / toNum(t['总营业额']) : 0
       t['毛利率(含平台后返)'] = t['毛利率']
     })
+    if (!Object.keys(weekCityMap).length) {
+      citiesFromStoreRank(Object.values(weekStoreMap), weekId).forEach((r) => {
+        weekCityMap[r['城市']] = r
+      })
+    }
     const chWeekMap = {}
     weekChannel.forEach((r) => {
       const key = `${r['渠道']}__${normStoreName(r['门店名称'])}`
@@ -920,7 +1110,18 @@ weeks.length = 0
       },
       weekId,
     }
-    console.log('rebuilt week', weekId, 'label', calendarWeekLabel(fri), 'days', days.length)
+    console.log(
+      'rebuilt week',
+      weekId,
+      'label',
+      calendarWeekLabel(fri),
+      'days',
+      days.length,
+      'complete',
+      days.length === 7,
+      'cities',
+      Object.keys(weekCityMap).length,
+    )
   }
 }
 
@@ -962,12 +1163,14 @@ const STORE_SUM_KEYS = [
 for (const ym of Object.keys(daysByMonth).sort()) {
   const mDays = daysByMonth[ym].sort()
   const [y, mo] = ym.split('-')
+  const monthEnd = lastIsoOfMonth(ym)
   months.push({
     id: ym,
     label: `${Number(y)}年${Number(mo)}月`,
     start: mDays[0],
     end: mDays[mDays.length - 1],
     days: mDays,
+    complete: mDays[0] === `${ym}-01` && mDays[mDays.length - 1] === monthEnd,
   })
   const storeMap = {}
   const cityMap = {}
@@ -1018,7 +1221,17 @@ for (const ym of Object.keys(daysByMonth).sort()) {
       ? toNum(t['预计毛利(含平台后返)'] || t['预计毛利']) / toNum(t['总营业额'])
       : 0
     t['毛利率(含平台后返)'] = t['毛利率']
+    const orders = toNum(t['有效订单量'])
+    const buyers = toNum(t['有效买家数'])
+    const paid = toNum(t['有效订单金额（实付）'])
+    t['退款率'] = orders ? toNum(t['退款订单量']) / orders : 0
+    t['有效客单价（实付）'] = buyers ? paid / buyers : orders ? paid / orders : 0
   })
+  if (!Object.keys(cityMap).length) {
+    citiesFromStoreRank(Object.values(storeMap), ym).forEach((r) => {
+      cityMap[r['城市']] = r
+    })
+  }
   Object.values(chMap).forEach((t) => {
     t['毛利率'] = toNum(t['总营业额']) ? toNum(t['预计毛利']) / toNum(t['总营业额']) : 0
   })
@@ -1097,13 +1310,22 @@ const geo = {}
 const cityCoords = {
   杭州市: [120.1551, 30.2741],
   金华市: [119.6496, 29.0895],
+  宁波市: [121.544, 29.8683],
+  嘉兴市: [120.755, 30.746],
+  湖州市: [120.137, 30.877],
   苏州市: [120.6195, 31.2994],
   上海市: [121.4737, 31.2304],
   无锡市: [120.3119, 31.4912],
+  南京市: [118.7969, 32.0603],
+  南通市: [120.8943, 32.0098],
+  扬州市: [119.4215, 32.3932],
+  泰州市: [119.9152, 32.4849],
+  淮安市: [119.0213, 33.5975],
+  常州市: [119.9465, 31.7728],
   郑州市: [113.6254, 34.7466],
   武汉市: [114.3055, 30.5928],
-  南通市: [120.8943, 32.0098],
   济南市: [117.1205, 36.6519],
+  青岛市: [120.3826, 36.0671],
 }
 
 function buildGeo(rankRows, listRows) {
@@ -1171,7 +1393,7 @@ function mapCategoryRow(r, withStore = false) {
   if (withStore) {
     const full = String(r['门店'] || '')
     row.store = full
-    row.shortName = normStoreName(full)
+    row.shortName = formatStoreName(full)
   }
   return row
 }

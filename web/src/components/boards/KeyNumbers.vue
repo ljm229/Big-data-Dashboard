@@ -7,10 +7,10 @@
       <FlipNumber :value="card.main" :tone="card.tone" class="kpi__num" />
       <div class="kpi__deltas">
         <span class="kpi__delta" :class="toneClass(card.mom, card.invertDelta)">
-          <em>环比</em>{{ fmtDelta(card.mom) }}
+          <em>{{ momLabel }}</em>{{ fmtDelta(card.mom) }}
         </span>
-        <span class="kpi__delta" :class="toneClass(card.wow, card.invertDelta)">
-          <em>周同比</em>{{ fmtDelta(card.wow) }}
+        <span v-if="showWow" class="kpi__delta" :class="toneClass(card.wow, card.invertDelta)">
+          <em>{{ wowLabel }}</em>{{ fmtDelta(card.wow) }}
         </span>
       </div>
     </article>
@@ -26,7 +26,7 @@ import { fetchOverview } from '../../api/dashboard'
 import { formatMoney, formatPercent, formatInt } from '../../utils/format'
 
 const filter = useFilterStore()
-const { dataKey, cityName, channel, loadingTick, compareKey, wowKey, selectedDate } = storeToRefs(filter)
+const { dataKey, cityName, channel, loadingTick, compareKey, wowKey, selectedDate, periodMode } = storeToRefs(filter)
 const data = ref<Record<string, number> | null>(null)
 const compare = ref<Record<string, number> | null>(null)
 const wow = ref<Record<string, number> | null>(null)
@@ -38,6 +38,14 @@ const scopeHint = computed(() => {
   if (channel.value && channel.value !== '全部') parts.push(channel.value)
   return parts.length ? `当前筛选：${parts.join(' · ')}` : ''
 })
+
+const showWow = computed(() => periodMode.value === 'day')
+const momLabel = computed(() => {
+  if (periodMode.value === 'week') return '周环比'
+  if (periodMode.value === 'month') return '月环比'
+  return '日环比'
+})
+const wowLabel = '周环比'
 
 async function load() {
   const ch = channel.value

@@ -196,9 +196,15 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   transform: rotate(180deg);
 }
 .dash-select.light .dash-select__trigger {
-  background: #fff;
-  border-color: #e2e8f0;
-  color: #1f2937;
+  background: transparent;
+  border-color: transparent;
+  color: #1d2129;
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+}
+.dash-select.light.open .dash-select__trigger {
+  background: rgba(0, 0, 0, 0.04);
 }
 .dash-select.light .dash-select__caret {
   border-top-color: #64748b;

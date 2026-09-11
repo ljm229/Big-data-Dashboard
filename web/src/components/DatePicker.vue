@@ -71,7 +71,7 @@ const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panelEl = ref<HTMLElement | null>(null)
 const { panelStyle } = useFloatingPanel(root, open, 360)
-const weekdays = ['一', '二', '三', '四', '五', '六', '日']
+const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 const available = computed(() => new Set(props.dates))
 const sortedDates = computed(() => [...props.dates].sort())
@@ -224,12 +224,18 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   color: rgba(154, 223, 255, 0.95);
 }
 .dash-date.light .dash-date__trigger {
-  background: #fff;
-  border-color: #e2e8f0;
-  color: #1f2937;
+  background: transparent;
+  border-color: transparent;
+  color: #1d2129;
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+}
+.dash-date.light.open .dash-date__trigger {
+  background: rgba(0, 0, 0, 0.04);
 }
 .dash-date.light .dash-date__icon {
-  color: #64748b;
+  color: #86909c;
 }
 </style>
 
@@ -275,9 +281,11 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
 }
 .dash-date__weekdays span {
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   color: rgba(160, 190, 220, 0.75);
   padding: 4px 0;
+  letter-spacing: 0;
 }
 .dash-date__grid {
   display: grid;

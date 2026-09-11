@@ -61,8 +61,8 @@ export const ASSESS_DEFS: Array<{
   },
   {
     key: 'warehouse_t',
-    name: '平均实际仓T',
-    shortName: '仓T',
+    name: '平均实际仓配时效',
+    shortName: '仓配时效',
     unit: 'min',
     weight: 0.1,
     passLine: 5,
@@ -83,8 +83,8 @@ export const ASSESS_DEFS: Array<{
   },
   {
     key: 'im_reply_rate',
-    name: 'IM 3分钟回复率',
-    shortName: 'IM回复',
+    name: '即时消息3分钟回复率',
+    shortName: '3分钟回复',
     unit: '%',
     weight: 0.1,
     passLine: 90,

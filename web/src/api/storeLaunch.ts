@@ -1,4 +1,5 @@
 import raw from '../data/storeLaunch.json'
+import { formatStoreName } from '../utils/storeName'
 
 export type StoreLaunchCity = {
   city: string
@@ -30,5 +31,10 @@ export type StoreLaunchData = {
 }
 
 export function fetchStoreLaunch(): Promise<StoreLaunchData> {
-  return Promise.resolve(structuredClone(raw as StoreLaunchData))
+  const data = structuredClone(raw as StoreLaunchData)
+  data.schedule = (data.schedule || []).map((row) => ({
+    ...row,
+    store: formatStoreName(row.store) || row.store,
+  }))
+  return Promise.resolve(data)
 }

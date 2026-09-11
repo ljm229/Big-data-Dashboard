@@ -1,0 +1,17 @@
+{
+  "name": "flash-player-dashboard-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "db:init": "node src/init-db.mjs",
+    "data:import": "node src/import-september.mjs",
+    "start": "node src/server.mjs",
+    "start:all": "node src/start-all.mjs",
+    "watch": "node src/watch-import.mjs",
+    "verify": "node src/verify.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}

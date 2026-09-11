@@ -5,6 +5,7 @@
 import raw from '../data/dashboard.json'
 import { isAbnormalStore } from '../utils/health'
 import { cityCoord, storeCoord, resolveProvince, normCityName } from '../data/geoMeta'
+import { bareStoreName, formatStoreName, sameStore } from '../utils/storeName'
 
 type StoreListRow = { city: string; name: string; shortName: string }
 
@@ -56,12 +57,12 @@ type DashRaw = {
     period?: { start?: string; end?: string; label?: string }
     overall?: CategoryRow[]
     byStore?: Array<CategoryRow & { store?: string; shortName?: string }>
-  }
+  } | null
   updated_at?: string
   schemaVersion?: number
 }
 
-const data = raw as DashRaw
+const data = raw as unknown as DashRaw
 
 function storeListRows(dateKey: string): StoreListRow[] {
   return (data.storeList?.[dateKey] || []) as StoreListRow[]
@@ -101,10 +102,9 @@ export function toNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
+/** 门店展示名统一为「淘宝便利店（店名）」 */
 function storeName(v: unknown) {
-  return String(v || '')
-    .replace('淘宝便利店（', '')
-    .replace('）', '')
+  return formatStoreName(v)
 }
 
 function matchCity(rowCity: string, selected: string) {
@@ -340,8 +340,8 @@ export async function fetchMapStores(dateKey: string, cityName = '全国', chann
     const full = String(r['门店名称'] || '')
     const short = storeName(full)
     const [lng, lat] = storeCoord(full, city, i)
-    byName.set(short || full, {
-      name: full,
+    byName.set(bareStoreName(full) || short || full, {
+      name: short || full,
       shortName: short || full,
       city,
       lng,
@@ -358,11 +358,12 @@ export async function fetchMapStores(dateKey: string, cityName = '全国', chann
     storeListRows(dateKey)
       .filter((r) => matchCity(r.city, cityName))
       .forEach((r, i) => {
-        const short = r.shortName || storeName(r.name)
-        if (byName.has(short) || byName.has(r.name)) return
+        const short = storeName(r.shortName || r.name)
+        const key = bareStoreName(r.name || short)
+        if (byName.has(key) || byName.has(short) || byName.has(r.name)) return
         const [lng, lat] = storeCoord(r.name || short, r.city, i + ranks.length)
-        byName.set(short || r.name, {
-          name: r.name,
+        byName.set(key || short || r.name, {
+          name: short || r.name,
           shortName: short,
           city: normCityName(r.city),
           lng,
@@ -651,6 +652,8 @@ function storeCityByName(dateKey: string) {
     const full = String(r['门店名称'] || '')
     map[full] = city
     map[storeName(full)] = city
+    const bare = bareStoreName(full)
+    if (bare) map[bare] = city
   })
   return map
 }
@@ -738,11 +741,9 @@ export async function fetchHealth(dateKey: string, compareKey: string | null, ci
   })
 }
 
-/** 超长门店名缩为约 6 字短名 */
+/** 列表/图表用门店名（规范全称） */
 function shortStoreLabel(name: string) {
-  const n = storeName(name)
-  if (n.length <= 6) return n
-  return n.slice(0, 6)
+  return storeName(name)
 }
 
 export async function fetchProducts(dateKey: string, cityName = '全国') {
@@ -786,15 +787,17 @@ export async function fetchProducts(dateKey: string, cityName = '全国') {
 }
 
 export async function fetchCityRank(dateKey: string, metric = 'paid_amount') {
-  const list = (await fetchGeo(dateKey)).map((c) => ({
-    name: c.city,
-    paid_amount: c.paid_amount,
-    profit: c.est_profit,
-    orders: c.paid_orders,
-    orders_per_store_day: c.store_cnt ? c.paid_orders / c.store_cnt : 0,
-    profit_rate: c.profit_rate,
-    store_cnt: c.store_cnt,
-  }))
+  const list = (await fetchGeo(dateKey))
+    .filter((c) => c.paid_amount > 0 || c.paid_orders > 0)
+    .map((c) => ({
+      name: c.city,
+      paid_amount: c.paid_amount,
+      profit: c.est_profit,
+      orders: c.paid_orders,
+      orders_per_store_day: c.store_cnt ? c.paid_orders / c.store_cnt : 0,
+      profit_rate: c.profit_rate,
+      store_cnt: c.store_cnt,
+    }))
   const key = metric as keyof (typeof list)[0]
   return wait([...list].sort((a, b) => Number(b[key]) - Number(a[key])))
 }
@@ -814,7 +817,7 @@ export async function fetchStoreRank(dateKey: string, cityName = '全国', chann
         const total_gmv = toNum(r['总营业额'])
         return {
           name: storeName(r['门店名称']),
-          fullName: String(r['门店名称'] || ''),
+          fullName: storeName(r['门店名称']) || String(r['门店名称'] || ''),
           city: String(r['城市名称'] || ''),
           code: String(r['门店code'] || ''),
           channel: String(r['渠道'] || r['渠道名称'] || channel || ''),
@@ -964,8 +967,7 @@ export type DayOrderPoint = {
 
 function matchStoreRow(fullName: string, storeId: string) {
   if (!storeId || storeId === '全部') return true
-  const short = storeName(fullName)
-  return short === storeId || fullName === storeId || fullName.includes(storeId)
+  return sameStore(fullName, storeId) || String(fullName) === storeId
 }
 
 function weekDaysOf(dateKey: string): string[] {
@@ -1023,7 +1025,7 @@ export async function fetchStoreChannelBoard(
       const storePaid = byStorePaid[short] || 1
       return {
         store: short || full,
-        fullName: full,
+        fullName: short || full,
         city: String(r['城市名称'] || ''),
         channel: String(r['渠道'] || '未知'),
         paid,
@@ -1088,10 +1090,10 @@ export async function fetchStoreProfile(dateKey: string, storeNameOrShort: strin
   const short = storeName(storeNameOrShort)
   const row =
     storeRows(dateKey).find(
-      (r) => storeName(r['门店名称']) === short || String(r['门店名称']) === storeNameOrShort,
+      (r) => sameStore(r['门店名称'], storeNameOrShort) || storeName(r['门店名称']) === short,
     ) || null
   const chRows = channelRows(dateKey).filter(
-    (r) => storeName(r['门店名称']) === short || String(r['门店名称']) === storeNameOrShort,
+    (r) => sameStore(r['门店名称'], storeNameOrShort) || storeName(r['门店名称']) === short,
   )
   const channels = chRows
     .map((r) => ({
@@ -1115,7 +1117,7 @@ export async function fetchStoreProfile(dateKey: string, storeNameOrShort: strin
 
   return wait({
     name: storeName(row?.['门店名称'] || storeNameOrShort),
-    fullName: String(row?.['门店名称'] || storeNameOrShort),
+    fullName: storeName(row?.['门店名称'] || storeNameOrShort) || String(row?.['门店名称'] || storeNameOrShort),
     city: String(row?.['城市名称'] || chRows[0]?.['城市名称'] || ''),
     paid_amount: paid,
     total_gmv: gmv,
@@ -1233,14 +1235,24 @@ function cityByStoreShort(dateKey: string): Record<string, string> {
   const prefer = storeListRows(dateKey)
   const rows = prefer.length ? prefer : days.flatMap((d) => storeListRows(d))
   rows.forEach((r) => {
-    if (r.shortName) map[r.shortName] = r.city
-    if (r.name) map[r.name] = r.city
+    const city = r.city
+    const candidates = [r.shortName, r.name, formatStoreName(r.shortName || r.name), bareStoreName(r.shortName || r.name)]
+    candidates.forEach((k) => {
+      if (k) map[k] = city
+    })
   })
   return map
 }
 
 export function hasAssessment(dateKey: string) {
   return !!resolveAssessmentWeekId(dateKey)
+}
+
+/** 静态包中有考核明细的自然日（GitHub Pages 等无 API 时用） */
+export function getAssessmentAvailableDates(): string[] {
+  return Object.keys(data.assessment || {})
+    .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k) && (data.assessment?.[k]?.length || 0) > 0)
+    .sort()
 }
 
 export async function fetchAssessmentStores(
@@ -1251,15 +1263,27 @@ export async function fetchAssessmentStores(
   const weekId = resolveAssessmentWeekId(dateKey)
   if (!weekId) return wait([])
   const cityMap = cityByStoreShort(resolveCityMapDateKey(dateKey))
-  let rows: AssessmentRow[] = (data.assessment?.[weekId] || []).map((r) => ({
-    ...r,
-    city: cityMap[r.shortName] || cityMap[r.name] || '',
-  }))
+  let rows: AssessmentRow[] = (data.assessment?.[weekId] || []).map((r) => {
+    const display = formatStoreName(r.name || r.shortName)
+    return {
+      ...r,
+      name: display || r.name,
+      shortName: display || formatStoreName(r.shortName) || r.shortName,
+      city:
+        cityMap[r.shortName] ||
+        cityMap[r.name] ||
+        cityMap[display] ||
+        cityMap[bareStoreName(r.shortName || r.name)] ||
+        '',
+    }
+  })
   if (cityName && cityName !== '全国' && cityName !== '全部') {
     rows = rows.filter((r) => matchCity(r.city, cityName))
   }
   if (storeShort && storeShort !== '全部') {
-    rows = rows.filter((r) => r.shortName === storeShort || r.name === storeShort || r.code === storeShort)
+    rows = rows.filter(
+      (r) => sameStore(r.shortName, storeShort) || sameStore(r.name, storeShort) || r.code === storeShort,
+    )
   }
   return wait(rows)
 }
@@ -1273,13 +1297,16 @@ export async function fetchAssessmentCityOptions(dateKey: string) {
 export async function fetchAssessmentStoreOptions(dateKey: string, cityName = '全部') {
   const rows = await fetchAssessmentStores(dateKey, cityName === '全部' ? '全国' : cityName)
   return rows
-    .map((r) => ({
-      id: r.shortName || r.name,
-      shortName: r.shortName || r.name,
-      name: r.name,
-      code: r.code || '',
-      city: r.city,
-    }))
+    .map((r) => {
+      const shortName = formatStoreName(r.shortName || r.name) || r.shortName || r.name
+      return {
+        id: shortName,
+        shortName,
+        name: formatStoreName(r.name || r.shortName) || r.name,
+        code: r.code || '',
+        city: r.city,
+      }
+    })
     .sort((a, b) => a.shortName.localeCompare(b.shortName, 'zh'))
 }
 
@@ -1326,11 +1353,18 @@ export async function fetchCategoryMix(dateKey: string, cityName = '全国', sto
     let storeRows = block.byStore
     if (storeShort && storeShort !== '全部') {
       storeRows = storeRows.filter(
-        (r) => r.shortName === storeShort || storeName(r.store) === storeShort || r.store === storeShort,
+        (r) =>
+          sameStore(r.shortName, storeShort) ||
+          sameStore(r.store, storeShort) ||
+          storeName(r.store) === storeShort,
       )
     } else if (cityName && cityName !== '全国' && cityName !== '全部') {
       storeRows = storeRows.filter((r) => {
-        const city = cityMap[r.shortName || ''] || cityMap[storeName(r.store || '')] || ''
+        const city =
+          cityMap[r.shortName || ''] ||
+          cityMap[bareStoreName(r.shortName || r.store || '')] ||
+          cityMap[storeName(r.store || '')] ||
+          ''
         return matchCity(city, cityName)
       })
     }

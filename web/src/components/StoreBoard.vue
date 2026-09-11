@@ -18,21 +18,36 @@
           </div>
         </div>
 
-        <div class="health" :class="headerScore >= 60 ? 'ok' : 'warn'">
-          <div class="health__grade" :style="{ color: health.grade.color }">{{ health.grade.grade }}</div>
-          <strong>{{ headerScore }}</strong>
-          <div>
-            <b>{{ health.grade.label }} · {{ scoreLabel }}</b>
-            <span
-              >合格门店 {{ assessBoard?.passStoreCnt ?? 0 }}/{{ assessBoard?.storeCnt ?? 0 }} · 指标
-              {{ health.met }}/{{ health.total }} 项过线 · {{ updatedHint || '—' }}</span
-            >
+        <details class="rules">
+          <summary>考核规则</summary>
+          <div class="rules__panel">
+            <div class="rules__block">
+              <b>合格标准</b>
+              <ul>
+                <li v-for="d in assessDefs" :key="d.key">
+                  {{ d.shortName }}
+                  {{ d.lowerBetter ? '≤' : '≥' }}{{ d.passLine }}{{ d.unit === 'min' ? '' : '%' }}
+                </li>
+              </ul>
+            </div>
+            <div class="rules__block">
+              <b>综合打分</b>
+              <p>满分 100 = 售罄 40% + 错漏拣 20% + 仓配 10% + 商责 20% + 回复 10%</p>
+            </div>
+            <div class="rules__block">
+              <b>等级划分</b>
+              <p>
+                <span v-for="g in gradeRules" :key="g.grade" class="rules__grade" :class="'g-' + g.grade">
+                  {{ g.grade }} {{ g.label }} {{ g.min }}–{{ g.max }}
+                </span>
+              </p>
+            </div>
           </div>
-        </div>
+        </details>
       </div>
 
       <div class="ops-header__filters">
-        <DateFilter scope="ops" />
+        <DateFilter variant="light" scope="ops" />
         <label class="filter">
           <span>城市</span>
           <SelectMenu
@@ -60,7 +75,6 @@
 
     <div v-if="!hasAssessData" class="ops-empty">
       <strong>该周期暂无营运考核数据</strong>
-      <p>可切换：按日（如 9/1–9/7）、按月查看 8 月整月，或历史考核周。</p>
     </div>
 
     <template v-else>
@@ -98,9 +112,9 @@
                     <th>城市</th>
                     <th>售罄率</th>
                     <th>错漏拣</th>
-                    <th>仓T</th>
+                    <th>仓配时效</th>
                     <th>商责单</th>
-                    <th>IM回复</th>
+                    <th>3分钟回复</th>
                     <th>综合分</th>
                     <th>等级</th>
                   </tr>
@@ -131,7 +145,7 @@
                     </td>
                     <td class="score">{{ fmtScore(row) }}</td>
                     <td>
-                      <em class="grade-tag" :style="{ background: row.grade.color }">{{ row.grade.grade }}</em>
+                      <em class="grade-tag" :style="{ background: row.grade.color }">{{ row.parts.every(p=>p.missing) ? '未评级' : row.grade.grade }}</em>
                     </td>
                   </tr>
                 </tbody>
@@ -182,173 +196,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import ScoreCard, { type AssessMetric } from './ScoreCard.vue'
+import { computed, ref, watch } from 'vue'
+import ScoreCard from './ScoreCard.vue'
 import DateFilter from './DateFilter.vue'
 import SelectMenu from './SelectMenu.vue'
-import { useFilterStore, COCKPIT_WEEKS, COCKPIT_MONTHS } from '../stores/filter'
-import {
-  fetchAssessmentCityOptions,
-  fetchAssessmentStoreOptions,
-  hasAssessment,
-  resolveAssessmentWeekId,
-} from '../api/dashboard'
-import dashRaw from '../data/dashboard.json'
-import { fetchAssessmentBoard, healthFromMetrics, type AssessBoard } from '../api/opsDashboard'
-import { GRADE_RULES, type AssessKey } from '../utils/opsAssessment'
-
+import { useStoreScore, useRankAutoScroll } from '../composables/useStoreScore'
+import type { AssessBoard } from '../api/opsDashboard'
+import type { AssessKey } from '../utils/opsAssessment'
+import { ASSESS_DEFS, GRADE_RULES } from '../utils/opsAssessment'
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
-
-const filter = useFilterStore()
-const { selectedDate, dataKey, loadingTick } = storeToRefs(filter)
-
-const city = ref('全部')
-const storeId = ref('全部')
-const cityOptions = ref<string[]>(['全部'])
-const storeOptions = ref<Array<{ id: string; shortName: string; code?: string }>>([])
-
-const citySelectOptions = computed(() =>
-  cityOptions.value.map((c) => ({ value: c, label: c === '全部' ? '全部城市' : c })),
-)
-const storeSelectOptions = computed(() => [
-  { value: '全部', label: '全部门店' },
-  ...storeOptions.value.map((s) => ({
-    value: s.id,
-    label: s.code ? `${s.shortName}（${s.code}）` : s.shortName,
-  })),
-])
-
-const assessKey = computed(() => dataKey.value || selectedDate.value)
-const hasAssessData = computed(() => hasAssessment(assessKey.value))
-const updatedHint = String((dashRaw as { updated_at?: string }).updated_at || '').slice(0, 16)
-
-const assessWeekLabel = computed(() => {
-  const weekId = resolveAssessmentWeekId(assessKey.value)
-  if (!weekId) return selectedDate.value
-  if (weekId.startsWith('M:')) {
-    const id = weekId.slice(2)
-    const [y, mo] = id.split('-')
-    return COCKPIT_MONTHS.find((m) => m.id === id)?.label || `${Number(y)}年${Number(mo)}月`
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(weekId)) {
-    const [, m, d] = weekId.split('-')
-    return `${Number(m)}月${Number(d)}日考核`
-  }
-  const fromCockpit = COCKPIT_WEEKS.find((x) => x.id === weekId)
-  if (fromCockpit?.label) return fromCockpit.label
-  const fromRaw = ((dashRaw as { weeks?: Array<{ id: string; label: string }> }).weeks || []).find(
-    (x) => x.id === weekId,
-  )
-  if (fromRaw?.label) return fromRaw.label
-  return weekId.replace('_', '～')
-})
-const storeCntText = computed(() => (assessBoard.value ? `${assessBoard.value.storeCnt} 家门店` : ''))
-
-watch(city, () => {
-  storeId.value = '全部'
-})
-watch([selectedDate, dataKey], () => {
-  city.value = '全部'
-  storeId.value = '全部'
-})
-
-const assessBoard = ref<AssessBoard | null>(null)
-const metrics = ref<AssessMetric[]>([])
-const assessRows = computed(() => assessBoard.value?.rows || [])
-
-const isSingleStore = computed(() => storeId.value !== '全部' || (assessBoard.value?.storeCnt || 0) <= 1)
-const headerScore = computed(() => {
-  if (!assessBoard.value) return 0
-  return Math.round(isSingleStore.value ? assessBoard.value.composite : assessBoard.value.medianComposite)
-})
-const scoreLabel = computed(() => (isSingleStore.value ? '综合分' : '门店中位分'))
-
-const health = computed(() => healthFromMetrics(metrics.value, headerScore.value))
-
-const gradeDist = computed(() =>
-  GRADE_RULES.map((g) => ({
-    ...g,
-    count: assessRows.value.filter((r) => r.grade.grade === g.grade).length,
-  })),
-)
-
-const watchStores = computed(() => assessRows.value.filter((r) => r.composite < 60).slice(0, 8))
-
-function failTags(row: AssessBoard['rows'][number]) {
-  return row.parts.filter((p) => !p.pass).map((p) => p.shortName)
-}
-
-function isMissing(row: AssessBoard['rows'][number], key: AssessKey) {
-  return !!row.parts.find((x) => x.key === key)?.missing
-}
-function partPass(row: AssessBoard['rows'][number], key: AssessKey) {
-  const p = row.parts.find((x) => x.key === key)
-  if (!p || p.missing) return false
-  return p.pass
-}
-function fmtPart(row: AssessBoard['rows'][number], key: AssessKey) {
-  const p = row.parts.find((x) => x.key === key)
-  if (!p || p.missing) return '--'
-  if (p.unit === 'min') return p.value.toFixed(1)
-  return p.value.toFixed(2) + '%'
-}
-function fmtScore(row: AssessBoard['rows'][number]) {
-  if (row.parts.every((p) => p.missing)) return '--'
-  return row.composite.toFixed(1)
-}
-
-const rankPaused = ref(false)
-const rankWrapEl = ref<HTMLElement | null>(null)
-let rankTimer: ReturnType<typeof setInterval> | null = null
-
-function startRankScroll() {
-  if (rankTimer) clearInterval(rankTimer)
-  rankTimer = setInterval(() => {
-    const el = rankWrapEl.value
-    if (!el || rankPaused.value || assessRows.value.length <= 8) return
-    const max = el.scrollHeight - el.clientHeight
-    if (max <= 0) return
-    const next = el.scrollTop + 40
-    el.scrollTo({ top: next >= max ? 0 : next, behavior: 'smooth' })
-  }, 2200)
-}
-onUnmounted(() => {
-  if (rankTimer) clearInterval(rankTimer)
-})
-
-async function reloadFilters() {
-  const key = assessKey.value
-  cityOptions.value = await fetchAssessmentCityOptions(key)
-  if (!cityOptions.value.includes(city.value)) city.value = '全部'
-  storeOptions.value = await fetchAssessmentStoreOptions(key, city.value)
-  if (storeId.value !== '全部' && !storeOptions.value.some((s) => s.id === storeId.value)) {
-    storeId.value = '全部'
-  }
-}
-
-async function reload() {
-  if (!hasAssessData.value) {
-    assessBoard.value = null
-    metrics.value = []
-    return
-  }
-  const board = await fetchAssessmentBoard(assessKey.value, city.value, storeId.value)
-  assessBoard.value = board
-  metrics.value = board?.metrics || []
-  if (rankWrapEl.value) rankWrapEl.value.scrollTop = 0
-  startRankScroll()
-}
-
-watch([city, storeId, selectedDate, dataKey, loadingTick], async () => {
-  await reloadFilters()
-  void reload()
-})
-
-void (async () => {
-  await reloadFilters()
-  void reload()
-})()
+const {city,storeId,cityOptions,storeOptions,hasAssessData,assessWeekLabel,storeCntText,assessBoard,metrics,assessRows,gradeDist,watchStores,failTags}=useStoreScore()
+const assessDefs = ASSESS_DEFS
+const gradeRules = GRADE_RULES
+const citySelectOptions=computed(()=>cityOptions.value.map(c=>({value:c,label:c==='全部'?'全部城市':c})))
+const storeSelectOptions=computed(()=>[{value:'全部',label:'全部门店'},...storeOptions.value.map(s=>({value:s.id,label:s.shortName}))])
+function isMissing(row:AssessBoard['rows'][number],key:AssessKey){return !!row.parts.find(p=>p.key===key)?.missing}
+function partPass(row:AssessBoard['rows'][number],key:AssessKey){const p=row.parts.find(p=>p.key===key);return !!p&&!p.missing&&p.pass}
+function fmtPart(row:AssessBoard['rows'][number],key:AssessKey){const p=row.parts.find(p=>p.key===key);return !p||p.missing?'--':p.unit==='min'?p.value.toFixed(1):p.value.toFixed(2)+'%'}
+function fmtScore(row:AssessBoard['rows'][number]){return row.parts.every(p=>p.missing)?'--':row.composite.toFixed(1)}
+const rankWrapEl=ref<HTMLElement|null>(null)
+const {rankPaused,startRankScroll}=useRankAutoScroll(rankWrapEl,computed(()=>assessRows.value.length))
+watch(assessRows,()=>{if(rankWrapEl.value)rankWrapEl.value.scrollTop=0;startRankScroll()})
 </script>
 
 <style scoped lang="scss">
@@ -509,51 +377,90 @@ void (async () => {
     font-size: 14px;
   }
 }
-.health {
-  margin-left: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #eff6ff, #ecfeff);
-  border: 1px solid #bfdbfe;
+.rules {
+  position: relative;
   flex-shrink: 0;
-  max-width: min(520px, 48%);
-  &__grade {
-    width: 36px;
+  summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
     height: 36px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    font-size: 20px;
-    font-weight: 900;
-    background: #fff;
-    border: 1px solid #bfdbfe;
-    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
-  }
-  strong {
-    font-size: 30px;
-    font-family: Rajdhani, Bahnschrift, Consolas, monospace;
-    line-height: 1;
-  }
-  b {
-    display: block;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #f8fafc;
+    color: var(--primary);
     font-size: 13px;
-    color: var(--text);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    &::-webkit-details-marker {
+      display: none;
+    }
+    &::after {
+      content: '▾';
+      font-size: 11px;
+      color: var(--muted);
+    }
+    &:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
   }
-  span {
-    display: block;
+  &[open] summary::after {
+    content: '▴';
+  }
+  &__panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 40;
+    width: min(420px, 72vw);
+    padding: 14px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 28px rgba(15, 55, 120, 0.12);
+    display: grid;
+    gap: 12px;
+  }
+  &__block {
+    b {
+      display: block;
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+    }
+    li,
+    p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+  }
+  &__grade {
+    display: inline-block;
+    margin: 0 6px 4px 0;
+    padding: 2px 8px;
+    border-radius: 4px;
     font-size: 11px;
-    opacity: 1;
-    color: var(--muted);
-    line-height: 1.35;
-  }
-  &.ok strong {
-    color: var(--good);
-  }
-  &.warn strong {
-    color: var(--warn);
+    font-weight: 600;
+    background: #f1f5f9;
+    &.g-S { background: #e8ffea; color: #00b42a; }
+    &.g-A { background: #e8f3ff; color: #165dff; }
+    &.g-B { background: #f5e8ff; color: #722ed1; }
+    &.g-C { background: #fff7e8; color: #ff7d00; }
+    &.g-D { background: #ffece8; color: #f53f3f; }
   }
 }
 .kpi-grid {
@@ -763,9 +670,6 @@ void (async () => {
   .ops-header__top {
     flex-direction: column;
     align-items: stretch;
-  }
-  .health {
-    max-width: none;
   }
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

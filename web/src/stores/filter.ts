@@ -3,8 +3,8 @@ import { computed, ref } from 'vue'
 import raw from '../data/dashboard.json'
 import { getOpsAvailableDates, hasOpsData as opsHasData } from '../api/opsDashboard'
 
-type WeekMeta = { id: string; label: string; start: string; end: string; days: string[] }
-type MonthMeta = { id: string; label: string; start: string; end: string; days: string[] }
+type WeekMeta = { id: string; label: string; start: string; end: string; days: string[]; complete?: boolean }
+type MonthMeta = { id: string; label: string; start: string; end: string; days: string[]; complete?: boolean }
 
 const rawDays: string[] = (raw as { days?: string[] }).days || []
 const rawWeeks: WeekMeta[] = (raw as { weeks?: WeekMeta[] }).weeks || []
@@ -127,6 +127,23 @@ function shiftDay(iso: string, delta: number) {
   return `${y}-${m}-${day}`
 }
 
+function lastDayOfMonth(ym: string) {
+  const [y, mo] = ym.split('-').map(Number)
+  const last = new Date(y, mo, 0, 12)
+  return `${y}-${pad2(mo)}-${pad2(last.getDate())}`
+}
+
+function isCompleteWeek(w: WeekMeta) {
+  if (typeof w.complete === 'boolean') return w.complete
+  return (w.days?.length || 0) === 7
+}
+
+function isCompleteMonth(m: MonthMeta) {
+  if (typeof m.complete === 'boolean') return m.complete
+  const days = m.days || []
+  return days[0] === `${m.id}-01` && days[days.length - 1] === lastDayOfMonth(m.id)
+}
+
 function weekIndex(id: string) {
   return COCKPIT_WEEKS.findIndex((w) => w.id === id)
 }
@@ -184,34 +201,31 @@ export const useFilterStore = defineStore('filter', () => {
   const hasOpsData = computed(() => opsHasData(selectedDate.value))
   const hasCockpitData = computed(() => hasData.value)
 
-  /** 环比对照键：日→昨天；周→上一周；月→上一月 */
+  /** 环比对照键：日→昨天；周→上一完整周；月→上一完整月。残周/未结束月不比。 */
   const compareKey = computed(() => {
     if (periodMode.value === 'week') {
       const i = weekIndex(selectedWeekId.value)
       if (i <= 0) return null
-      return `W:${COCKPIT_WEEKS[i - 1].id}`
+      const cur = COCKPIT_WEEKS[i]
+      const prev = COCKPIT_WEEKS[i - 1]
+      if (!isCompleteWeek(cur) || !isCompleteWeek(prev)) return null
+      return `W:${prev.id}`
     }
     if (periodMode.value === 'month') {
       const i = monthIndex(selectedMonthId.value)
       if (i <= 0) return null
-      return `M:${COCKPIT_MONTHS[i - 1].id}`
+      const cur = COCKPIT_MONTHS[i]
+      const prev = COCKPIT_MONTHS[i - 1]
+      if (!isCompleteMonth(cur) || !isCompleteMonth(prev)) return null
+      return `M:${prev.id}`
     }
     const prev = shiftDay(selectedDate.value, -1)
     return COCKPIT_DAYS.includes(prev) ? prev : null
   })
 
-  /** 周同比对照键：日→上周同一天；周→上上周；月→上上月（有则） */
+  /** 周环比（按日）：上周同一天。周/月模式不再另给同比。 */
   const wowKey = computed(() => {
-    if (periodMode.value === 'week') {
-      const i = weekIndex(selectedWeekId.value)
-      if (i <= 1) return i === 1 ? `W:${COCKPIT_WEEKS[0].id}` : null
-      return `W:${COCKPIT_WEEKS[i - 2].id}`
-    }
-    if (periodMode.value === 'month') {
-      const i = monthIndex(selectedMonthId.value)
-      if (i <= 1) return i === 1 ? `M:${COCKPIT_MONTHS[0].id}` : null
-      return `M:${COCKPIT_MONTHS[i - 2].id}`
-    }
+    if (periodMode.value !== 'day') return null
     const prev = shiftDay(selectedDate.value, -7)
     return COCKPIT_DAYS.includes(prev) ? prev : null
   })

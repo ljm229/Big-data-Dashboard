@@ -52,7 +52,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
+import { getAssessmentAvailableDates } from '../api/dashboard'
+import { fetchDatabaseCoverage, subscribeQualityUpdates } from '../api/qualityDatabase'
 import { storeToRefs } from 'pinia'
 import {
   useFilterStore,
@@ -61,6 +63,7 @@ import {
   COCKPIT_MONTHS,
   COCKPIT_CHANNELS,
   OPS_DATES,
+  fridayOfWeek, thursdayOfWeek, calendarWeekLabel,
 } from '../stores/filter'
 import SelectMenu from './SelectMenu.vue'
 import DatePicker from './DatePicker.vue'
@@ -75,16 +78,48 @@ const props = withDefaults(
 
 const filter = useFilterStore()
 const { selectedDate, selectedWeekId, selectedMonthId, periodMode, channel } = storeToRefs(filter)
+const liveDates = ref<string[]>([])
+let initial = true
+async function loadDates() {
+  if (props.scope !== 'ops') return
+  try {
+    const coverage = await fetchDatabaseCoverage()
+    liveDates.value = coverage.dates.map(d=>d.date)
+    if (initial) {
+      filter.setPeriodMode('day')
+      filter.setDate(coverage.latestDate || new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'}))
+      initial = false
+    }
+    const latest = coverage.latestDate
+    if (latest) {
+      if (!liveWeeks.value.some(w=>w.value===selectedWeekId.value)) filter.selectedWeekId = `${fridayOfWeek(latest)}_${thursdayOfWeek(latest)}`
+      if (!liveDates.value.some(d=>d.startsWith(selectedMonthId.value))) filter.selectedMonthId = latest.slice(0,7)
+    }
+  } catch {
+    liveDates.value = getAssessmentAvailableDates()
+    if (initial && liveDates.value.length) {
+      filter.setPeriodMode('day')
+      filter.setDate(liveDates.value[liveDates.value.length - 1])
+      initial = false
+    }
+  }
+}
+const liveWeeks = computed(() => [...new Set(liveDates.value.map(fridayOfWeek))].map(start=>({value:`${start}_${thursdayOfWeek(start)}`,label:calendarWeekLabel(start)})))
+const liveMonths = computed(() => [...new Set(liveDates.value.map(d=>d.slice(0,7)))].map(id=>({value:id,label:id})))
+const stopUpdates = props.scope === 'ops' ? subscribeQualityUpdates(()=>{void loadDates()}) : ()=>{}
+void loadDates()
+onUnmounted(stopUpdates)
 
 const pickerDates = computed(() => {
-  if (props.scope === 'cockpit' || props.scope === 'ops') return COCKPIT_DATES
+  if (props.scope === 'ops') return liveDates.value
+  if (props.scope === 'cockpit') return COCKPIT_DATES
   return [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
 })
 
 const weekOptions = computed(() =>
-  COCKPIT_WEEKS.map((w) => ({ value: w.id, label: w.label })),
+  props.scope === 'ops' ? liveWeeks.value : COCKPIT_WEEKS.map((w) => ({ value: w.id, label: w.label })),
 )
-const monthOptions = computed(() => COCKPIT_MONTHS.map((m) => ({ value: m.id, label: m.label })))
+const monthOptions = computed(() => props.scope === 'ops' ? liveMonths.value : COCKPIT_MONTHS.map((m) => ({ value: m.id, label: m.label })))
 const channelOptions = computed(() =>
   COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部渠道' : c })),
 )
@@ -95,8 +130,8 @@ const channelOptions = computed(() =>
   display: flex;
   flex-direction: row;
   align-items: center;
-  flex-wrap: nowrap;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px 12px;
   min-width: 0;
 }
 .seg {
@@ -125,9 +160,11 @@ const channelOptions = computed(() =>
 }
 .ctrl-date {
   width: 132px;
+  flex-shrink: 0;
 }
 .ctrl-select {
   width: 148px;
+  flex-shrink: 0;
 }
 .ctrl-select--week {
   width: 118px;
@@ -141,18 +178,24 @@ const channelOptions = computed(() =>
 
 .date-bar.light {
   .seg {
-    border-color: #e2e8f0;
+    border: 0;
     border-radius: 6px;
-    background: #fff;
+    background: transparent;
+    gap: 2px;
     button {
-      color: #94a3b8;
-      padding: 0 14px;
-      height: 36px;
-      font-size: 15px;
+      color: #86909c;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 13px;
       font-weight: 600;
+      border-radius: 6px;
+      &:hover {
+        background: rgba(0, 0, 0, 0.04);
+        color: #4e5969;
+      }
       &.active {
         color: #fff;
-        background: #1e293b;
+        background: #1d2129;
         font-weight: 700;
       }
     }

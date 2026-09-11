@@ -1,0 +1,19 @@
+{
+  "name": "flash-player-data-pipeline",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "collect": "node collector/run-pipeline.mjs",
+    "collect:watch": "node collector/run-pipeline.mjs --watch",
+    "collect:login": "node collector/browser.mjs --login",
+    "collect:login-auto": "node collector/browser.mjs --login-auto --visible",
+    "collect:inspect": "node collector/browser.mjs --inspect",
+    "test": "node --test collector/tests/*.test.mjs",
+    "db:init": "node server/src/init-db.mjs",
+    "start": "node server/src/server.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.63.0",
+    "xlsx": "0.18.5"
+  }
+}
