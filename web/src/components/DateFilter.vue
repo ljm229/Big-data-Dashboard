@@ -190,12 +190,13 @@ const channelOptions = computed(() =>
       font-weight: 600;
       border-radius: 6px;
       &:hover {
-        background: rgba(0, 0, 0, 0.04);
-        color: #4e5969;
+        background: #eff6ff;
+        color: #1d6bff;
       }
       &.active {
         color: #fff;
-        background: #1d2129;
+        background: linear-gradient(135deg, #1d6bff, #0ea5e9);
+        box-shadow: 0 4px 14px rgba(29, 107, 255, 0.28);
         font-weight: 700;
       }
     }

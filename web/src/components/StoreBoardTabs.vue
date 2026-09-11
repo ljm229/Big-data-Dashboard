@@ -281,13 +281,14 @@ const gradeRules = GRADE_RULES
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
   background:
-    radial-gradient(circle at 12% 0%, rgba(22, 93, 255, 0.05), transparent 36%),
-    linear-gradient(180deg, var(--ops-bg-top) 0%, var(--ops-bg) 100%);
+    radial-gradient(circle at 10% 0%, rgba(29, 107, 255, 0.1), transparent 36%),
+    radial-gradient(circle at 92% 8%, rgba(34, 211, 238, 0.08), transparent 34%),
+    linear-gradient(180deg, var(--ops-bg-top) 0%, var(--ops-bg) 48%, var(--ops-bg-bottom) 100%);
   color: var(--ops-text);
   font-family: var(--ops-font);
 }
 .ops-tabs__nav {
-  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
   color: var(--ops-text);
   display: flex;
   flex-direction: column;
@@ -295,8 +296,8 @@ const gradeRules = GRADE_RULES
   min-height: 100vh;
   position: sticky;
   top: 0;
-  border-right: 0;
-  box-shadow: 1px 0 0 #ebebeb;
+  border-right: 1px solid var(--ops-line);
+  box-shadow: none;
 }
 .nav-brand {
   display: flex;
@@ -309,11 +310,11 @@ const gradeRules = GRADE_RULES
     border-radius: 12px;
     display: grid;
     place-items: center;
-    background: linear-gradient(145deg, #4080ff, #165dff 55%, #0e42d2);
+    background: linear-gradient(145deg, #38bdf8, #1d6bff 55%, #0b3d91);
     color: #fff;
     font-weight: 800;
     font-size: 14px;
-    box-shadow: 0 4px 14px rgba(29, 107, 255, 0.32);
+    box-shadow: 0 4px 14px rgba(29, 107, 255, 0.35);
   }
   strong {
     display: block;
@@ -390,11 +391,11 @@ nav {
       border-color: #dbeafe;
     }
     &.active {
-      background: linear-gradient(135deg, #165dff, #4080ff);
+      background: linear-gradient(135deg, #1d6bff, #0ea5e9);
       color: #fff;
       font-weight: 700;
       border-color: transparent;
-      box-shadow: 0 6px 16px rgba(22, 93, 255, 0.22);
+      box-shadow: 0 6px 16px rgba(29, 107, 255, 0.28);
       em {
         color: rgba(255, 255, 255, 0.88);
       }
@@ -422,7 +423,7 @@ nav {
   border: 0;
   border-radius: 999px;
   color: #64748b;
-  background: #f7f8fa;
+  background: #f1f5f9;
   font-size: 12px;
   white-space: nowrap;
   flex-shrink: 1;
@@ -435,14 +436,14 @@ nav {
     flex-shrink: 0;
   }
   span {
-    color: #86909c;
+    color: #64748b;
   }
   &.database,
   &.static {
-    color: #00b42a;
-    background: #e8ffea;
+    color: #059669;
+    background: #ecfdf5;
     i {
-      background: #00b42a;
+      background: #10b981;
       box-shadow: none;
     }
   }
@@ -454,15 +455,15 @@ nav {
   gap: 12px;
   margin-bottom: 14px;
   padding: 14px 16px;
-  border-radius: 12px;
-  background: #fff;
-  border: 0;
-  box-shadow: var(--ops-shadow);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
+  border: 1px solid var(--ops-line);
+  box-shadow: var(--ops-shadow-lg);
   h1 {
     margin: 0;
     flex-shrink: 0;
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 800;
     color: var(--ops-text);
     letter-spacing: 0.01em;
     white-space: nowrap;
@@ -478,61 +479,65 @@ nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 8px 12px;
   width: 100%;
   min-width: 0;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: #f7f8fa;
+  padding: 10px 0 0;
+  border-top: 1px solid rgba(219, 227, 239, 0.9);
+  background: transparent;
   :deep(.date-bar) {
     flex-shrink: 0;
-    gap: 4px;
+    gap: 8px;
   }
   :deep(.date-bar.light .seg) {
-    border: 0;
-    background: transparent;
-    gap: 2px;
-    border-radius: 6px;
+    border: 1px solid var(--ops-line);
+    background: #f8fafc;
+    gap: 0;
+    border-radius: 999px;
+    overflow: hidden;
   }
   :deep(.date-bar.light .seg button) {
-    height: 30px;
-    padding: 0 12px;
+    height: 34px;
+    padding: 0 14px;
     font-size: 13px;
-    border-radius: 6px;
-    color: #86909c;
+    border-radius: 0;
+    color: var(--ops-muted);
     background: transparent;
   }
   :deep(.date-bar.light .seg button:hover) {
-    background: rgba(0, 0, 0, 0.04);
-    color: #4e5969;
+    background: #eff6ff;
+    color: var(--ops-primary);
   }
   :deep(.date-bar.light .seg button.active) {
     color: #fff;
-    background: #1d2129;
+    background: linear-gradient(135deg, #1d6bff, #0ea5e9);
+    box-shadow: 0 4px 14px rgba(29, 107, 255, 0.28);
     font-weight: 700;
   }
   :deep(.date-bar.light .ctrl-date),
   :deep(.date-bar.light .ctrl-select),
   :deep(.date-bar.light .ctrl-select--week),
   :deep(.date-bar.light .ctrl-select--month) {
-    height: 30px;
+    height: 34px;
   }
   :deep(.dash-date.light .dash-date__trigger),
   :deep(.dash-select.light .dash-select__trigger) {
-    height: 30px;
-    border: 0 !important;
-    background: transparent !important;
+    height: 34px;
+    border: 1px solid var(--ops-line) !important;
+    background: #fff !important;
     box-shadow: none;
     font-size: 13px;
     padding: 0 10px;
-    border-radius: 6px;
-    color: #1d2129;
+    border-radius: 8px;
+    color: var(--ops-text);
+    font-weight: 600;
   }
   :deep(.dash-date.light .dash-date__trigger:hover),
   :deep(.dash-select.light .dash-select__trigger:hover),
   :deep(.dash-select.light.open .dash-select__trigger),
   :deep(.dash-date.light.open .dash-date__trigger) {
-    background: rgba(0, 0, 0, 0.04) !important;
+    border-color: #93c5fd !important;
+    background: #eff6ff !important;
   }
   :deep(.filter__select) {
     font-size: 13px;
@@ -565,14 +570,14 @@ nav {
     list-style: none;
     cursor: pointer;
     user-select: none;
-    height: 32px;
-    padding: 0 8px;
-    border-radius: 6px;
-    border: 0;
-    background: transparent;
-    color: var(--ops-text-2);
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--ops-line);
+    background: #f8fafc;
+    color: var(--ops-primary);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -585,12 +590,14 @@ nav {
       color: var(--ops-muted);
     }
     &:hover {
-      background: rgba(0, 0, 0, 0.04);
+      border-color: #93c5fd;
+      background: #eff6ff;
       color: var(--ops-primary);
     }
   }
   &[open] summary {
-    background: rgba(0, 0, 0, 0.04);
+    border-color: #93c5fd;
+    background: #eff6ff;
     color: var(--ops-primary);
   }
   &[open] summary::after {
@@ -603,10 +610,10 @@ nav {
     z-index: 40;
     width: min(420px, 72vw);
     padding: 14px;
-    border-radius: 10px;
+    border-radius: 12px;
     background: #fff;
-    border: 0;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--ops-line);
+    box-shadow: 0 10px 28px rgba(15, 55, 120, 0.12);
     display: grid;
     gap: 12px;
   }
@@ -640,7 +647,7 @@ nav {
     border-radius: 4px;
     font-size: 11px;
     font-weight: 600;
-    background: #f2f3f5;
+    background: #f1f5f9;
     color: var(--ops-text-2);
     &.g-S {
       background: var(--ops-ok-bg);
@@ -651,8 +658,8 @@ nav {
       color: var(--ops-primary);
     }
     &.g-B {
-      background: #f5e8ff;
-      color: #722ed1;
+      background: #f5f3ff;
+      color: #8b5cf6;
     }
     &.g-C {
       background: var(--ops-warn-bg);
@@ -669,8 +676,8 @@ nav {
   padding: 28px;
   text-align: center;
   background: #fff;
-  border-radius: 12px;
-  border: 0;
+  border-radius: 14px;
+  border: 1px dashed rgba(29, 107, 255, 0.28);
   box-shadow: var(--ops-shadow);
   strong {
     display: block;
