@@ -5,8 +5,8 @@
       <div class="nav-brand">
         <b>运</b>
         <div>
-          <strong>门店运营</strong>
-          <span>Tab 版 · 试对比</span>
+          <strong>经营管理工作台</strong>
+          <span>老板总览 · 主管诊断</span>
         </div>
       </div>
 
@@ -20,31 +20,41 @@
           v-for="t in tabs"
           :key="t.id"
           type="button"
-          :class="{ active: activeTab === t.id, soon: t.soon }"
+          :class="{ active: activeTab === t.id }"
           @click="activeTab = t.id"
         >
           <em>{{ t.no }}</em>
           <span>{{ t.label }}</span>
-          <i v-if="t.soon">待接入</i>
+          <i :class="'status-' + t.status">{{ t.dataLabel }}</i>
         </button>
       </nav>
+
+      <div class="nav-foot">
+        <span>同一套数据，两种管理视角</span>
+        <b>结果 → 诊断 → 辅导 → 复盘</b>
+      </div>
     </aside>
 
     <div class="ops-tabs__main">
       <header class="topbar">
         <div class="topbar__row">
-          <h1>{{ currentTab?.label }}</h1>
-          <div class="source-pill" :class="dataSource">
-            <i />{{
-              dataSource === 'database'
-                ? '数据库 · 考核数据'
-                : dataSource === 'static'
-                  ? '静态包 · 考核数据'
-                  : '数据库暂未连接'
-            }}
-            <span v-if="updatedHint">{{ updatedHint }}</span>
+          <div class="page-heading">
+            <h1>{{ currentTab?.label }}</h1>
+            <p>{{ currentTab?.desc }}</p>
           </div>
-          <details class="rules">
+          <div class="source-pill" :class="currentSourceTone">
+            <i />{{ currentSourceLabel }}
+            <span v-if="activeTab === 'overview' && updatedHint">{{ updatedHint }}</span>
+          </div>
+          <div class="role-switch" role="group" aria-label="看板视角">
+            <button type="button" :class="{ active: viewRole === 'boss' }" @click="viewRole = 'boss'">
+              老板视角
+            </button>
+            <button type="button" :class="{ active: viewRole === 'manager' }" @click="viewRole = 'manager'">
+              主管视角
+            </button>
+          </div>
+          <details v-if="activeTab === 'overview'" class="rules">
             <summary>考核规则</summary>
             <div class="rules__panel">
               <div class="rules__block">
@@ -96,21 +106,25 @@
               />
             </label>
           </div>
+          <div class="role-brief">
+            <div>
+              <b>{{ viewRole === 'boss' ? '老板关注' : '主管关注' }}</b>
+              <span>{{ roleDescription }}</span>
+            </div>
+            <ul>
+              <li v-for="item in roleFocus" :key="item">{{ item }}</li>
+            </ul>
+            <small v-if="viewRole === 'manager'">当前通过城市和门店筛选查看；接入主管—门店映射后自动限定管辖范围。</small>
+          </div>
       </header>
 
-      <div v-if="!hasAssessData" class="empty-panel">
+      <div v-if="activeTab === 'overview' && !hasAssessData" class="empty-panel">
         <strong>该周期暂无营运考核数据</strong>
       </div>
 
       <div v-else class="tab-body">
-        <EmptyPage
-          v-if="currentTab?.soon"
-          :title="currentTab?.label || ''"
-          :hint="currentTab?.hint || '当前阶段暂不开发，先完成门店运营质量模块。'"
-          :source="currentTab?.source || ''"
-        />
         <OverviewPage
-          v-else-if="activeTab === 'overview'"
+          v-if="activeTab === 'overview'"
           :date-key="assessKey"
           :city="city"
           :store-id="storeId"
@@ -128,7 +142,12 @@
           :store-id="storeId"
           :store-hint="storeHint"
         />
-        <PromoPage v-else-if="activeTab === 'promo'" />
+        <PromoPage
+          v-else-if="activeTab === 'promo'"
+          :date-key="assessKey"
+          :store-id="storeId"
+          :store-hint="storeHint"
+        />
         <SupplyPage
           v-else-if="activeTab === 'supply'"
           :date-key="assessKey"
@@ -139,6 +158,7 @@
         <ReturnPage
           v-else-if="activeTab === 'reverse'"
           :date-key="assessKey"
+          :city="city"
           :store-id="storeId"
           :store-hint="storeHint"
         />
@@ -177,9 +197,8 @@ type TabDef = {
   no: string
   label: string
   desc: string
-  soon: boolean
-  hint?: string
-  source?: string
+  status: 'ready' | 'partial' | 'pending'
+  dataLabel: string
 }
 
 /** 分析路径：结果定性 → 流量断点 → 推广投放 → 供给/逆向下钻 → 辅导闭环；01 履约质量保持不变 */
@@ -189,57 +208,112 @@ const tabs: TabDef[] = [
     no: '01',
     label: '门店运营质量',
     desc: '履约五项是否过线',
-    soon: false,
+    status: 'ready',
+    dataLabel: '已接入',
   },
   {
     id: 'result',
     no: '02',
     label: '经营结果',
     desc: '订单 / 实付 / 毛利是否达标',
-    soon: true,
+    status: 'partial',
+    dataLabel: '可展示',
   },
   {
     id: 'traffic',
     no: '03',
     label: '流量与转化',
     desc: 'UV · P1进店 · P2下单断点',
-    soon: true,
+    status: 'partial',
+    dataLabel: '已接入',
   },
   {
     id: 'promo',
     no: '04',
     label: '推广消耗',
-    desc: '时段配比 · 出价 · 预算执行',
-    soon: true,
-    hint: '对照大盘/本店订单时段推导消耗配比；异常店调出价并观察 1 小时效果。',
-    source: '美团推广 / 翱象门店时段订单',
+    desc: '费用趋势 · 活动产出 · 拉新',
+    status: 'partial',
+    dataLabel: '可分析',
   },
   {
     id: 'supply',
     no: '05',
     label: '商品供给',
     desc: '品类 · 数量 · 缺货损失下钻',
-    soon: true,
+    status: 'partial',
+    dataLabel: '已接入',
   },
   {
     id: 'reverse',
     no: '06',
     label: '逆向客诉',
-    desc: '商责退 · 退款原因 · 负毛利连带',
-    soon: true,
+    desc: '逆向原因 · 配送异常 · 客诉商品',
+    status: 'ready',
+    dataLabel: '已接入',
   },
   {
     id: 'coach',
     no: '07',
     label: '门店辅导',
     desc: '按断点打标签 · 本周盯店动作',
-    soon: true,
+    status: 'partial',
+    dataLabel: '待任务闭环',
   },
 ]
 
 type TabId = string
 const activeTab = ref<TabId>('overview')
+const viewRole = ref<'boss' | 'manager'>('boss')
 const currentTab = computed(() => tabs.find((t) => t.id === activeTab.value))
+
+const sourceCopy: Record<string, { label: string; tone: string }> = {
+  result: { label: '经营趋势与渠道门店数据', tone: 'static' },
+  traffic: { label: '流量分来源 · 30 日明细', tone: 'static' },
+  promo: { label: '推广费用趋势 + 活动明细', tone: 'static' },
+  supply: { label: '商品销售、退款与缺货明细', tone: 'static' },
+  reverse: { label: '逆向订单 + 配送异常明细', tone: 'static' },
+  coach: { label: '质量评分可用 · 辅导任务待接', tone: 'partial' },
+}
+
+const currentSourceLabel = computed(() => {
+  if (activeTab.value !== 'overview') return sourceCopy[activeTab.value]?.label || '数据口径待确认'
+  if (dataSource.value === 'database') return '数据库 · 门店营运质量'
+  if (dataSource.value === 'static') return '静态包 · 门店营运质量'
+  return '门店营运质量数据库暂未连接'
+})
+
+const currentSourceTone = computed(() => {
+  if (activeTab.value !== 'overview') return sourceCopy[activeTab.value]?.tone || 'pending'
+  return dataSource.value
+})
+
+const roleDescriptions: Record<'boss' | 'manager', string> = {
+  boss: '先判断整体是否达标，再定位区域、主管和风险门店。',
+  manager: '先看负责门店的异常，再下钻原因并形成当天动作。',
+}
+const roleDescription = computed(() => roleDescriptions[viewRole.value])
+
+const focusMap: Record<'boss' | 'manager', Record<string, string[]>> = {
+  boss: {
+    overview: ['健康门店率', '主管对比', '风险门店'],
+    result: ['经营规模', '环比趋势', '门店贡献'],
+    traffic: ['整体漏斗', '来源结构', '转化短板'],
+    promo: ['总消耗', '投产效率', '预算风险'],
+    supply: ['供给健康', '缺货损失', '品类风险'],
+    reverse: ['退款损失', '原因结构', '风险门店'],
+    coach: ['覆盖率', '完成率', '改善率'],
+  },
+  manager: {
+    overview: ['门店扣分项', '未达标指标', '优先处理店'],
+    result: ['目标缺口', '下降门店', '渠道原因'],
+    traffic: ['低转化门店', '低效来源', '改善动作'],
+    promo: ['计划异常', '预算进度', '调价复查'],
+    supply: ['缺货商品', '低动销商品', '补货清单'],
+    reverse: ['异常订单', '责任原因', '处理时效'],
+    coach: ['今日待办', '责任人', '复查结果'],
+  },
+}
+const roleFocus = computed(() => focusMap[viewRole.value][activeTab.value] || [])
 
 const {
   city,
@@ -279,7 +353,7 @@ const gradeRules = GRADE_RULES
 .ops-tabs {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 228px minmax(0, 1fr);
   background:
     radial-gradient(circle at 10% 0%, rgba(29, 107, 255, 0.1), transparent 36%),
     radial-gradient(circle at 92% 8%, rgba(34, 211, 238, 0.08), transparent 34%),
@@ -384,6 +458,19 @@ nav {
       border-radius: 999px;
       background: #f1f5f9;
       color: #94a3b8;
+      white-space: nowrap;
+      &.status-ready {
+        color: #059669;
+        background: #ecfdf5;
+      }
+      &.status-partial {
+        color: #b45309;
+        background: #fffbeb;
+      }
+      &.status-pending {
+        color: #64748b;
+        background: #f1f5f9;
+      }
     }
     &:hover {
       background: var(--ops-nav-hover);
@@ -404,9 +491,24 @@ nav {
         color: #fff;
       }
     }
-    &.soon:not(.active) {
-      opacity: 0.78;
-    }
+  }
+}
+.nav-foot {
+  margin-top: auto;
+  padding: 14px 10px 2px;
+  border-top: 1px solid var(--ops-border-soft);
+  span,
+  b {
+    display: block;
+  }
+  span {
+    color: var(--ops-muted);
+    font-size: 11px;
+  }
+  b {
+    margin-top: 5px;
+    color: var(--ops-primary-deep);
+    font-size: 12px;
   }
 }
 .ops-tabs__main {
@@ -447,6 +549,16 @@ nav {
       box-shadow: none;
     }
   }
+  &.partial {
+    color: #b45309;
+    background: #fffbeb;
+    i { background: #f59e0b; }
+  }
+  &.pending {
+    color: #64748b;
+    background: #f1f5f9;
+    i { background: #94a3b8; }
+  }
 }
 .topbar {
   display: flex;
@@ -474,6 +586,75 @@ nav {
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+.page-heading {
+  min-width: 180px;
+  p {
+    margin: 3px 0 0;
+    color: var(--ops-muted);
+    font-size: 12px;
+  }
+}
+.role-switch {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 3px;
+  border-radius: 10px;
+  background: #eef2f7;
+  button {
+    border: 0;
+    border-radius: 8px;
+    padding: 7px 12px;
+    background: transparent;
+    color: var(--ops-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    &.active {
+      color: #fff;
+      background: var(--ops-primary);
+      box-shadow: 0 3px 10px rgba(29, 107, 255, 0.22);
+    }
+  }
+}
+.role-brief {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--ops-border-soft);
+  > div {
+    min-width: 260px;
+    b,
+    span { display: block; }
+    b { color: var(--ops-primary-deep); font-size: 12px; }
+    span { margin-top: 2px; color: var(--ops-text-2); font-size: 12px; }
+  }
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    li {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--ops-primary-soft);
+      color: var(--ops-primary);
+      font-size: 11px;
+      font-weight: 700;
+    }
+  }
+  small {
+    margin-left: auto;
+    color: var(--ops-muted);
+    font-size: 11px;
+    text-align: right;
+    max-width: 260px;
+  }
 }
 .filter-toolbar {
   display: flex;

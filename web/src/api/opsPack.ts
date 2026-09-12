@@ -1,5 +1,5 @@
 /**
- * 运营增量包：流量 / 供给 / 品钻聚合
+ * 运营增量包：经营推广 / 流量 / 服务 / 供给 / 商品 / 活动 / 逆向 / 配送异常
  * 无数据返回 null，UI 展示 --，不编造
  */
 import pack from '../data/opsPack.json'
@@ -109,10 +109,88 @@ export type ProductBoard = {
     badCnt: number
     stockoutLoss: number
     stockoutTimes: number
+    sales: number
+    qty: number
+    orders: number
   }[]
   topLossSku: { name: string; loss: number; times: number }[]
   topRefundSku: { name: string; amount: number; orders: number }[]
+  topSalesSku: { name: string; sales: number; qty: number }[]
+  categories: { name: string; sales: number; qty: number; refundAmt: number; stockoutLoss: number }[]
+  summary: {
+    skuRows: number
+    sales: number
+    qty: number
+    orders: number
+    refundAmt: number
+    refundOrders: number
+    badCnt: number
+    stockoutLoss: number
+    stockoutTimes: number
+  }
   refundReasons: { name: string; value: number }[]
+  tips: string[]
+}
+
+export type PromoBoard = {
+  days: string[]
+  label: string
+  summary: {
+    promotionSpend: number
+    paid: number
+    orders: number
+    paidPerSpend: number | null
+    activityPaid: number
+    activitySubsidy: number
+    activityOrders: number
+    newUsers: number
+  }
+  daily: {
+    day: string
+    paid: number
+    promotionSpend: number
+    activityCost: number
+  }[]
+  activities: {
+    id: string
+    name: string
+    shortStore: string
+    paid: number
+    merchantSubsidy: number
+    roi: number | null
+    activityOrders: number
+    newUsers: number
+    oldUsers: number
+  }[]
+  tips: string[]
+}
+
+export type ReverseOpsBoard = {
+  days: string[]
+  label: string
+  summary: {
+    lineCnt: number
+    orderCnt: number
+    amount: number
+    timely: number
+    late: number
+    missing: number
+    deliveryTotal: number
+  }
+  reasons: { name: string; value: number }[]
+  types: { name: string; value: number }[]
+  categories: { name: string; value: number }[]
+  products: { name: string; value: number; amount: number }[]
+  stores: {
+    id: string
+    shortName: string
+    city: string
+    orderCnt: number
+    amount: number
+    late: number
+    deliveryTotal: number
+  }[]
+  deliveryDaily: { day: string; timely: number; late: number; missing: number }[]
   tips: string[]
 }
 
@@ -120,6 +198,14 @@ type Pack = {
   updated_at?: string
   notes?: string[]
   traffic: Record<string, { funnel: Funnel; sources: TrafficSource[]; stores: TrafficStore[]; storeCnt: number }> | null
+  marketing: Record<string, {
+    paid: number | null
+    orders: number | null
+    profit: number | null
+    promotionSpend: number | null
+    activityCost: number | null
+  }> | null
+  service: Record<string, unknown[]> | null
   supply: Record<string, { summary: SupplyBoard['summary']; stores: SupplyStore[] }> | null
   product: Record<
     string,
@@ -130,10 +216,50 @@ type Pack = {
       stores: ProductBoard['stores']
       topLossSku: ProductBoard['topLossSku']
       topRefundSku: ProductBoard['topRefundSku']
+      topSalesSku: ProductBoard['topSalesSku']
+      categories: ProductBoard['categories']
+      summary: ProductBoard['summary']
       refundReasons: ProductBoard['refundReasons']
     }
   > | null
-  activity: unknown
+  activity: Record<string, Array<{
+    id: string
+    name: string
+    storeId: string
+    store: string
+    shortStore: string
+    paid: number
+    merchantSubsidy: number
+    roi: number | null
+    activityOrders: number
+    newUsers: number
+    oldUsers: number
+  }>> | null
+  reverse: Record<string, { stores: Array<{
+    id: string
+    name: string
+    shortName: string
+    city: string
+    lineCnt: number
+    orderCnt: number
+    amount: number
+    reasons: { name: string; value: number }[]
+    types: { name: string; value: number }[]
+    categories: { name: string; value: number }[]
+    products: { name: string; value: number; amount: number }[]
+  }> }> | null
+  delivery: Record<string, { stores: Array<{
+    id: string
+    name: string
+    shortName: string
+    city: string
+    total: number
+    timely: number
+    late: number
+    missing: number
+    merchantBasis: number
+    riderBasis: number
+  }> }> | null
 }
 
 const data = pack as Pack
@@ -268,9 +394,13 @@ export function getOpsPackMeta() {
     updatedAt: data.updated_at || '',
     notes: data.notes || [],
     hasTraffic: !!data.traffic && Object.keys(data.traffic).length > 0,
+    hasMarketing: !!data.marketing && Object.keys(data.marketing).length > 0,
+    hasService: !!data.service && Object.keys(data.service).length > 0,
     hasSupply: !!data.supply && Object.keys(data.supply).length > 0,
     hasProduct: !!data.product && Object.keys(data.product).length > 0,
-    hasActivity: !!data.activity,
+    hasActivity: !!data.activity && Object.keys(data.activity).length > 0,
+    hasReverse: !!data.reverse && Object.keys(data.reverse).length > 0,
+    hasDelivery: !!data.delivery && Object.keys(data.delivery).length > 0,
   }
 }
 
@@ -557,15 +687,201 @@ export function fetchProductBoard(dateKey: string, storeId = '全部', storeHint
     stores: stores.map(withStoreLabel),
     topLossSku: hit.topLossSku,
     topRefundSku: hit.topRefundSku,
+    topSalesSku: hit.topSalesSku || [],
+    categories: storeId === '全部' ? hit.categories || [] : [],
+    summary: stores.reduce(
+      (acc, store) => {
+        acc.sales += store.sales || 0
+        acc.qty += store.qty || 0
+        acc.orders += store.orders || 0
+        acc.refundAmt += store.refundAmt || 0
+        acc.refundOrders += store.refundOrders || 0
+        acc.badCnt += store.badCnt || 0
+        acc.stockoutLoss += store.stockoutLoss || 0
+        acc.stockoutTimes += store.stockoutTimes || 0
+        return acc
+      },
+      {
+        skuRows: storeId === '全部' ? hit.summary?.skuRows || 0 : 0,
+        sales: 0,
+        qty: 0,
+        orders: 0,
+        refundAmt: 0,
+        refundOrders: 0,
+        badCnt: 0,
+        stockoutLoss: 0,
+        stockoutTimes: 0,
+      },
+    ),
     refundReasons: hit.refundReasons || [],
     tips,
   }
+}
+
+function sumNamedRows(rows: { name: string; value: number }[], map: Map<string, number>) {
+  for (const row of rows || []) map.set(row.name, (map.get(row.name) || 0) + (row.value || 0))
+}
+
+export function fetchPromoBoard(dateKey: string, storeId = '全部', storeHint?: string): PromoBoard | null {
+  const requested = resolvePackDays(dateKey)
+  const days = requested.filter((day) => data.marketing?.[day] || data.activity?.[day])
+  if (!days.length) return null
+
+  const daily = days
+    .map((day) => ({
+      day,
+      paid: data.marketing?.[day]?.paid || 0,
+      promotionSpend: data.marketing?.[day]?.promotionSpend || 0,
+      activityCost: data.marketing?.[day]?.activityCost || 0,
+    }))
+    .sort((a, b) => a.day.localeCompare(b.day))
+
+  const activityRows = days.flatMap((day) => data.activity?.[day] || []).filter((row) =>
+    matchStore({ id: row.storeId, name: row.store, shortName: row.shortStore }, storeId, storeHint),
+  )
+  const byActivity = new Map<string, PromoBoard['activities'][number]>()
+  for (const row of activityRows) {
+    const key = `${row.id}||${row.shortStore}`
+    const cur = byActivity.get(key) || {
+      id: row.id,
+      name: row.name,
+      shortStore: formatStoreName(row.shortStore || row.store),
+      paid: 0,
+      merchantSubsidy: 0,
+      roi: null,
+      activityOrders: 0,
+      newUsers: 0,
+      oldUsers: 0,
+    }
+    cur.paid += row.paid || 0
+    cur.merchantSubsidy += row.merchantSubsidy || 0
+    cur.activityOrders += row.activityOrders || 0
+    cur.newUsers += row.newUsers || 0
+    cur.oldUsers += row.oldUsers || 0
+    if (row.roi != null) cur.roi = row.roi
+    byActivity.set(key, cur)
+  }
+  const activities = [...byActivity.values()].sort((a, b) => b.paid - a.paid).slice(0, 16)
+  const promotionSpend = daily.reduce((a, row) => a + row.promotionSpend, 0)
+  const paid = daily.reduce((a, row) => a + row.paid, 0)
+  const summary = {
+    promotionSpend,
+    paid,
+    orders: days.reduce((a, day) => a + (data.marketing?.[day]?.orders || 0), 0),
+    paidPerSpend: rate(paid, promotionSpend),
+    activityPaid: activities.reduce((a, row) => a + row.paid, 0),
+    activitySubsidy: activities.reduce((a, row) => a + row.merchantSubsidy, 0),
+    activityOrders: activities.reduce((a, row) => a + row.activityOrders, 0),
+    newUsers: activities.reduce((a, row) => a + row.newUsers, 0),
+  }
+  const tips = ['全店实付/推广费用于观察投入强度，不代表广告归因 ROAS。']
+  if (storeId !== '全部') tips.push('推广费用趋势当前只有全店汇总口径；活动明细已按门店筛选。')
+  return { days, label: daysLabel(days), summary, daily, activities, tips }
+}
+
+export function fetchReverseOpsBoard(
+  dateKey: string,
+  city = '全部',
+  storeId = '全部',
+  storeHint?: string,
+): ReverseOpsBoard | null {
+  const days = resolvePackDays(dateKey).filter((day) => data.reverse?.[day] || data.delivery?.[day])
+  if (!days.length) return null
+
+  const storeMap = new Map<string, ReverseOpsBoard['stores'][number]>()
+  const reasonMap = new Map<string, number>()
+  const typeMap = new Map<string, number>()
+  const categoryMap = new Map<string, number>()
+  const productMap = new Map<string, { name: string; value: number; amount: number }>()
+  let lineCnt = 0
+  let orderCnt = 0
+  let amount = 0
+
+  for (const day of days) {
+    for (const row of data.reverse?.[day]?.stores || []) {
+      if (!matchCity(city, row.city) || !matchStore(row, storeId, storeHint)) continue
+      lineCnt += row.lineCnt || 0
+      orderCnt += row.orderCnt || 0
+      amount += row.amount || 0
+      sumNamedRows(row.reasons, reasonMap)
+      sumNamedRows(row.types, typeMap)
+      sumNamedRows(row.categories, categoryMap)
+      for (const product of row.products || []) {
+        const cur = productMap.get(product.name) || { name: product.name, value: 0, amount: 0 }
+        cur.value += product.value || 0
+        cur.amount += product.amount || 0
+        productMap.set(product.name, cur)
+      }
+      const key = row.id || row.shortName
+      const cur = storeMap.get(key) || {
+        id: row.id,
+        shortName: formatStoreName(row.shortName || row.name),
+        city: row.city,
+        orderCnt: 0,
+        amount: 0,
+        late: 0,
+        deliveryTotal: 0,
+      }
+      cur.orderCnt += row.orderCnt || 0
+      cur.amount += row.amount || 0
+      storeMap.set(key, cur)
+    }
+  }
+
+  const deliveryDaily = days.map((day) => {
+    let timely = 0
+    let late = 0
+    let missing = 0
+    for (const row of data.delivery?.[day]?.stores || []) {
+      if (!matchCity(city, row.city) || !matchStore(row, storeId, storeHint)) continue
+      timely += row.timely || 0
+      late += row.late || 0
+      missing += row.missing || 0
+      const key = row.id || row.shortName
+      const cur = storeMap.get(key) || {
+        id: row.id,
+        shortName: formatStoreName(row.shortName || row.name),
+        city: row.city,
+        orderCnt: 0,
+        amount: 0,
+        late: 0,
+        deliveryTotal: 0,
+      }
+      cur.late += row.late || 0
+      cur.deliveryTotal += row.total || 0
+      storeMap.set(key, cur)
+    }
+    return { day, timely, late, missing }
+  }).sort((a, b) => a.day.localeCompare(b.day))
+
+  const timely = deliveryDaily.reduce((a, row) => a + row.timely, 0)
+  const late = deliveryDaily.reduce((a, row) => a + row.late, 0)
+  const missing = deliveryDaily.reduce((a, row) => a + row.missing, 0)
+  const stores = [...storeMap.values()].sort((a, b) => b.orderCnt - a.orderCnt || b.late - a.late)
+  return {
+    days,
+    label: daysLabel(days),
+    summary: { lineCnt, orderCnt, amount: Math.round(amount * 100) / 100, timely, late, missing, deliveryTotal: timely + late + missing },
+    reasons: topMapValues(reasonMap, 10),
+    types: topMapValues(typeMap, 8),
+    categories: topMapValues(categoryMap, 10),
+    products: [...productMap.values()].sort((a, b) => b.value - a.value).slice(0, 10),
+    stores,
+    deliveryDaily,
+    tips: ['逆向订单按订单 ID 去重；原因与类目按退货商品行统计。', '配送异常包含及时、不及时和缺少节点数据三种状态。'],
+  }
+}
+
+function topMapValues(map: Map<string, number>, limit: number) {
+  return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, limit)
 }
 
 export function hasOpsPackFor(dateKey: string): boolean {
   const days = resolvePackDays(dateKey)
   if (!days.length) return !!(data.product && Object.keys(data.product).length)
   if (data.traffic && days.some((d) => data.traffic![d])) return true
+  if (data.marketing && days.some((d) => data.marketing![d])) return true
+  if (data.reverse && days.some((d) => data.reverse![d])) return true
   if (data.supply && days.some((d) => data.supply![d])) return true
   if (data.product) {
     return Object.values(data.product).some((e) => {

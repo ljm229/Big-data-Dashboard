@@ -1,5 +1,5 @@
 /**
- * 同步运营看板增量包：流量分来源 + 商品店铺汇总 + 商品明细聚合（缺货/退款）
+ * 同步运营看板增量包：经营趋势、流量、服务、商品、活动、逆向与配送异常
  * 不编造：无文件则跳过对应块；空单元格 → null
  */
 import fs from 'node:fs'
@@ -176,6 +176,210 @@ function ingestTraffic(file) {
   return out
 }
 
+function ingestMarketingTrend(file) {
+  const rows = readSheet(file)
+  const out = {}
+  for (const r of rows) {
+    const day = parseDay(r['日期'])
+    if (!day) continue
+    out[day] = {
+      paid: toNumOrNull(r['有效订单金额（实付）']),
+      orders: toNumOrNull(r['有效订单量']),
+      profit: toNumOrNull(r['预计毛利']),
+      promotionSpend: toNumOrNull(r['推广费用']),
+      activityCost: toNumOrNull(r['营销活动费用']),
+      merchantSubsidyRate: toNumOrNull(r['商家补贴率']),
+      refundRate: toNumOrNull(r['退款率']),
+      refundAmount: toNumOrNull(r['退款金额']),
+      refundOrders: toNumOrNull(r['退款订单量']),
+    }
+  }
+  return out
+}
+
+function ingestService(file) {
+  const rows = readSheet(file)
+  const byDay = {}
+  for (const r of rows) {
+    const day = parseDay(r['日期'])
+    if (!day) continue
+    if (!byDay[day]) byDay[day] = []
+    byDay[day].push({
+      id: String(r['门店id'] || ''),
+      name: String(r['门店名称'] || ''),
+      shortName: shortStore(r['门店名称']),
+      fulfillmentRate: toNumOrNull(r['履约渗透率']),
+      trackRate: toNumOrNull(r['轨迹渗透率']),
+      ontimeRate: toNumOrNull(r['及时送达率']),
+      lostOrders: toNum(r['流失订单']),
+      lostRate: toNumOrNull(r['流失订单率']),
+      merchantLost: toNum(r['商家原因流失订单数']),
+      userLost: toNum(r['用户原因流失订单数']),
+      logisticsLost: toNum(r['物流原因流失订单数']),
+      otherLost: toNum(r['其他原因流失订单数']),
+      stockoutLost: toNum(r['缺货导致流失订单数']),
+      stockoutLoss:
+        toNum(r['缺货导致流失预计损失']) +
+        toNum(r['缺货导致整单取消预计损失']) +
+        toNum(r['缺货导致整单退预计损失']) +
+        toNum(r['缺货导致部分退预计损失']),
+      pickOntimeRate: toNumOrNull(r['拣货及时订单率']),
+      acceptMinutes: toNumOrNull(r['平均接单时长（分）']),
+      deliveryMinutes: toNumOrNull(r['平均配送时长（分）']),
+      outboundMinutes: toNumOrNull(r['平均出货时长（分）']),
+      complaintOrders: toNum(r['客诉订单数']),
+      complaintRate: toNumOrNull(r['客诉订单率']),
+      urgeOrders: toNum(r['催单订单数']),
+      urgeRate: toNumOrNull(r['催单订单率']),
+      shopScore: toNumOrNull(r['店铺评分']),
+    })
+  }
+  return byDay
+}
+
+function ingestActivity(file) {
+  const rows = readSheet(file)
+  const byDay = {}
+  for (const r of rows) {
+    const day = parseDay(r['活动时间'])
+    if (!day) continue
+    if (!byDay[day]) byDay[day] = []
+    byDay[day].push({
+      id: String(r['活动id'] || ''),
+      name: String(r['活动名称'] || ''),
+      storeId: String(r['商家id'] || ''),
+      store: String(r['商家名称'] || ''),
+      shortStore: shortStore(r['商家名称']),
+      status: String(r['活动状态'] || ''),
+      source: String(r['活动来源'] || ''),
+      paid: toNum(r['实际交易额']),
+      subsidy: toNum(r['活动总补贴']),
+      merchantSubsidy: toNum(r['商家补贴金额']),
+      platformSubsidy: toNum(r['平台补贴金额']),
+      subsidyIntensity: toNumOrNull(r['商户补贴强度']),
+      roi: toNumOrNull(r['投入产出比']),
+      activityOrders: toNum(r['活动订单量']),
+      storeOrders: toNum(r['门店总订单量']),
+      activityOrderRate: toNumOrNull(r['活动订单占比']),
+      newUsers: toNum(r['新客数']),
+      newOrders: toNum(r['新客订单数']),
+      newAov: toNumOrNull(r['新客笔单价']),
+      oldUsers: toNum(r['老客数']),
+      oldOrders: toNum(r['老客订单数']),
+      oldAov: toNumOrNull(r['老客笔单价']),
+    })
+  }
+  return byDay
+}
+
+function addCount(map, key, value = 1) {
+  const name = String(key || '未知').trim() || '未知'
+  map.set(name, (map.get(name) || 0) + value)
+}
+
+function topMap(map, limit = 20) {
+  return [...map.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit)
+}
+
+function ingestReverse(file) {
+  const rows = readSheet(file)
+  const byDay = {}
+  for (const r of rows) {
+    const day = parseDay(r['日期'])
+    if (!day) continue
+    if (!byDay[day]) byDay[day] = new Map()
+    const storeId = String(r['商户id'] || '')
+    const storeName = String(r['商户名称'] || '')
+    const key = storeId || storeName
+    const store = byDay[day].get(key) || {
+      id: storeId,
+      name: storeName,
+      shortName: shortStore(storeName),
+      city: String(r['城市名称'] || ''),
+      lineCnt: 0,
+      orderIds: new Set(),
+      amount: 0,
+      reasons: new Map(),
+      types: new Map(),
+      categories: new Map(),
+      products: new Map(),
+    }
+    store.lineCnt += 1
+    store.orderIds.add(String(r['订单id'] || ''))
+    store.amount += toNum(r['退货商品金额'])
+    addCount(store.reasons, r['逆向单原因'])
+    addCount(store.types, r['逆向单类型'])
+    addCount(store.categories, r['一级类目'])
+    const product = String(r['退货商品名称'] || '')
+    if (product) {
+      const cur = store.products.get(product) || { name: product, value: 0, amount: 0 }
+      cur.value += 1
+      cur.amount += toNum(r['退货商品金额'])
+      store.products.set(product, cur)
+    }
+    byDay[day].set(key, store)
+  }
+  const out = {}
+  for (const [day, storesMap] of Object.entries(byDay)) {
+    out[day] = {
+      stores: [...storesMap.values()].map((store) => ({
+        id: store.id,
+        name: store.name,
+        shortName: store.shortName,
+        city: store.city,
+        lineCnt: store.lineCnt,
+        orderCnt: [...store.orderIds].filter(Boolean).length,
+        amount: round(store.amount, 2),
+        reasons: topMap(store.reasons),
+        types: topMap(store.types),
+        categories: topMap(store.categories),
+        products: [...store.products.values()].sort((a, b) => b.value - a.value).slice(0, 20),
+      })),
+    }
+  }
+  return out
+}
+
+function ingestDelivery(file) {
+  const rows = readSheet(file)
+  const byDay = {}
+  for (const r of rows) {
+    const day = parseDay(r['日期'])
+    if (!day) continue
+    if (!byDay[day]) byDay[day] = new Map()
+    const storeId = String(r['商户id'] || '')
+    const storeName = String(r['商户名称'] || '')
+    const key = storeId || storeName
+    const store = byDay[day].get(key) || {
+      id: storeId,
+      name: storeName,
+      shortName: shortStore(storeName),
+      city: String(r['城市名称'] || ''),
+      total: 0,
+      timely: 0,
+      late: 0,
+      missing: 0,
+      merchantBasis: 0,
+      riderBasis: 0,
+    }
+    store.total += 1
+    const remark = String(r['备注'] || '')
+    if (remark === '及时订单') store.timely += 1
+    else if (remark === '不及时订单') store.late += 1
+    else store.missing += 1
+    const basis = String(r['判断出货及时与否依据'] || '')
+    if (basis === '商家') store.merchantBasis += 1
+    if (basis === '骑手') store.riderBasis += 1
+    byDay[day].set(key, store)
+  }
+  return Object.fromEntries(
+    Object.entries(byDay).map(([day, stores]) => [day, { stores: [...stores.values()] }]),
+  )
+}
+
 function ingestSupply(file) {
   const rows = readSheet(file)
   /** @type {Record<string, any>} */
@@ -253,6 +457,10 @@ function ingestProductAgg(file) {
     const refundAmt = toNum(r['退款金额'])
     const refundOrders = toNum(r['退款单量'])
     const bad = toNum(r['差评数'])
+    const sales = toNum(r['实际销售额'])
+    const qty = toNum(r['销量(不含退款)']) || toNum(r['销量'])
+    const orders = toNum(r['带来订单量'])
+    const category = String(r['一级分类'] || '其他')
     const loss =
       toNum(r['缺货导致的流失单预计损失']) +
       toNum(r['缺货导致的取消单预计损失']) +
@@ -270,6 +478,9 @@ function ingestProductAgg(file) {
         lossSku: new Map(),
         refundSku: new Map(),
         reasons: new Map(),
+        salesSku: new Map(),
+        categories: new Map(),
+        rowCnt: 0,
       }
     }
     const b = byKey[period.key]
@@ -281,13 +492,34 @@ function ingestProductAgg(file) {
       badCnt: 0,
       stockoutLoss: 0,
       stockoutTimes: 0,
+      sales: 0,
+      qty: 0,
+      orders: 0,
     }
+    st.sales += sales
+    st.qty += qty
+    st.orders += orders
     st.refundAmt += refundAmt
     st.refundOrders += refundOrders
     st.badCnt += bad
     st.stockoutLoss += loss
     st.stockoutTimes += stockoutTimes
     b.stores.set(short, st)
+    b.rowCnt += 1
+
+    const cat = b.categories.get(category) || { name: category, sales: 0, qty: 0, refundAmt: 0, stockoutLoss: 0 }
+    cat.sales += sales
+    cat.qty += qty
+    cat.refundAmt += refundAmt
+    cat.stockoutLoss += loss
+    b.categories.set(category, cat)
+
+    if (sales > 0 && sku) {
+      const cur = b.salesSku.get(sku) || { name: sku, sales: 0, qty: 0 }
+      cur.sales += sales
+      cur.qty += qty
+      b.salesSku.set(sku, cur)
+    }
 
     if (loss > 0 && sku) {
       const cur = b.lossSku.get(sku) || { name: sku, loss: 0, times: 0 }
@@ -334,6 +566,25 @@ function ingestProductAgg(file) {
         .map(([name, value]) => ({ name, value }))
         .sort((a, c) => c.value - a.value)
         .slice(0, 12),
+      summary: {
+        skuRows: b.rowCnt,
+        sales: round([...b.stores.values()].reduce((a, s) => a + s.sales, 0), 2),
+        qty: round([...b.stores.values()].reduce((a, s) => a + s.qty, 0), 0),
+        orders: round([...b.stores.values()].reduce((a, s) => a + s.orders, 0), 0),
+        refundAmt: round([...b.stores.values()].reduce((a, s) => a + s.refundAmt, 0), 2),
+        refundOrders: round([...b.stores.values()].reduce((a, s) => a + s.refundOrders, 0), 0),
+        badCnt: round([...b.stores.values()].reduce((a, s) => a + s.badCnt, 0), 0),
+        stockoutLoss: round([...b.stores.values()].reduce((a, s) => a + s.stockoutLoss, 0), 2),
+        stockoutTimes: round([...b.stores.values()].reduce((a, s) => a + s.stockoutTimes, 0), 0),
+      },
+      categories: [...b.categories.values()]
+        .map((x) => ({ ...x, sales: round(x.sales, 2), refundAmt: round(x.refundAmt, 2), stockoutLoss: round(x.stockoutLoss, 2) }))
+        .sort((a, c) => c.sales - a.sales)
+        .slice(0, 20),
+      topSalesSku: [...b.salesSku.values()]
+        .map((x) => ({ ...x, sales: round(x.sales, 2) }))
+        .sort((a, c) => c.sales - a.sales)
+        .slice(0, 15),
     }
   }
   return out
@@ -343,9 +594,13 @@ function main() {
   const pack = {
     updated_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
     traffic: null,
+    marketing: null,
+    service: null,
     supply: null,
     product: null,
     activity: null,
+    reverse: null,
+    delivery: null,
     notes: [],
   }
 
@@ -354,6 +609,15 @@ function main() {
   const supplyFile = findFile((f) => f.includes('商品分析') && f.includes('店铺汇总'))
   const productFile = findFile((f) => f.includes('商品分析') && f.includes('商品明细'))
   const activityFile = findFile((f) => f.includes('活动') && f.includes('店铺'))
+  const marketingFile = findFile((f) => f.startsWith('周期趋势') && !f.includes('渠道'))
+  const serviceFile = findFile((f) => f.includes('服务数据'))
+  const reverseFile = findFile((f) => f.includes('订单分析') && f.includes('逆向单'))
+  const deliveryFile = findFile((f) => f.includes('订单分析') && f.includes('配送异常单'))
+
+  if (marketingFile) {
+    pack.marketing = ingestMarketingTrend(path.join(marketingFile.dir, marketingFile.file))
+    pack.notes.push(`经营推广趋势：${Object.keys(pack.marketing).length} 天`)
+  }
 
   if (trafficFile) {
     console.log('traffic', trafficFile.dir, trafficFile.file)
@@ -361,6 +625,11 @@ function main() {
     pack.notes.push(`流量：${Object.keys(pack.traffic).length} 天`)
   } else {
     pack.notes.push('流量：数据源缺失，未接入')
+  }
+
+  if (serviceFile) {
+    pack.service = ingestService(path.join(serviceFile.dir, serviceFile.file))
+    pack.notes.push(`服务：${Object.keys(pack.service).length} 天`)
   }
 
   if (supplyFile) {
@@ -386,9 +655,21 @@ function main() {
   }
 
   if (activityFile) {
-    pack.notes.push('活动：文件存在但本版未解析（待字段确认）')
+    pack.activity = ingestActivity(path.join(activityFile.dir, activityFile.file))
+    pack.notes.push(`活动：${Object.keys(pack.activity).length} 天`)
   } else {
     pack.notes.push('活动：数据源缺失，未接入')
+  }
+
+
+  if (reverseFile) {
+    pack.reverse = ingestReverse(path.join(reverseFile.dir, reverseFile.file))
+    pack.notes.push(`逆向单：${Object.keys(pack.reverse).length} 天`)
+  }
+
+  if (deliveryFile) {
+    pack.delivery = ingestDelivery(path.join(deliveryFile.dir, deliveryFile.file))
+    pack.notes.push(`配送异常：${Object.keys(pack.delivery).length} 天`)
   }
 
   fs.writeFileSync(OUT, JSON.stringify(pack))

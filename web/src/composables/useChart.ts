@@ -41,7 +41,24 @@ function cloneOption(opt: EChartsOption): EChartsOption {
   try {
     return structuredClone(opt)
   } catch {
-    return JSON.parse(JSON.stringify(opt)) as EChartsOption
+    // 图表 option 常含 formatter / symbolSize 函数，JSON 深拷贝会静默删除这些函数。
+    const seen = new WeakMap<object, unknown>()
+    const copy = (value: unknown): unknown => {
+      if (value == null || typeof value !== 'object') return value
+      if (value instanceof Date) return new Date(value)
+      if (seen.has(value)) return seen.get(value)
+      if (Array.isArray(value)) {
+        const arr: unknown[] = []
+        seen.set(value, arr)
+        for (const item of value) arr.push(copy(item))
+        return arr
+      }
+      const out: Record<string, unknown> = {}
+      seen.set(value, out)
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) out[key] = copy(item)
+      return out
+    }
+    return copy(opt) as EChartsOption
   }
 }
 

@@ -31,10 +31,10 @@
         <section class="card">
           <div class="sec-head">
             <span class="no">2</span>
-            渠道实付结构
-            <em>立体饼图 · 标百分比</em>
+            渠道实付贡献
+            <em>长度看规模 · 标注渠道份额</em>
           </div>
-          <div ref="channelPieEl" class="chart chart--pie3d" />
+          <div ref="channelPieEl" class="chart chart--md" />
         </section>
         <section class="card">
           <div class="sec-head">
@@ -46,69 +46,19 @@
         </section>
       </div>
 
-      <section v-if="channelCards.length" class="card">
-        <div class="sec-head">
-          <span class="no">4</span>
-          渠道数据
-          <em>订单 / 实付 / 单均 / 毛利</em>
-        </div>
-        <div class="ch-cards" :style="{ gridTemplateColumns: `repeat(${channelCards.length}, minmax(0, 1fr))` }">
-          <div v-for="c in channelCards" :key="c.channel" class="ch-card">
-            <b :style="{ color: channelColor(c.channel) }">{{ c.channel }}</b>
-            <div class="ch-card__row"><span>订单</span><em>{{ Math.round(c.orders).toLocaleString() }}</em></div>
-            <div class="ch-card__row"><span>实付</span><em>¥{{ fmtMoney(c.paid) }}</em></div>
-            <div class="ch-card__row"><span>单均</span><em>¥{{ c.aov.toFixed(1) }}</em></div>
-            <div class="ch-card__row"><span>毛利</span><em>¥{{ fmtMoney(c.profit) }}</em></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="sec-head">
-          <span class="no">5</span>
-          门店 × 渠道明细
-          <em>实付订单 / 实付金额 / 单均实付 / 毛利 · 可滑动</em>
-        </div>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th class="lbl">门店</th>
-                <th class="lbl">渠道</th>
-                <th>实付订单</th>
-                <th>实付金额</th>
-                <th>单均实付</th>
-                <th>毛利</th>
-                <th>毛利率</th>
-                <th>店内份额</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, idx) in storeChannelRows" :key="row.store + row.channel + idx">
-                <td class="lbl">{{ row.store }}</td>
-                <td class="lbl">
-                  <i class="dot" :style="{ background: channelColor(row.channel) }" />
-                  {{ row.channel }}
-                </td>
-                <td>{{ Math.round(row.orders).toLocaleString() }}</td>
-                <td>{{ fmtMoney(row.paid) }}</td>
-                <td>¥{{ row.aov.toFixed(1) }}</td>
-                <td>{{ fmtMoney(row.profit) }}</td>
-                <td :class="marginCls(row.profitRate)">{{ (row.profitRate * 100).toFixed(1) }}%</td>
-                <td>{{ (row.storeShare * 100).toFixed(1) }}%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <section class="decision-strip">
+        <span class="no">4</span>
+        <div><b>经营判断</b><p>{{ headline || '当前周期暂无完整环比，先看渠道贡献和门店分化。' }}</p></div>
+        <div class="decision-tip"><b>下钻顺序</b><p>订单弱看流量漏斗；实付弱看客单与活动；毛利弱看商品和退款。</p></div>
       </section>
 
       <div class="split">
         <section class="card">
-          <div class="sec-head"><span class="no">6</span>规模 Top10<em>实付金额</em></div>
+          <div class="sec-head"><span class="no">5</span>规模 Top10<em>实付金额</em></div>
           <div ref="storePaidEl" class="chart chart--md" />
         </section>
         <section class="card">
-          <div class="sec-head"><span class="no">7</span>周增长榜<em>相对上周</em></div>
+          <div class="sec-head"><span class="no">6</span>周增长榜<em>相对上周</em></div>
           <div ref="storeDeltaEl" class="chart chart--md" />
         </section>
       </div>
@@ -117,16 +67,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import type { EChartsOption } from 'echarts'
-import 'echarts-gl'
 import {
   fetchStoreBusinessReport,
   type BizKpi,
   type StoreBusinessReport,
 } from '../../api/opsDashboard'
 import { useChart } from '../../composables/useChart'
-import { buildPie3DOption } from '../../utils/pie3d'
 
 const props = defineProps<{
   dateKey: string
@@ -168,25 +116,6 @@ const PALETTE = [
   '#a855f7',
   '#f43f5e',
 ]
-
-const storeChannelRows = computed(() => report.value?.storeChannels || [])
-
-const channelCards = computed(() => {
-  const list = report.value?.channels || []
-  return list.map((c) => {
-    const fromBoard = (report.value?.storeChannels || []).filter((x) => x.channel === c.channel)
-    const orders = fromBoard.reduce((a, x) => a + x.orders, 0)
-    const paid = c.paid
-    const profit = c.profit
-    return {
-      channel: c.channel,
-      orders: orders || 0,
-      paid,
-      aov: orders ? paid / orders : 0,
-      profit,
-    }
-  })
-})
 
 function channelColor(name: string) {
   const n = name || ''
@@ -244,12 +173,6 @@ function kpiTone(k: BizKpi) {
   return 'pass'
 }
 
-function marginCls(rate: number) {
-  if (rate < 0.08) return 'worse'
-  if (rate >= 0.12) return 'better'
-  return ''
-}
-
 function buildHeadline(r: StoreBusinessReport) {
   const paid = r.kpis.find((k) => k.key === 'paid')
   const orders = r.kpis.find((k) => k.key === 'orders')
@@ -277,14 +200,19 @@ function buildCharts(r: StoreBusinessReport) {
   buildHeadline(r)
 
   const channels = [...(r.channels || [])].sort((a, b) => b.paid - a.paid)
-  channelPieOpt.value = buildPie3DOption(
-    channels.map((c) => ({
-      name: c.channel || '未知',
-      value: Math.max(0, c.paid),
-      itemStyle: { color: channelColor(c.channel) },
-    })),
-    { selectedName: channels[0]?.channel, alpha: 26, beta: 32, distance: 165 },
-  ) as EChartsOption
+  const channelRows = [...channels].reverse()
+  const maxChannel = Math.max(...channelRows.map((c) => c.paid), 1)
+  channelPieOpt.value = {
+    grid: { left: 86, right: 92, top: 18, bottom: 22 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    xAxis: { type: 'value', show: false, max: maxChannel * 1.25 },
+    yAxis: { type: 'category', data: channelRows.map((c) => c.channel), axisLine: { show: false }, axisTick: { show: false } },
+    series: [{
+      type: 'bar', barWidth: 18,
+      data: channelRows.map((c) => ({ value: c.paid, share: c.share, itemStyle: { color: channelColor(c.channel), borderRadius: [0, 9, 9, 0] } })),
+      label: { show: true, position: 'right', color: TEXT, formatter: (p: any) => `¥${fmtMoney(p.value)} · ${(Number(p.data.share || 0) * 100).toFixed(0)}%` },
+    }],
+  }
 
   const days = r.dayTrend || []
   dayTrendOpt.value = {
@@ -579,92 +507,27 @@ watch(
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
-.ch-cards {
+.decision-strip {
   display: grid;
-  gap: 10px;
-}
-.ch-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
+  grid-template-columns: 28px 1fr 1fr;
+  align-items: center;
+  gap: 12px 18px;
+  padding: 15px 18px;
+  border-radius: 14px;
   border: 1px solid #e8eef5;
-  font-size: 12px;
-  color: #64748b;
-  b {
-    font-size: 14px;
-    font-weight: 800;
-    margin-bottom: 2px;
-  }
-  &__row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 8px;
-    span {
-      color: #94a3b8;
-    }
-    em {
-      font-style: normal;
-      font-weight: 700;
-      font-family: var(--ops-font-num, Rajdhani, monospace);
-      color: #0f172a;
-      font-size: 13px;
-    }
-  }
+  border-left: 4px solid #f59e0b;
+  background: #fff;
+  .no { color: #d97706; font: 800 12px var(--ops-font-num, monospace); }
+  div { padding-right: 16px; }
+  .decision-tip { border-left: 1px solid #e8eef5; padding-left: 18px; }
+  b { font-size: 13px; }
+  p { margin: 4px 0 0; color: #64748b; font-size: 12px; line-height: 1.5; }
 }
 .chart {
   width: 100%;
-  &--pie3d {
-    height: 300px;
-  }
   &--md {
     height: 300px;
   }
-}
-.scroll {
-  max-height: 320px;
-  overflow: auto;
-  border: 1px solid #f1f5f9;
-  border-radius: 10px;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  th,
-  td {
-    padding: 8px 10px;
-    text-align: center;
-    border-bottom: 1px solid #f1f5f9;
-    font-variant-numeric: tabular-nums;
-    font-family: var(--ops-font-num, Rajdhani, monospace);
-  }
-  th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: #fff;
-    box-shadow: 0 1px 0 #f1f5f9;
-    color: #94a3b8;
-    font-weight: 700;
-    font-size: 12px;
-  }
-  td.lbl,
-  th.lbl {
-    text-align: left;
-    font-family: var(--ops-font, inherit);
-  }
-}
-.dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
-  vertical-align: middle;
 }
 .better {
   color: #0d9488;
@@ -682,13 +545,7 @@ table {
   .split {
     grid-template-columns: 1fr;
   }
-  .ch-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-@media (max-width: 720px) {
-  .ch-cards {
-    grid-template-columns: 1fr !important;
-  }
+  .decision-strip { grid-template-columns: 28px 1fr; }
+  .decision-strip .decision-tip { grid-column: 2; border-left: 0; padding-left: 0; }
 }
 </style>

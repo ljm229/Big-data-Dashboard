@@ -111,7 +111,7 @@ import StoreBoardTabs from './components/StoreBoardTabs.vue'
 import DateFilter from './components/DateFilter.vue'
 
 const activeView = ref<'cockpit' | 'ops'>('ops')
-const opsEdition = ref<'classic' | 'tabs'>('classic')
+const opsEdition = ref<'classic' | 'tabs'>('tabs')
 const filter = useFilterStore()
 const { scale, style, wrapperStyle } = useScreenScale(1920, 1280)
 /** 仅数据大屏做 scale；运营看板保持 1，避免下拉/弹层被二次缩小 */

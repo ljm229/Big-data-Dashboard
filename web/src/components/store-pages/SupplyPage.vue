@@ -1,92 +1,47 @@
 <!-- 中文名：商品供给页 -->
 <template>
-  <div class="supply">
-    <p v-if="!board" class="empty">当前周期暂无商品供给店铺数据（不编造）。</p>
-
+  <div class="page">
+    <p v-if="!product && !supply" class="empty">当前筛选下暂无商品供给数据。</p>
     <template v-else>
-      <p class="meta">
-        分析方向：P2 / 商责退 / 负毛利断点时下钻品类与数量 · 口径 {{ board.label }} ·
-        {{ board.summary.storeCnt }} 家店
-      </p>
+      <div class="page-lead">
+        <div><b>商品供给诊断</b><span>{{ product?.label || supply?.label }}</span></div>
+        <p>{{ lead }}</p>
+      </div>
 
-      <section class="card">
-        <div class="sec-head"><span class="no">1</span>供给健康总览</div>
-        <div class="kpis">
-          <div v-for="k in kpiCards" :key="k.label" class="kpi">
-            <i>{{ k.label }}</i>
-            <b>{{ k.value }}</b>
-            <span>{{ k.sub }}</span>
-          </div>
-        </div>
-        <p v-if="board.tips[0]" class="note">{{ board.tips[0] }}</p>
+      <section class="signal-strip">
+        <div><span>实际销售额</span><b>{{ money(product?.summary.sales) }}</b><em>{{ formatInt(product?.summary.orders || 0) }} 个带来订单</em></div>
+        <div><span>销量</span><b>{{ formatInt(product?.summary.qty || 0) }}</b><em>商品明细汇总</em></div>
+        <div><span>缺货次数</span><b class="warn">{{ formatInt(product?.summary.stockoutTimes || supply?.summary.stockout || 0) }}</b><em>供给机会</em></div>
+        <div><span>缺货预计损失</span><b class="risk">{{ money(product?.summary.stockoutLoss || supply?.summary.absentLoss) }}</b><em>优先补齐高损失品</em></div>
+        <div><span>退款金额</span><b>{{ money(product?.summary.refundAmt) }}</b><em>{{ formatInt(product?.summary.refundOrders || 0) }} 笔</em></div>
       </section>
 
-      <div class="grid-2">
-        <section class="card">
-          <div class="sec-head"><span class="no">2</span>缺勤损失排行（店）</div>
-          <div class="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th class="lbl">门店</th>
-                  <th>出勤率</th>
-                  <th>缺货</th>
-                  <th>缺勤</th>
-                  <th>缺勤损失</th>
-                  <th>动销</th>
-                  <th>在架</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="st in board.stores" :key="st.shortName">
-                  <td class="lbl">{{ st.shortName }}</td>
-                  <td :class="attTone(st.attendance)">{{ formatPercent(st.attendance) }}</td>
-                  <td>{{ formatInt(st.stockout) }}</td>
-                  <td>{{ formatInt(st.absent) }}</td>
-                  <td class="em">{{ money(st.absentLoss) }}</td>
-                  <td>{{ formatInt(st.active) }}</td>
-                  <td>{{ formatInt(st.online) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <div class="grid hero-grid">
+        <section class="panel">
+          <header><div><i>01</i><b>品类成交版图</b></div><span>面积=销售额 · 颜色固定区分类目</span></header>
+          <div v-if="product?.categories.length" ref="categoryEl" class="chart category-chart" />
+          <div v-else class="empty-inline">单店筛选下暂无品类拆分，仍可查看门店与 SKU 风险。</div>
         </section>
+        <section class="panel">
+          <header><div><i>02</i><b>缺货损失 SKU Top</b></div><span>预计损失金额</span></header>
+          <div v-if="product?.topLossSku.length" ref="lossEl" class="chart loss-chart" />
+          <div v-else class="empty-inline">暂无缺货损失商品明细</div>
+        </section>
+      </div>
 
-        <section class="card">
-          <div class="sec-head"><span class="no">3</span>组套贡献</div>
-          <div class="bundle">
-            <div>
-              <i>组套实付</i>
-              <b>{{ money(board.summary.bundlePaid) }}</b>
-            </div>
-            <div>
-              <i>组套订单</i>
-              <b>{{ formatInt(board.summary.bundleOrders) }}</b>
-            </div>
-          </div>
-          <p class="note">组套指标来自店铺汇总；无占比分母时不估算「组套成交占比」。</p>
-
-          <div class="sec-head sub"><span class="no">4</span>品级缺货损失 Top</div>
-          <div v-if="!product?.topLossSku?.length" class="empty-inline">暂无品钻缺货损失明细</div>
-          <div v-else class="scroll short">
-            <table>
-              <thead>
-                <tr>
-                  <th class="lbl">商品</th>
-                  <th>缺货次数</th>
-                  <th>预计损失</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="p in product!.topLossSku" :key="p.name">
-                  <td class="lbl wrap">{{ p.name }}</td>
-                  <td>{{ formatInt(p.times) }}</td>
-                  <td class="em">{{ money(p.loss) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p v-if="product?.tips?.[0]" class="note">{{ product.tips[0] }}</p>
+      <div class="grid two">
+        <section class="panel">
+          <header><div><i>03</i><b>门店供给风险</b></div><span>横轴销售额 · 纵轴缺货损失率</span></header>
+          <div v-if="product?.stores.length" ref="storeEl" class="chart store-chart" />
+          <div v-else class="empty-inline">暂无门店商品汇总</div>
+        </section>
+        <section class="panel actions">
+          <header><div><i>04</i><b>补货优先级</b></div><span>金额损失优先于次数</span></header>
+          <article v-for="(item, i) in actionSku" :key="item.name">
+            <em>{{ String(i + 1).padStart(2,'0') }}</em>
+            <div><b>{{ item.name }}</b><span>缺货 {{ formatInt(item.times) }} 次</span></div>
+            <strong>{{ money(item.loss) }}</strong>
+          </article>
         </section>
       </div>
     </template>
@@ -94,223 +49,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { fetchProductBoard, fetchSupplyBoard } from '../../api/opsPack'
-import { formatInt, formatMoney, formatPercent } from '../../utils/format'
+import { useChart } from '../../composables/useChart'
+import { formatInt, formatMoney } from '../../utils/format'
 
-const props = defineProps<{
-  dateKey: string
-  city: string
-  storeId: string
-  storeHint?: string
-}>()
+const props=defineProps<{dateKey:string;city:string;storeId:string;storeHint?:string}>()
+const product=computed(()=>fetchProductBoard(props.dateKey,props.storeId,props.storeHint))
+const supply=computed(()=>fetchSupplyBoard(props.dateKey,props.city,props.storeId,props.storeHint))
+const actionSku=computed(()=>product.value?.topLossSku.slice(0,7)||[])
+const lead=computed(()=>{const p=product.value; if(!p)return supply.value?.tips[0]||''; const top=p.topLossSku[0]; return top?`供给损失集中在「${top.name.slice(0,22)}」，预计损失 ${money(top.loss)}；先补高损失核心品。`:'当前暂无显著缺货损失，继续关注退款和动销。'})
+function money(v:number|null|undefined){return v==null?'—':`¥${formatMoney(v)}`}
+function shortName(v:string){return v.length>13?`${v.slice(0,12)}…`:v}
 
-const board = computed(() =>
-  fetchSupplyBoard(props.dateKey, props.city, props.storeId, props.storeHint),
-)
-const product = computed(() => fetchProductBoard(props.dateKey, props.storeId, props.storeHint))
-
-function money(n: number | null | undefined) {
-  if (n == null) return '--'
-  return '¥' + formatMoney(n)
-}
-
-const kpiCards = computed(() => {
-  const s = board.value?.summary
-  if (!s) return []
-  const sellRate = s.online ? s.active / s.online : null
-  const stockRate = s.online ? s.stockout / s.online : null
-  return [
-    { label: '商品出勤率', value: formatPercent(s.attendance), sub: '店均值' },
-    { label: '缺勤损失', value: money(s.absentLoss), sub: `缺勤品 ${formatInt(s.absent)}` },
-    { label: '缺货商品数', value: formatInt(s.stockout), sub: stockRate != null ? `约占在架 ${formatPercent(stockRate)}` : '' },
-    { label: '动销 / 在架', value: `${formatInt(s.active)} / ${formatInt(s.online)}`, sub: sellRate != null ? `动销率 ${formatPercent(sellRate)}` : '' },
-    { label: '退款 / 差评品', value: `${formatInt(s.refundSku)} / ${formatInt(s.badSku)}`, sub: '店铺汇总' },
-  ]
-})
-
-function attTone(v: number | null) {
-  if (v == null) return ''
-  return v < 0.85 ? 'bad' : ''
-}
+const categoryEl=ref<HTMLElement|null>(null),lossEl=ref<HTMLElement|null>(null),storeEl=ref<HTMLElement|null>(null)
+const categoryOpt=computed<any>(()=>({
+  tooltip:{formatter:(p:any)=>`${p.name}<br/>销售额 ${money(p.value)}`},
+  series:[{type:'treemap',roam:false,nodeClick:false,breadcrumb:{show:false},label:{show:true,formatter:(p:any)=>`${shortName(p.name)}\n${money(p.value)}`,fontSize:12,lineHeight:18},upperLabel:{show:false},itemStyle:{borderColor:'#fff',borderWidth:3,gapWidth:2},levels:[{color:['#1D6BFF','#0EA5E9','#14B8A6','#8B5CF6','#F59E0B','#FB7185','#64748B'],colorSaturation:[.32,.68]}],data:(product.value?.categories||[]).slice(0,14).map(x=>({name:x.name,value:x.sales,refund:x.refundAmt,loss:x.stockoutLoss}))}]
+}))
+const lossOpt=computed<any>(()=>{const rows=[...(product.value?.topLossSku||[])].slice(0,9).reverse();return{grid:{left:118,right:62,top:12,bottom:22},tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},xAxis:{type:'value',axisLabel:{formatter:(v:number)=>v>=10000?`${(v/10000).toFixed(1)}万`:v},splitLine:{lineStyle:{color:'#edf2f7'}}},yAxis:{type:'category',data:rows.map(x=>shortName(x.name)),axisLine:{show:false},axisTick:{show:false},axisLabel:{width:108,overflow:'truncate'}},series:[{type:'bar',barWidth:14,data:rows.map((x,i)=>({value:x.loss,itemStyle:{color:i>=rows.length-3?'#EF5B5B':'#F59E0B',borderRadius:[0,8,8,0]}})),label:{show:true,position:'right',color:'#64748b',formatter:(p:any)=>money(p.value)}}]}})
+const storeOpt=computed<any>(()=>{const rows=product.value?.stores||[];return{grid:{left:56,right:25,top:30,bottom:48},tooltip:{formatter:(p:any)=>`${p.name}<br/>销售额 ${money(p.value[0])}<br/>缺货损失率 ${p.value[1].toFixed(2)}%<br/>缺货 ${formatInt(p.value[2])} 次`},xAxis:{name:'销售额',axisLabel:{formatter:(v:number)=>v>=10000?`${(v/10000).toFixed(0)}万`:v},splitLine:{lineStyle:{color:'#edf2f7'}}},yAxis:{name:'损失率',axisLabel:{formatter:'{value}%'},splitLine:{lineStyle:{color:'#edf2f7'}}},series:[{type:'scatter',data:rows.map(x=>{const rate=x.sales?x.stockoutLoss/x.sales*100:0;return{name:x.shortName,value:[x.sales,rate,x.stockoutTimes],itemStyle:{color:rate>=1?'#EF5B5B':rate>=.3?'#F59E0B':'#14B8A6'}}}),symbolSize:(v:number[])=>Math.max(10,Math.min(32,Math.sqrt(v[2]||0)*1.5))}]}})
+useChart(categoryEl,categoryOpt as any);useChart(lossEl,lossOpt as any);useChart(storeEl,storeOpt as any)
 </script>
 
 <style scoped lang="scss">
-.supply {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-bottom: 24px;
-}
-.meta {
-  margin: 0;
-  font-size: 12px;
-  color: var(--ops-muted);
-}
-.empty {
-  margin: 0;
-  padding: 28px;
-  text-align: center;
-  border-radius: var(--ops-radius);
-  background: var(--ops-surface);
-  border: 1px dashed var(--ops-border);
-  color: var(--ops-muted);
-  font-weight: 600;
-}
-.card {
-  background: var(--ops-surface);
-  border-radius: var(--ops-radius);
-  padding: 16px 18px;
-  border: 1px solid var(--ops-border);
-  box-shadow: var(--ops-shadow);
-}
-.sec-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 15px;
-  font-weight: 800;
-  margin-bottom: 12px;
-  &.sub {
-    margin-top: 18px;
-  }
-  .no {
-    display: inline-flex;
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: var(--ops-primary-soft);
-    color: var(--ops-primary);
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-family: var(--ops-font-num);
-  }
-}
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
-.kpi {
-  border: 1px solid var(--ops-border);
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
-  i {
-    display: block;
-    font-style: normal;
-    font-size: 12px;
-    color: var(--ops-muted);
-    font-weight: 600;
-  }
-  b {
-    display: block;
-    margin: 8px 0 4px;
-    font-size: 20px;
-    font-family: var(--ops-font-num);
-    color: var(--ops-num);
-  }
-  span {
-    font-size: 11px;
-    color: var(--ops-muted);
-  }
-}
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 12px;
-}
-.scroll {
-  overflow: auto;
-  max-height: 420px;
-  border: 1px solid var(--ops-border-soft);
-  border-radius: 8px;
-  &.short {
-    max-height: 260px;
-  }
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  th,
-  td {
-    padding: 9px 10px;
-    border-bottom: 1px solid var(--ops-border-soft);
-    text-align: right;
-    white-space: nowrap;
-  }
-  th {
-    position: sticky;
-    top: 0;
-    background: #f8fafc;
-    color: var(--ops-muted);
-    font-size: 12px;
-  }
-  .lbl {
-    text-align: left;
-    font-weight: 600;
-  }
-  .wrap {
-    white-space: normal;
-    max-width: 220px;
-    line-height: 1.35;
-  }
-  .em {
-    font-family: var(--ops-font-num);
-    font-weight: 700;
-    color: var(--ops-primary);
-  }
-  .bad {
-    color: var(--ops-bad);
-    font-weight: 700;
-  }
-}
-.bundle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 8px;
-  > div {
-    padding: 14px;
-    border-radius: 10px;
-    border: 1px solid var(--ops-border);
-    background: #f8fbff;
-    i {
-      display: block;
-      font-style: normal;
-      font-size: 12px;
-      color: var(--ops-muted);
-    }
-    b {
-      display: block;
-      margin-top: 6px;
-      font-size: 22px;
-      font-family: var(--ops-font-num);
-    }
-  }
-}
-.empty-inline {
-  padding: 14px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px dashed var(--ops-border);
-  color: var(--ops-muted);
-  font-size: 13px;
-}
-.note {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--ops-muted);
-  line-height: 1.55;
-}
-@media (max-width: 1100px) {
-  .kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
-}
+.page{display:flex;flex-direction:column;gap:14px;padding-bottom:26px;color:#0f172a}.empty,.empty-inline{padding:28px;text-align:center;background:#fff;border:1px dashed #dce5ef;border-radius:14px;color:#64748b}.page-lead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-radius:14px;background:#0c4a5c;color:#fff}.page-lead div{display:flex;align-items:baseline;gap:12px}.page-lead b{font-size:18px}.page-lead span{font-size:12px;color:#a5d7df}.page-lead p{margin:0;font-size:13px;color:#d8f2f5}.signal-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border:1px solid #e8eef6;border-radius:14px;padding:4px 0}.signal-strip div{padding:12px 16px;border-right:1px solid #edf2f7}.signal-strip div:last-child{border:0}.signal-strip span,.signal-strip em{display:block;font-size:11px;color:#94a3b8;font-style:normal}.signal-strip b{display:block;margin:5px 0 2px;font:800 20px var(--ops-font-num)}.signal-strip .warn{color:#d97706}.signal-strip .risk{color:#e34d59}.panel{background:#fff;border:1px solid #e8eef6;border-radius:14px;padding:16px 18px;box-shadow:0 8px 24px rgba(15,23,42,.035)}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}header div{display:flex;align-items:center;gap:9px}header i{font-style:normal;color:#0f9f8f;background:#e7fbf7;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:800}header b{font-size:15px}header span{font-size:11px;color:#94a3b8}.grid{display:grid;gap:14px}.hero-grid{grid-template-columns:1.1fr .9fr}.two{grid-template-columns:1.05fr .95fr}.chart{width:100%}.category-chart,.loss-chart{height:330px}.store-chart{height:310px}.actions article{display:grid;grid-template-columns:30px 1fr 86px;align-items:center;gap:8px;padding:11px 10px;border-bottom:1px solid #edf2f7}.actions article:last-child{border:0}.actions em{font-style:normal;color:#f59e0b;font:800 14px var(--ops-font-num)}.actions div{display:flex;flex-direction:column;min-width:0}.actions b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions span{font-size:10px;color:#94a3b8}.actions strong{text-align:right;color:#e34d59;font:700 13px var(--ops-font-num)}@media(max-width:1100px){.page-lead{align-items:flex-start;flex-direction:column;gap:7px}.signal-strip{grid-template-columns:repeat(2,1fr)}.hero-grid,.two{grid-template-columns:1fr}}
 </style>
