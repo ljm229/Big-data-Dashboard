@@ -17,9 +17,9 @@
       </section>
 
       <section class="panel">
-        <header><div><i>01</i><b>投入与成交趋势</b></div><span>柱：推广费 / 活动成本 · 线：全店实付</span></header>
+        <header><div><i>01</i><b>营销投入强度</b></div><span>{{ trendCaption }}</span></header>
         <div ref="trendEl" class="chart trend" />
-        <p class="note">全店实付与推广费来自同日经营趋势，用于判断投入强度，不作为广告归因 ROAS。</p>
+        <p class="note">投入强度 =（推广费 + 活动成本）/ 全店实付；用于观察费用压力，不作为广告归因 ROAS。</p>
       </section>
 
       <div class="grid two">
@@ -63,6 +63,9 @@ const lead = computed(() => {
   if (!s) return ''
   return `本期活动源表覆盖 ${s.activeStores}/${s.coverageStores} 家门店；活动成交 ${money(s.activityPaid)}，优先放大右上象限的高产出拉新活动。`
 })
+const trendCaption = computed(() => (board.value?.daily.length || 0) > 1
+  ? '堆叠面积：推广费率 + 活动成本率 · 折线：总投入率'
+  : '单日仪表：营销费用占全店实付比例')
 function money(v: number | null | undefined) { return v == null ? '—' : `¥${formatMoney(v)}` }
 function multiple(v: number | null | undefined) { return v == null ? '—' : `${v.toFixed(1)}×` }
 
@@ -71,14 +74,55 @@ const activityEl = ref<HTMLElement | null>(null)
 const customerEl = ref<HTMLElement | null>(null)
 const trendOpt = computed<any>(() => {
   const rows = board.value?.daily || []
+  if (rows.length <= 1) {
+    const row = rows[0] || { paid: 0, promotionSpend: 0, activityCost: 0 }
+    const promoRate = row.paid ? row.promotionSpend / row.paid * 100 : 0
+    const activityRate = row.paid ? row.activityCost / row.paid * 100 : 0
+    const totalRate = promoRate + activityRate
+    const gaugeMax = Math.max(100, Math.ceil(totalRate / 20) * 20)
+    const gaugeColor = totalRate > 80 ? '#EF5B5B' : totalRate > 50 ? '#F59E0B' : '#14B8A6'
+    return {
+      tooltip: { formatter: `全店实付 ${money(row.paid)}<br/>推广费 ${money(row.promotionSpend)} · ${promoRate.toFixed(1)}%<br/>活动成本 ${money(row.activityCost)} · ${activityRate.toFixed(1)}%` },
+      graphic: [
+        { type: 'group', left: '17%', top: '74%', children: [
+          { type: 'circle', shape: { cx: 0, cy: 0, r: 5 }, style: { fill: '#8B5CF6' } },
+          { type: 'text', left: 12, top: -8, style: { text: `推广费率  ${promoRate.toFixed(1)}%\n${money(row.promotionSpend)}`, fill: '#475569', font: '600 13px sans-serif', lineHeight: 22 } },
+        ] },
+        { type: 'group', right: '17%', top: '74%', children: [
+          { type: 'circle', shape: { cx: 0, cy: 0, r: 5 }, style: { fill: '#F59E0B' } },
+          { type: 'text', left: 12, top: -8, style: { text: `活动成本率  ${activityRate.toFixed(1)}%\n${money(row.activityCost)}`, fill: '#475569', font: '600 13px sans-serif', lineHeight: 22 } },
+        ] },
+      ],
+      series: [{
+        type: 'gauge', startAngle: 210, endAngle: -30, min: 0, max: gaugeMax,
+        center: ['50%', '51%'], radius: '88%', pointer: { show: false },
+        progress: { show: true, roundCap: true, width: 24, itemStyle: { color: gaugeColor } },
+        axisLine: { roundCap: true, lineStyle: { width: 24, color: [[1, '#EAF0F6']] } },
+        axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
+        title: { show: true, offsetCenter: [0, '28%'], color: '#64748B', fontSize: 13 },
+        detail: { valueAnimation: true, offsetCenter: [0, '-4%'], color: '#0F172A', fontSize: 36, fontWeight: 800, formatter: '{value}%' },
+        data: [{ value: Number(totalRate.toFixed(1)), name: '总营销投入率' }],
+      }],
+    }
+  }
+  const ratios = rows.map((row) => ({
+    day: row.day,
+    promo: row.paid ? row.promotionSpend / row.paid * 100 : 0,
+    activity: row.paid ? row.activityCost / row.paid * 100 : 0,
+    total: row.paid ? (row.promotionSpend + row.activityCost) / row.paid * 100 : 0,
+    paid: row.paid,
+    promotionSpend: row.promotionSpend,
+    activityCost: row.activityCost,
+  }))
   return {
-    grid: { left: 55, right: 65, top: 36, bottom: 34 }, legend: { top: 4, right: 8 }, tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: rows.map(x => x.day.slice(5)), axisTick: { show: false }, axisLine: { lineStyle: { color: '#dbe5ef' } } },
-    yAxis: [{ type: 'value', name: '费用', splitLine: { lineStyle: { color: '#edf2f7' } }, axisLabel: { formatter: (v: number) => v >= 10000 ? `${(v/10000).toFixed(0)}万` : v } }, { type: 'value', name: '实付', splitLine: { show: false }, axisLabel: { formatter: (v: number) => v >= 10000 ? `${(v/10000).toFixed(0)}万` : v } }],
+    grid: { left: 55, right: 26, top: 40, bottom: 34 }, legend: { top: 4, right: 8 },
+    tooltip: { trigger: 'axis', formatter: (params: any[]) => { const i = params[0]?.dataIndex || 0; const row = ratios[i]; return `${row.day}<br/>全店实付 ${money(row.paid)}<br/>推广费 ${money(row.promotionSpend)} · ${row.promo.toFixed(1)}%<br/>活动成本 ${money(row.activityCost)} · ${row.activity.toFixed(1)}%<br/><b>总投入率 ${row.total.toFixed(1)}%</b>` } },
+    xAxis: { type: 'category', data: ratios.map(x => x.day.slice(5)), axisTick: { show: false }, axisLine: { lineStyle: { color: '#dbe5ef' } } },
+    yAxis: { type: 'value', name: '占实付比例', axisLabel: { formatter: '{value}%' }, splitLine: { lineStyle: { color: '#edf2f7' } } },
     series: [
-      { name: '推广费', type: 'bar', stack: 'cost', barMaxWidth: 22, data: rows.map(x => x.promotionSpend), itemStyle: { color: '#8B5CF6' } },
-      { name: '活动成本', type: 'bar', stack: 'cost', data: rows.map(x => x.activityCost), itemStyle: { color: '#F59E0B', borderRadius: [5,5,0,0] } },
-      { name: '全店实付', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, data: rows.map(x => x.paid), lineStyle: { width: 2.5, color: '#1D6BFF' }, itemStyle: { color: '#1D6BFF' } },
+      { name: '推广费率', type: 'line', stack: 'rate', smooth: true, symbol: 'none', data: ratios.map(x => x.promo), lineStyle: { width: 1.5, color: '#8B5CF6' }, areaStyle: { color: 'rgba(139,92,246,.42)' }, itemStyle: { color: '#8B5CF6' } },
+      { name: '活动成本率', type: 'line', stack: 'rate', smooth: true, symbol: 'none', data: ratios.map(x => x.activity), lineStyle: { width: 1.5, color: '#F59E0B' }, areaStyle: { color: 'rgba(245,158,11,.36)' }, itemStyle: { color: '#F59E0B' } },
+      { name: '总投入率', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, data: ratios.map(x => x.total), lineStyle: { width: 2.5, color: '#1D6BFF' }, itemStyle: { color: '#1D6BFF' } },
     ]
   }
 })
