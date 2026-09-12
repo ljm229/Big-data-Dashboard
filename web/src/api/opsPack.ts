@@ -144,6 +144,9 @@ export type PromoBoard = {
     activitySubsidy: number
     activityOrders: number
     newUsers: number
+    activeStores: number
+    coverageStores: number
+    sourceRows: number
   }
   daily: {
     day: string
@@ -404,6 +407,19 @@ export function getOpsPackMeta() {
   }
 }
 
+/** 增量数据包中实际可用的自然日，用于补齐质量库尚未覆盖的新日期。 */
+export function getOpsPackAvailableDates(): string[] {
+  const keys = [data.traffic, data.marketing, data.service, data.supply, data.activity, data.reverse, data.delivery]
+    .flatMap((bucket) => bucket ? Object.keys(bucket) : [])
+    .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
+  if (data.product) {
+    for (const row of Object.values(data.product)) {
+      if (row.kind === 'day' && row.from) keys.push(row.from)
+    }
+  }
+  return [...new Set(keys)].sort()
+}
+
 export function fetchTrafficBoard(
   dateKey: string,
   city = '全部',
@@ -474,7 +490,13 @@ export function fetchTrafficBoard(
     .slice(0, 12)
 
   // 环比：上一同等跨度且天数对齐才展示（避免残周对完整周）
-  const prevDays = prevDaysOf(days).filter((d) => data.traffic![d])
+  const prevDays = (dateKey.startsWith('W:')
+    ? days.map((day) => {
+        const d = new Date(`${day}T12:00:00`)
+        d.setDate(d.getDate() - 7)
+        return toIsoLocal(d)
+      })
+    : prevDaysOf(days)).filter((d) => data.traffic![d])
   let prevFunnel: Funnel | null = null
   if (prevDays.length === days.length) {
     const prevStores: Funnel[] = []
@@ -773,8 +795,11 @@ export function fetchPromoBoard(dateKey: string, storeId = '全部', storeHint?:
     activitySubsidy: activities.reduce((a, row) => a + row.merchantSubsidy, 0),
     activityOrders: activities.reduce((a, row) => a + row.activityOrders, 0),
     newUsers: activities.reduce((a, row) => a + row.newUsers, 0),
+    activeStores: new Set(activityRows.map((row) => row.shortStore || row.store)).size,
+    coverageStores: new Set(Object.values(data.activity || {}).flat().map((row) => row.shortStore || row.store)).size,
+    sourceRows: activityRows.length,
   }
-  const tips = ['全店实付/推广费用于观察投入强度，不代表广告归因 ROAS。']
+  const tips = [`本期活动源表有 ${summary.sourceRows} 条记录，覆盖 ${summary.activeStores}/${summary.coverageStores} 家活动门店。`, '全店实付/推广费用于观察投入强度，不代表广告归因 ROAS。']
   if (storeId !== '全部') tips.push('推广费用趋势当前只有全店汇总口径；活动明细已按门店筛选。')
   return { days, label: daysLabel(days), summary, daily, activities, tips }
 }

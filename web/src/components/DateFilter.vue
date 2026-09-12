@@ -54,6 +54,7 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import { getAssessmentAvailableDates } from '../api/dashboard'
+import { getOpsPackAvailableDates } from '../api/opsPack'
 import { fetchDatabaseCoverage, subscribeQualityUpdates } from '../api/qualityDatabase'
 import { storeToRefs } from 'pinia'
 import {
@@ -79,15 +80,16 @@ const props = withDefaults(
 const filter = useFilterStore()
 const { selectedDate, selectedWeekId, selectedMonthId, periodMode, channel } = storeToRefs(filter)
 const liveDates = ref<string[]>([])
+const packDates = getOpsPackAvailableDates()
 let initial = true
 async function loadDates() {
   if (props.scope !== 'ops') return
   try {
     const coverage = await fetchDatabaseCoverage()
-    liveDates.value = coverage.dates.map(d=>d.date)
+    liveDates.value = [...new Set([...coverage.dates.map(d => d.date), ...packDates])].sort()
     if (initial) {
       filter.setPeriodMode('day')
-      filter.setDate(coverage.latestDate || new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'}))
+      filter.setDate(coverage.latestDate || liveDates.value[liveDates.value.length - 1] || new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'}))
       initial = false
     }
     const latest = coverage.latestDate
@@ -96,7 +98,7 @@ async function loadDates() {
       if (!liveDates.value.some(d=>d.startsWith(selectedMonthId.value))) filter.selectedMonthId = latest.slice(0,7)
     }
   } catch {
-    liveDates.value = getAssessmentAvailableDates()
+    liveDates.value = [...new Set([...getAssessmentAvailableDates(), ...packDates])].sort()
     if (initial && liveDates.value.length) {
       filter.setPeriodMode('day')
       filter.setDate(liveDates.value[liveDates.value.length - 1])

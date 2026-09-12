@@ -29,11 +29,11 @@
           <div v-else class="empty-inline">当前筛选下无活动明细</div>
         </section>
         <section class="panel customer-panel">
-          <header><div><i>03</i><b>活动拉新结构</b></div><span>按活动成交规模排序</span></header>
-          <div class="customer-total">
-            <div class="new" :style="{ width: newPct + '%' }"><span>新客 {{ formatInt(totalNew) }}</span></div>
-            <div class="old" :style="{ width: 100 - newPct + '%' }"><span>老客 {{ formatInt(totalOld) }}</span></div>
-          </div>
+          <header><div><i>03</i><b>新老客结构</b></div><span>本期覆盖 {{ board.summary.activeStores }}/{{ board.summary.coverageStores }} 家活动门店</span></header>
+          <div ref="customerEl" class="chart customer-chart" />
+          <p v-if="board.summary.activeStores === 1" class="coverage-note">
+            当前日期的活动源表只有 {{ board.summary.sourceRows }} 条门店活动记录，因此这里只显示该门店；切换到按周、按月或 9 月 11 日可查看更多门店。
+          </p>
           <div class="activity-list">
             <article v-for="(item, i) in board.activities.slice(0, 6)" :key="item.id + item.shortStore">
               <em>{{ i + 1 }}</em><div><b>{{ item.shortStore || item.name }}</b><span>{{ item.name }}</span></div>
@@ -61,13 +61,14 @@ const newShare = computed(() => totalNew.value + totalOld.value ? `新客占 ${n
 const lead = computed(() => {
   const s = board.value?.summary
   if (!s) return ''
-  return `活动成交 ${money(s.activityPaid)}，商补 ${money(s.activitySubsidy)}；优先放大右上象限的高产出拉新活动。`
+  return `本期活动源表覆盖 ${s.activeStores}/${s.coverageStores} 家门店；活动成交 ${money(s.activityPaid)}，优先放大右上象限的高产出拉新活动。`
 })
 function money(v: number | null | undefined) { return v == null ? '—' : `¥${formatMoney(v)}` }
 function multiple(v: number | null | undefined) { return v == null ? '—' : `${v.toFixed(1)}×` }
 
 const trendEl = ref<HTMLElement | null>(null)
 const activityEl = ref<HTMLElement | null>(null)
+const customerEl = ref<HTMLElement | null>(null)
 const trendOpt = computed<any>(() => {
   const rows = board.value?.daily || []
   return {
@@ -90,10 +91,27 @@ const activityOpt = computed<any>(() => {
     series: [{ type: 'scatter', data: rows.map(x => ({ name: `${x.shortStore} · ${x.name}`, value: [x.merchantSubsidy, x.paid, x.newUsers], itemStyle: { color: x.paid >= x.merchantSubsidy * 5 ? '#14B8A6' : '#F59E0B' } })), symbolSize: (v: number[]) => Math.max(10, Math.min(34, Math.sqrt(v[2] || 0) * 2)) }]
   }
 })
+const customerOpt = computed<any>(() => ({
+  color: ['#8B5CF6', '#CBD5E1'],
+  tooltip: { trigger: 'item', formatter: '{b}<br/>{c} 人 · {d}%' },
+  legend: { bottom: 2, left: 'center', itemWidth: 10, itemHeight: 10 },
+  graphic: [{
+    type: 'text', left: 'center', top: '37%',
+    style: { text: `新客占比\n${newPct.value.toFixed(1)}%`, textAlign: 'center', font: '700 17px sans-serif', fill: '#0F172A', lineHeight: 24 },
+  }],
+  series: [{
+    type: 'pie', radius: ['50%', '72%'], center: ['50%', '43%'],
+    itemStyle: { borderColor: '#fff', borderWidth: 4 },
+    label: { show: true, color: '#475569', fontSize: 12, formatter: '{b}\n{c}人  {d}%' },
+    labelLine: { length: 10, length2: 8 },
+    data: [{ name: '新客', value: totalNew.value }, { name: '老客', value: totalOld.value }],
+  }],
+}))
 useChart(trendEl, trendOpt as any)
 useChart(activityEl, activityOpt as any)
+useChart(customerEl, customerOpt as any)
 </script>
 
 <style scoped lang="scss">
-.page{display:flex;flex-direction:column;gap:14px;padding-bottom:26px;color:#0f172a}.empty,.empty-inline{padding:28px;text-align:center;background:#fff;border:1px dashed #dce5ef;border-radius:14px;color:#64748b}.page-lead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-radius:14px;background:#31275f;color:#fff}.page-lead div{display:flex;align-items:baseline;gap:12px}.page-lead b{font-size:18px}.page-lead span{font-size:12px;color:#c8c0ed}.page-lead p{margin:0;font-size:13px;color:#ebe8ff}.signal-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border:1px solid #e8eef6;border-radius:14px;padding:4px 0}.signal-strip div{padding:12px 16px;border-right:1px solid #edf2f7}.signal-strip div:last-child{border:0}.signal-strip span,.signal-strip em{display:block;font-size:11px;color:#94a3b8;font-style:normal}.signal-strip b{display:block;margin:5px 0 2px;font:800 20px var(--ops-font-num)}.panel{background:#fff;border:1px solid #e8eef6;border-radius:14px;padding:16px 18px;box-shadow:0 8px 24px rgba(15,23,42,.035)}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}header div{display:flex;align-items:center;gap:9px}header i{font-style:normal;color:#8b5cf6;background:#f1edff;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:800}header b{font-size:15px}header span{font-size:11px;color:#94a3b8}.chart{width:100%}.trend{height:300px}.activity{height:330px}.note{margin:2px 0 0;color:#94a3b8;font-size:11px}.grid.two{display:grid;grid-template-columns:1.05fr .95fr;gap:14px}.customer-total{height:38px;display:flex;overflow:hidden;border-radius:9px;margin:18px 0}.customer-total div{display:flex;align-items:center;justify-content:center;min-width:44px;color:#fff;font-size:12px;font-weight:700}.customer-total .new{background:#8b5cf6}.customer-total .old{background:#cbd5e1;color:#475569}.activity-list{display:flex;flex-direction:column;gap:6px}.activity-list article{display:grid;grid-template-columns:24px minmax(130px,1fr) 90px 72px;align-items:center;gap:8px;padding:9px 10px;background:#f8fafc;border-radius:9px}.activity-list article>em{font-style:normal;color:#8b5cf6;font-weight:800}.activity-list article div{display:flex;flex-direction:column}.activity-list b{font-size:12px}.activity-list span,.activity-list i{font-size:10px;color:#94a3b8;font-style:normal}.activity-list strong{text-align:right;font:700 13px var(--ops-font-num)}@media(max-width:1100px){.page-lead{align-items:flex-start;flex-direction:column;gap:7px}.signal-strip{grid-template-columns:repeat(2,1fr)}.grid.two{grid-template-columns:1fr}}
+.page{display:flex;flex-direction:column;gap:14px;padding-bottom:26px;color:#0f172a}.empty,.empty-inline{padding:28px;text-align:center;background:#fff;border:1px dashed #dce5ef;border-radius:14px;color:#64748b}.page-lead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-radius:14px;background:#31275f;color:#fff}.page-lead div{display:flex;align-items:baseline;gap:12px}.page-lead b{font-size:18px}.page-lead span{font-size:12px;color:#c8c0ed}.page-lead p{margin:0;font-size:13px;color:#ebe8ff}.signal-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border:1px solid #e8eef6;border-radius:14px;padding:4px 0}.signal-strip div{padding:12px 16px;border-right:1px solid #edf2f7}.signal-strip div:last-child{border:0}.signal-strip span,.signal-strip em{display:block;font-size:11px;color:#94a3b8;font-style:normal}.signal-strip b{display:block;margin:5px 0 2px;font:800 20px var(--ops-font-num)}.panel{background:#fff;border:1px solid #e8eef6;border-radius:14px;padding:16px 18px;box-shadow:0 8px 24px rgba(15,23,42,.035)}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}header div{display:flex;align-items:center;gap:9px}header i{font-style:normal;color:#8b5cf6;background:#f1edff;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:800}header b{font-size:15px}header span{font-size:11px;color:#94a3b8}.chart{width:100%}.trend{height:300px}.activity{height:330px}.customer-chart{height:230px}.coverage-note{margin:-2px 0 10px;padding:8px 10px;border-radius:8px;background:#fff7ed;color:#b45309;font-size:11px;line-height:1.5}.note{margin:2px 0 0;color:#94a3b8;font-size:11px}.grid.two{display:grid;grid-template-columns:1.05fr .95fr;gap:14px}.activity-list{display:flex;flex-direction:column;gap:6px}.activity-list article{display:grid;grid-template-columns:24px minmax(130px,1fr) 90px 72px;align-items:center;gap:8px;padding:9px 10px;background:#f8fafc;border-radius:9px}.activity-list article>em{font-style:normal;color:#8b5cf6;font-weight:800}.activity-list article div{display:flex;flex-direction:column}.activity-list b{font-size:12px}.activity-list span,.activity-list i{font-size:10px;color:#94a3b8;font-style:normal}.activity-list strong{text-align:right;font:700 13px var(--ops-font-num)}@media(max-width:1100px){.page-lead{align-items:flex-start;flex-direction:column;gap:7px}.signal-strip{grid-template-columns:repeat(2,1fr)}.grid.two{grid-template-columns:1fr}}
 </style>

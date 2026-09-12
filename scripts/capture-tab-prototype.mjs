@@ -35,6 +35,9 @@ await page.getByRole('button', { name: '主管视角' }).click()
 await tabButtons.nth(2).click()
 await capture('Tab看板-v2-主管视角-流量漏斗.png')
 
+await tabButtons.nth(3).click()
+await capture('Tab看板-v3-主管视角-推广活动-单日.png')
+
 await page.getByRole('button', { name: '按月' }).click()
 await page.waitForTimeout(800)
 await tabButtons.nth(3).click()
