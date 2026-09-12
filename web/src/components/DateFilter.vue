@@ -104,7 +104,12 @@ async function loadDates() {
     }
   }
 }
-const liveWeeks = computed(() => [...new Set(liveDates.value.map(fridayOfWeek))].map(start=>({value:`${start}_${thursdayOfWeek(start)}`,label:calendarWeekLabel(start)})))
+const weekRangeLabel = (start: string, end: string) =>
+  `${calendarWeekLabel(start)} · ${start.slice(5).replace('-', '.')}～${end.slice(5).replace('-', '.')}`
+const liveWeeks = computed(() => [...new Set(liveDates.value.map(fridayOfWeek))].map(start => {
+  const end = thursdayOfWeek(start)
+  return { value: `${start}_${end}`, label: weekRangeLabel(start, end) }
+}))
 const liveMonths = computed(() => [...new Set(liveDates.value.map(d=>d.slice(0,7)))].map(id=>({value:id,label:id})))
 const stopUpdates = props.scope === 'ops' ? subscribeQualityUpdates(()=>{void loadDates()}) : ()=>{}
 void loadDates()
@@ -117,7 +122,9 @@ const pickerDates = computed(() => {
 })
 
 const weekOptions = computed(() =>
-  props.scope === 'ops' ? liveWeeks.value : COCKPIT_WEEKS.map((w) => ({ value: w.id, label: w.label })),
+  props.scope === 'ops'
+    ? liveWeeks.value
+    : COCKPIT_WEEKS.map((w) => ({ value: w.id, label: weekRangeLabel(w.start, w.end) })),
 )
 const monthOptions = computed(() => props.scope === 'ops' ? liveMonths.value : COCKPIT_MONTHS.map((m) => ({ value: m.id, label: m.label })))
 const channelOptions = computed(() =>
@@ -167,7 +174,7 @@ const channelOptions = computed(() =>
   flex-shrink: 0;
 }
 .ctrl-select--week {
-  width: 118px;
+  width: 198px;
 }
 .ctrl-select--month {
   width: 148px;
