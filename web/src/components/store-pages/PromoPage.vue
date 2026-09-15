@@ -66,7 +66,7 @@ const lead = computed(() => {
 const trendCaption = computed(() => (board.value?.daily.length || 0) > 1
   ? '堆叠面积：推广费率 + 活动成本率 · 折线：总投入率'
   : '单日仪表：营销费用占全店实付比例')
-function money(v: number | null | undefined) { return v == null ? '—' : `¥${formatMoney(v)}` }
+function money(v: number | null | undefined) { return formatMoney(v) }
 function multiple(v: number | null | undefined) { return v == null ? '—' : `${v.toFixed(1)}×` }
 
 const trendEl = ref<HTMLElement | null>(null)

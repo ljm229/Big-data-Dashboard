@@ -28,7 +28,7 @@
       :variant="variant"
       :model-value="selectedWeekId"
       :options="weekOptions"
-      @update:model-value="filter.setWeek"
+      @update:model-value="(v) => filter.setWeek(pickOne(v))"
     />
 
     <SelectMenu
@@ -37,16 +37,42 @@
       :variant="variant"
       :model-value="selectedMonthId"
       :options="monthOptions"
-      @update:model-value="filter.setMonth"
+      @update:model-value="(v) => filter.setMonth(pickOne(v))"
     />
 
     <SelectMenu
-      v-if="scope === 'cockpit'"
+      v-if="scope === 'cockpit' && showLocation"
+      class="ctrl-select ctrl-select--city"
+      :variant="variant"
+      multiple
+      all-value="全国"
+      :model-value="selectedCities"
+      :options="cityOptions"
+      placeholder="全国"
+      search-placeholder="搜索城市"
+      @update:model-value="onCities"
+    />
+
+    <SelectMenu
+      v-if="scope === 'cockpit' && showChannel"
       class="ctrl-select ctrl-select--channel"
       :variant="variant"
       :model-value="channel"
       :options="channelOptions"
-      @update:model-value="filter.setChannel"
+      @update:model-value="(v) => filter.setChannel(pickOne(v, '全部'))"
+    />
+
+    <SelectMenu
+      v-if="scope === 'cockpit' && showLocation"
+      class="ctrl-select ctrl-select--store"
+      :variant="variant"
+      multiple
+      all-value="全部"
+      :model-value="selectedStores"
+      :options="storeOptions"
+      search-placeholder="搜索门店"
+      placeholder="全部门店"
+      @update:model-value="onStores"
     />
   </div>
 </template>
@@ -63,22 +89,27 @@ import {
   COCKPIT_WEEKS,
   COCKPIT_MONTHS,
   COCKPIT_CHANNELS,
+  COCKPIT_CITIES,
+  COCKPIT_STORE_OPTIONS,
   OPS_DATES,
   fridayOfWeek, thursdayOfWeek, calendarWeekLabel,
 } from '../stores/filter'
 import SelectMenu from './SelectMenu.vue'
 import DatePicker from './DatePicker.vue'
+import { canonCity } from '../api/source1'
 
 const props = withDefaults(
   defineProps<{
     variant?: 'dark' | 'light'
     scope?: 'cockpit' | 'ops' | 'unified'
+    showLocation?: boolean
+    showChannel?: boolean
   }>(),
-  { variant: 'dark', scope: 'unified' },
+  { variant: 'dark', scope: 'unified', showLocation: true, showChannel: true },
 )
 
 const filter = useFilterStore()
-const { selectedDate, selectedWeekId, selectedMonthId, periodMode, channel } = storeToRefs(filter)
+const { selectedDate, selectedWeekId, selectedMonthId, periodMode, channel, selectedCities, selectedStores } = storeToRefs(filter)
 const liveDates = ref<string[]>([])
 const packDates = getOpsPackAvailableDates()
 let initial = true
@@ -130,8 +161,26 @@ const weekOptions = computed(() =>
 )
 const monthOptions = computed(() => props.scope === 'ops' ? liveMonths.value : COCKPIT_MONTHS.map((m) => ({ value: m.id, label: m.label })))
 const channelOptions = computed(() =>
-  COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部渠道' : c })),
+  COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部平台' : c })),
 )
+const cityOptions = computed(() => COCKPIT_CITIES.map((c) => ({ value: c, label: c })))
+const storeOptions = computed(() => {
+  const cities = selectedCities.value
+  const inCity = COCKPIT_STORE_OPTIONS.filter((s) => {
+    if (!cities.length) return true
+    return cities.some((c) => canonCity(s.city) === canonCity(c))
+  })
+  return [{ value: '全部', label: '全部门店' }, ...inCity.map((s) => ({ value: s.name, label: s.name }))]
+})
+function onCities(value: string | string[]) {
+  filter.setCities(Array.isArray(value) ? value : value ? [value] : [])
+}
+function onStores(value: string | string[]) {
+  filter.setStores(Array.isArray(value) ? value : value ? [value] : [])
+}
+function pickOne(value: string | string[], fallback = '') {
+  return Array.isArray(value) ? value[0] || fallback : value || fallback
+}
 </script>
 
 <style scoped lang="scss">
@@ -139,73 +188,81 @@ const channelOptions = computed(() =>
   display: flex;
   flex-direction: row;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 12px;
+  flex-wrap: nowrap;
+  gap: 8px;
   min-width: 0;
 }
 .seg {
   display: flex;
-  border: 1px solid rgba(94, 200, 255, 0.45);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: 0;
   overflow: hidden;
   flex-shrink: 0;
   button {
     border: 0;
-    background: transparent;
-    color: #ffffff;
-    opacity: 0.82;
-    padding: 8px 14px;
-    font-size: 15px;
+    background: var(--panel);
+    color: var(--c-body);
+    opacity: 1;
+    padding: 6px 10px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.2;
     cursor: pointer;
     &.active {
       opacity: 1;
-      color: #04122a;
-      background: linear-gradient(135deg, #9adfff, #3aa0ff);
+      color: #fff;
+      background: var(--panel-head);
       font-weight: 700;
     }
   }
 }
 .ctrl-date {
-  width: 132px;
+  width: 118px;
   flex-shrink: 0;
 }
 .ctrl-select {
-  width: 148px;
+  width: 118px;
   flex-shrink: 0;
 }
 .ctrl-select--week {
-  width: 198px;
+  width: 168px;
 }
 .ctrl-select--month {
-  width: 148px;
+  width: 118px;
 }
 .ctrl-select--channel {
-  width: 128px;
+  width: 108px;
+}
+.ctrl-select--city {
+  width: 92px;
+}
+.ctrl-select--store {
+  width: 138px;
 }
 
 .date-bar.light {
   .seg {
-    border: 0;
+    border: 1px solid #dbe4f0;
     border-radius: 6px;
-    background: transparent;
-    gap: 2px;
+    background: #f3f7fc;
+    gap: 0;
+    overflow: hidden;
     button {
-      color: #86909c;
-      padding: 0 12px;
+      color: #4e5969;
+      background: transparent;
+      padding: 0 8px;
       height: 32px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      border-radius: 6px;
+      border-radius: 0;
       &:hover {
-        background: #eff6ff;
+        background: #e8f1ff;
         color: #1d6bff;
       }
       &.active {
         color: #fff;
         background: linear-gradient(135deg, #1d6bff, #0ea5e9);
-        box-shadow: 0 4px 14px rgba(29, 107, 255, 0.28);
+        box-shadow: none;
         font-weight: 700;
       }
     }

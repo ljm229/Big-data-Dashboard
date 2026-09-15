@@ -235,16 +235,28 @@ export function listCities(isoDate: string) {
   return ['全部', ...((snap.cities || []) as string[])]
 }
 
-export function listStores(isoDate: string, city = '全部') {
+export function listStores(isoDate: string, city: string | string[] = '全部') {
   const snap = resolveSnapshot(isoDate)
   const rows = (snap?.stores || []) as OpsStore[]
-  if (!city || city === '全部') return rows
-  return rows.filter((s) => s.city === city)
+  const cities = Array.isArray(city)
+    ? city.filter((c) => c && c !== '全部' && c !== '全国')
+    : String(city || '')
+        .split(/[|、,，]/)
+        .map((x) => x.trim())
+        .filter((c) => c && c !== '全部' && c !== '全国')
+  if (!cities.length) return rows
+  return rows.filter((s) => cities.some((c) => s.city === c || s.city?.replace(/市$/, '') === c.replace(/市$/, '')))
 }
 
-function filterStores(isoDate: string, city: string, storeId: string) {
+function filterStores(isoDate: string, city: string | string[], storeId: string | string[]) {
   let rows = listStores(isoDate, city)
-  if (storeId && storeId !== '全部') rows = rows.filter((s) => s.id === storeId)
+  const stores = Array.isArray(storeId)
+    ? storeId.filter((s) => s && s !== '全部')
+    : String(storeId || '')
+        .split(/[|、,，]/)
+        .map((x) => x.trim())
+        .filter((s) => s && s !== '全部')
+  if (stores.length) rows = rows.filter((s) => stores.some((id) => s.id === id))
   return rows
 }
 
@@ -470,7 +482,7 @@ export type AssessmentWeeklyReport = {
   curColLabel: string
   /** 昨日 / 上周 / 上月 */
   prevColLabel: string
-  /** 日环比 / 周环比 / 月环比 */
+  /** 日比 / 周比 / 月比 */
   deltaColLabel: string
   storeCnt: number
   failMetricCnt: number
@@ -500,9 +512,9 @@ function formatAssessMonthLabel(key: string) {
 }
 
 function periodUiLabels(kind: AssessmentPeriodKind) {
-  if (kind === 'day') return { cur: '本日', prev: '昨日', delta: '日环比' }
-  if (kind === 'month') return { cur: '本月', prev: '上月', delta: '月环比' }
-  return { cur: '本周', prev: '上周', delta: '周环比' }
+  if (kind === 'day') return { cur: '本日', prev: '昨日', delta: '日比' }
+  if (kind === 'month') return { cur: '本月', prev: '上月', delta: '月比' }
+  return { cur: '本周', prev: '上周', delta: '周比' }
 }
 
 type DashAssessBlob = {
@@ -728,7 +740,7 @@ export async function fetchAssessmentWeeklyReport(
     .map((m) => {
       const worse = m.lowerBetter ? (m.delta as number) > 0 : (m.delta as number) < 0
       const sign = (m.delta as number) > 0 ? '+' : ''
-      const unit = m.unit === 'min' ? '' : 'pp'
+      const unit = m.unit === 'min' ? 'min' : '%'
       return `${m.name}${worse ? '恶化' : '改善'}(${sign}${m.delta}${unit})`
     })
     .join('；')
@@ -1060,7 +1072,7 @@ export async function fetchStoreBusinessReport(
   const prTxt =
     profitK.delta == null
       ? ''
-      : `毛利率 ${(profitK.delta >= 0 ? '+' : '') + profitK.delta.toFixed(2)}pp`
+      : `毛利率 ${(profitK.delta >= 0 ? '+' : '') + profitK.delta.toFixed(2)}%`
   const chTxt = chLead ? `${chLead.channel} ${(chLead.share * 100).toFixed(0)}%` : ''
   const downTxt = downNames ? `关注 ${downNames}` : ''
   const summaryNote = [paidTxt, prTxt, chTxt, downTxt].filter(Boolean).join(' · ')

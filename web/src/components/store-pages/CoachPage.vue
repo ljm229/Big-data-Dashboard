@@ -1,177 +1,209 @@
-<!-- 中文名：门店辅导页 -->
+<!-- 中文名：门店辅导 —— 三列看板；仅待处理可来自考核，处理中/已复盘无数据留空 -->
 <template>
   <div class="coach">
-    <article class="card">
-      <header class="card__head">
-        <div>
-          <h2>需关注门店</h2>
-          <p>综合分 &lt; 60（C/D）· 按断点标签分流动作</p>
-        </div>
-      </header>
-      <div class="problem-list">
-        <div v-for="s in watchStores" :key="s.shortName" class="problem">
-          <div class="problem__head">
-            <b>{{ s.shortName }}</b>
-            <span
-              >{{ s.city?.replace(/市$/, '') || '—' }} ·
-              <em class="num">{{ s.composite.toFixed(0) }}</em>
-              分 · {{ s.grade.grade }}</span
-            >
-          </div>
-          <div class="problem__tags">
-            <em v-for="tag in failTags(s)" :key="tag">{{ tag }}</em>
-          </div>
-        </div>
-        <p v-if="!watchStores.length" class="empty">暂无 C/D 门店</p>
-      </div>
-    </article>
+    <p class="lead">
+      {{ weekLabel }} · 待处理由考核 C/D 门店生成；处理中 / 已复盘需任务台账，当前未接入，不编造状态。
+    </p>
 
-    <article class="card">
-      <header class="card__head">
-        <div>
-          <h2>本周重要事项</h2>
-          <p>{{ weekLabel }} · 群通知清单</p>
+    <div class="board">
+      <section class="col">
+        <header>
+          <b>待处理</b>
+          <span>{{ pending.length }}</span>
+        </header>
+        <article v-for="card in pending" :key="card.id" class="task">
+          <div class="task__top">
+            <strong>{{ card.store }}</strong>
+            <em>{{ card.city }} · {{ card.score }}分 · {{ card.grade }}</em>
+          </div>
+          <div class="task__tags">
+            <i v-for="tag in card.tags" :key="tag">{{ tag }}</i>
+          </div>
+          <p class="task__action">{{ card.action }}</p>
+          <dl class="task__meta">
+            <div><dt>负责人</dt><dd>—</dd></div>
+            <div><dt>截止</dt><dd>—</dd></div>
+            <div><dt>复盘指标</dt><dd>—</dd></div>
+          </dl>
+        </article>
+        <div v-if="!pending.length" class="empty">
+          <b>暂无待处理</b>
+          <span>当前筛选下没有综合分 &lt; 60 的门店</span>
         </div>
-      </header>
-      <div class="notice-empty">
-        <strong>内容待录入</strong>
-        <p>
-          建议按断点录入：UV不足 / P1不足 / P2不足 / 履约 / 负毛利。字段：优先级 · 标题 · 负责人 · 截止 ·
-          状态。
-        </p>
-      </div>
-      <ul class="route">
-        <li><b>UV 短</b> → 查坑位 / 推广时段</li>
-        <li><b>P1 短</b> → 查入口装修与来源</li>
-        <li><b>P2 短</b> → 查供给价格；必要时霸王餐补单</li>
-        <li><b>履约差</b> → 拣货 / IM / 商责退通晒</li>
-        <li><b>负毛利</b> → 成本价 / 售价 / 活动日翻阅</li>
-      </ul>
-    </article>
+      </section>
+
+      <section class="col">
+        <header>
+          <b>处理中</b>
+          <span>0</span>
+        </header>
+        <div class="empty">
+          <b>暂无处理中任务</b>
+          <span>辅导任务状态字段未接入，模块留空</span>
+        </div>
+      </section>
+
+      <section class="col">
+        <header>
+          <b>已复盘</b>
+          <span>0</span>
+        </header>
+        <div class="empty">
+          <b>暂无已复盘任务</b>
+          <span>复盘完成时间与复盘值未接入，模块留空</span>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { AssessBoard } from '../../api/opsDashboard'
 
-defineProps<{
+const props = defineProps<{
   watchStores: AssessBoard['rows']
   weekLabel: string
   failTags: (row: AssessBoard['rows'][number]) => string[]
 }>()
+
+function suggestAction(tags: string[]) {
+  if (tags.some((t) => /售罄|出勤|缺货|供给/.test(t))) return '先查核心品出勤与补货，再到商品供给页核对损失 SKU'
+  if (tags.some((t) => /错漏|仓配|拣货|时效/.test(t))) return '核对拣货与出库节点，履约异常可到逆向客诉页对照'
+  if (tags.some((t) => /商责|退|回复|IM/.test(t))) return '复盘商责与客服时效，必要时到逆向客诉核对原因'
+  if (tags.length) return `优先处理未达标项：${tags.slice(0, 3).join('、')}`
+  return '先看综合分构成，再按未达标项拆动作'
+}
+
+const pending = computed(() =>
+  props.watchStores.map((s) => {
+    const tags = props.failTags(s)
+    return {
+      id: s.shortName,
+      store: s.shortName,
+      city: s.city?.replace(/市$/, '') || '—',
+      score: s.composite.toFixed(0),
+      grade: s.grade.grade,
+      tags: tags.length ? tags : ['综合分偏低'],
+      action: suggestAction(tags),
+    }
+  }),
+)
 </script>
 
 <style scoped lang="scss">
 .coach {
-  display: grid;
-  grid-template-columns: 1.2fr 0.9fr;
-  gap: 14px;
-  align-items: start;
-}
-.card {
-  background: var(--ops-surface, #fff);
-  border-radius: var(--ops-radius, 12px);
-  padding: 16px 18px;
-  border: 1px solid var(--ops-border, #e2eaf2);
-  box-shadow: var(--ops-shadow, none);
-}
-.card__head {
-  margin-bottom: 12px;
-  h2 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 800;
-    color: var(--ops-text, #1e2d3a);
-  }
-  p {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--ops-muted, #8b9aab);
-  }
-}
-.problem-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 520px;
-  overflow: auto;
+  gap: 14px;
+  padding-bottom: 24px;
 }
-.problem {
-  padding: 12px 12px;
+.lead {
+  margin: 0;
+  padding: 12px 14px;
   border-radius: 10px;
-  background: #fafcfe;
-  border: 1px solid var(--ops-border-soft, #eef3f8);
-  &__head {
+  background: #f8fafc;
+  border: 1px solid #e8eef6;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.col {
+  min-height: 420px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e8eef6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  header {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    align-items: baseline;
-    b {
-      color: var(--ops-text, #1e2d3a);
-      font-size: 14px;
-    }
+    padding: 4px 2px 8px;
+    border-bottom: 1px solid #edf2f7;
+    b { font-size: 15px; color: #0f172a; }
     span {
-      font-size: 12px;
-      color: var(--ops-muted, #8b9aab);
-      white-space: nowrap;
-    }
-    .num {
-      font-style: normal;
-      font-family: var(--ops-font-num, Rajdhani, monospace);
-      font-weight: 700;
-      color: var(--ops-bad, #e04545);
-    }
-  }
-  &__tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-    em {
-      font-style: normal;
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      background: var(--ops-warn-bg, #fff6e6);
-      color: var(--ops-warn, #d4890d);
-      font-weight: 600;
+      min-width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d6bff;
+      font: 700 12px/24px var(--ops-font-num, Bahnschrift, sans-serif);
+      text-align: center;
+      padding: 0 8px;
     }
   }
 }
-.notice-empty {
-  padding: 16px;
-  border: 1px dashed var(--ops-border, #e2eaf2);
+.task {
+  padding: 12px;
   border-radius: 10px;
-  background: #fafcfe;
-  strong {
-    display: block;
-    color: var(--ops-text, #1e2d3a);
-  }
-  p {
-    margin: 8px 0 0;
-    color: var(--ops-muted, #8b9aab);
-    font-size: 12px;
-    line-height: 1.5;
+  background: #f8fafc;
+  border: 1px solid #e8eef6;
+  display: grid;
+  gap: 8px;
+}
+.task__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  strong { font-size: 14px; color: #0f172a; }
+  em { font-style: normal; font-size: 11px; color: #94a3b8; white-space: nowrap; }
+}
+.task__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  i {
+    font-style: normal;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #c2410c;
   }
 }
-.route {
-  margin: 14px 0 0;
-  padding-left: 18px;
-  color: var(--ops-text-2, #5c6f80);
-  font-size: 13px;
-  line-height: 1.85;
-  b {
-    color: var(--ops-primary, #1f6f8b);
+.task__action {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+}
+.task__meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  div {
+    display: grid;
+    gap: 2px;
   }
+  dt { font-size: 10px; color: #94a3b8; }
+  dd { margin: 0; font-size: 12px; color: #64748b; }
 }
 .empty {
+  flex: 1;
+  min-height: 160px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
   text-align: center;
-  color: var(--ops-muted, #8b9aab);
-  padding: 16px;
+  border: 1px dashed #dbe4f0;
+  border-radius: 10px;
+  background: #fafcfe;
+  color: #64748b;
+  padding: 20px 12px;
+  b { color: #334155; font-size: 13px; }
+  span { font-size: 12px; line-height: 1.4; }
 }
 @media (max-width: 1100px) {
-  .coach {
-    grid-template-columns: 1fr;
-  }
+  .board { grid-template-columns: 1fr; }
 }
 </style>

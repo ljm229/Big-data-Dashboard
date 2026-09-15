@@ -5,14 +5,6 @@
     <div class="screen-spacer" :style="wrapperStyle">
       <div class="screen" :style="style">
         <div class="screen__bg" aria-hidden="true" />
-        <div class="screen__grid" aria-hidden="true" />
-        <div class="screen__rotors" aria-hidden="true">
-          <i class="rotor rotor--a" />
-          <i class="rotor rotor--b" />
-          <i class="rotor rotor--c" />
-          <i class="rotor rotor--d" />
-          <i class="rotor rotor--e" />
-        </div>
         <div class="screen__frame" aria-hidden="true">
           <i class="frame-corner tl" />
           <i class="frame-corner tr" />
@@ -20,14 +12,14 @@
           <i class="frame-corner br" />
         </div>
 
-        <section class="top-stage">
-          <TopBar>
+        <section class="top-stage" data-layout="stack">
+          <TopBar data-role="nav" data-height-px="64" data-single-line="true">
             <template #filters>
-              <DateFilter variant="dark" scope="cockpit" />
+              <DateFilter variant="dark" scope="cockpit" :show-location="false" />
             </template>
             <template #nav>
               <div class="view-switch view-switch--in-header">
-                <button type="button" class="active">数据大屏 · 历史原型（未接新采集）</button>
+                <button type="button" class="active">数据大屏</button>
                 <button
                   type="button"
                   @click="
@@ -52,27 +44,25 @@
           <KeyNumbers />
         </section>
 
-        <main class="body">
-          <div class="body-main">
-            <section class="col left">
-              <StoreOpen />
-              <ChannelShare />
-              <CostBoard class="col-tail" />
-            </section>
-
-            <section class="col middle">
-              <MapBoard class="c1" />
-            </section>
-
-            <section class="col right">
-              <StoreRank />
-              <CityShare />
-              <DayTrend class="col-tail" />
-            </section>
-          </div>
+        <main class="body" data-role="bento" data-items="8" data-cells="8">
+          <ProfitTrend class="mod trend" />
+          <div class="mod launch"><LaunchTrack /></div>
+          <CityMatrix class="mod matrix" />
+          <CityMap class="mod map" />
+          <RiskTop class="mod risk" />
+          <ChannelProfit class="mod channel" />
+          <CostBalance class="mod category" />
+          <StoreTop class="mod stores" />
         </main>
 
-        <DetailSide />
+        <footer class="screen__foot">
+          <svg class="screen__foot-frame" viewBox="0 0 1920 40" preserveAspectRatio="none" aria-hidden="true">
+            <path class="foot-track" d="M0 0 H650 L672 9 H1248 L1270 0 H1920 M0 39 H650 L664 32 H1256 L1270 39 H1920" />
+            <path class="foot-highlight" d="M0 0 H136 M1784 0 H1920 M680 9 H1240 M694 32 H1226" />
+          </svg>
+          <span class="screen__source"><i aria-hidden="true" />数据源1 <em>业务周：周五至周四</em></span>
+          <span>{{ footLine }}</span>
+        </footer>
       </div>
     </div>
   </div>
@@ -98,25 +88,38 @@ import { hasAssessment } from './api/dashboard'
 import PasswordGate from './components/PasswordGate.vue'
 import TopBar from './components/boards/TopBar.vue'
 import KeyNumbers from './components/boards/KeyNumbers.vue'
-import StoreOpen from './components/boards/StoreOpen.vue'
-import ChannelShare from './components/boards/ChannelShare.vue'
-import CostBoard from './components/boards/CostBoard.vue'
-import MapBoard from './components/boards/MapBoard.vue'
-import DayTrend from './components/boards/DayTrend.vue'
-import CityShare from './components/boards/CityShare.vue'
-import StoreRank from './components/boards/StoreRank.vue'
-import DetailSide from './components/DetailSide.vue'
+import ProfitTrend from './components/boards/ProfitTrend.vue'
+import LaunchTrack from './components/boards/LaunchTrack.vue'
+import CityMatrix from './components/boards/CityMatrix.vue'
+import CityMap from './components/boards/CityMap.vue'
+import RiskTop from './components/boards/RiskTop.vue'
+import ChannelProfit from './components/boards/ChannelProfit.vue'
+import CostBalance from './components/boards/CostBalance.vue'
+import StoreTop from './components/boards/StoreTop.vue'
 import StoreBoard from './components/StoreBoard.vue'
 import StoreBoardTabs from './components/StoreBoardTabs.vue'
 import DateFilter from './components/DateFilter.vue'
 
-const activeView = ref<'cockpit' | 'ops'>('ops')
-const opsEdition = ref<'classic' | 'tabs'>('tabs')
+const boot = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
+const activeView = ref<'cockpit' | 'ops'>(boot.get('view') === 'ops' ? 'ops' : 'cockpit')
+const opsEdition = ref<'classic' | 'tabs'>(boot.get('edition') === 'classic' ? 'classic' : 'tabs')
 const filter = useFilterStore()
-const { scale, style, wrapperStyle } = useScreenScale(1920, 1280)
+// 按视口宽度铺满（左右不留白）；高度不够时可纵向滚动。
+const { scale, style, wrapperStyle } = useScreenScale(1920, 1200, 'width')
+const footLine = computed(() => {
+  const mode = filter.periodMode === 'day' ? '日' : filter.periodMode === 'week' ? '周' : '月'
+  const { from, to } = filter.periodRange
+  const range = from === to ? from : `${from} ~ ${to}`
+  const store = filter.selectedStore !== '全部' ? ` · ${filter.selectedStore}` : ''
+  return `${mode}口径 ${range} · ${filter.cityName} · ${filter.channel}${store}`
+})
 /** 仅数据大屏做 scale；运营看板保持 1，避免下拉/弹层被二次缩小 */
 const overlayScale = computed(() => (activeView.value === 'cockpit' ? scale.value : 1))
 provide(SCREEN_SCALE_KEY, overlayScale)
+provide('openClassicCity', () => {
+  activeView.value = 'ops'
+  opsEdition.value = 'classic'
+})
 
 watch(activeView, (view) => {
   const iso = filter.selectedDate
@@ -133,22 +136,22 @@ watch(activeView, (view) => {
 <style scoped lang="scss">
 .view-switch {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   button {
-    border: 1px solid rgba(94, 200, 255, 0.45);
-    border-radius: 6px;
-    padding: 8px 14px;
-    color: #cfe0f6;
-    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 6px 10px;
+    color: var(--c-body);
+    background: var(--panel);
     cursor: pointer;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.2;
     white-space: nowrap;
     &.active {
-      color: #04122a;
-      background: linear-gradient(135deg, #9adfff, #3aa0ff);
-      border-color: transparent;
+      color: #02162e;
+      background: var(--accent-line);
+      border-color: var(--accent-line);
       font-weight: 700;
     }
   }
@@ -160,27 +163,26 @@ watch(activeView, (view) => {
 .screen-root {
   width: 100%;
   min-height: 100vh;
-  overflow: visible;
-  background:
-    radial-gradient(ellipse 80% 55% at 50% 28%, rgba(28, 78, 160, 0.38), transparent 62%),
-    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(12, 40, 90, 0.35), transparent 55%),
-    linear-gradient(180deg, #061a42 0%, #04122f 42%, #020a1c 100%);
+  background: var(--gap);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .screen-spacer {
   position: relative;
+  overflow: visible;
 }
 .screen {
   position: absolute;
   left: 0;
   top: 0;
   box-sizing: border-box;
-  padding: 10px 20px 14px;
+  padding: 10px 8px 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  color: #e8f3ff;
+  color: var(--c-body);
   overflow: hidden;
-  background: transparent;
+  background: var(--bg);
 }
 
 .screen__bg {
@@ -188,175 +190,35 @@ watch(activeView, (view) => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 70% 50% at 50% 35%, rgba(36, 90, 170, 0.22), transparent 65%),
-    linear-gradient(180deg, #071c48 0%, #041330 50%, #020914 100%);
-}
-
-.screen__grid {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.55;
-  background-image:
-    linear-gradient(rgba(70, 160, 230, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(70, 160, 230, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.85), transparent 76%);
-  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.85), transparent 76%);
-}
-
-.screen__rotors {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.rotor {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  will-change: rotate;
-  opacity: 0.45;
-  --ring-color: rgba(70, 170, 255, 0.22);
-  --glow-color: rgba(30, 110, 220, 0.16);
-  --inner-color: rgba(0, 220, 240, 0.12);
-  --sweep-color: rgba(80, 190, 255, 0.35);
-  border: 2px solid var(--ring-color);
-  box-shadow:
-    inset 0 0 34px var(--glow-color),
-    0 0 44px var(--glow-color);
-}
-
-.rotor::before {
-  content: '';
-  position: absolute;
-  inset: 12%;
-  border-radius: 50%;
-  border: 1px solid var(--inner-color);
-  box-shadow:
-    inset 0 0 22px var(--inner-color),
-    0 0 24px var(--inner-color);
-}
-
-.rotor::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg 250deg,
-    var(--sweep-color) 300deg 336deg,
-    transparent 360deg
-  );
-  -webkit-mask: radial-gradient(circle, transparent 0 74%, #000 75% 82%, transparent 83%);
-  mask: radial-gradient(circle, transparent 0 74%, #000 75% 82%, transparent 83%);
-  opacity: 0.9;
-}
-
-.rotor--a {
-  left: 10%;
-  top: 18%;
-  width: 920px;
-  height: 920px;
-  transform: translate(-50%, -50%);
-  rotate: 0deg;
-  animation: rotor-spin 38s linear infinite;
-}
-
-.rotor--b {
-  left: 84%;
-  top: 76%;
-  width: 780px;
-  height: 780px;
-  transform: translate(-50%, -50%);
-  rotate: 0deg;
-  --ring-color: rgba(0, 255, 228, 0.26);
-  --glow-color: rgba(0, 255, 228, 0.16);
-  --inner-color: rgba(94, 200, 255, 0.18);
-  --sweep-color: rgba(0, 255, 228, 0.46);
-  animation: rotor-spin 28s linear infinite reverse;
-}
-
-.rotor--c {
-  left: 58%;
-  top: 10%;
-  width: 700px;
-  height: 700px;
-  transform: translate(-50%, -50%);
-  rotate: 0deg;
-  --ring-color: rgba(116, 142, 255, 0.3);
-  --glow-color: rgba(96, 108, 255, 0.22);
-  --sweep-color: rgba(116, 142, 255, 0.48);
-  animation: rotor-spin 34s linear infinite;
-}
-
-.rotor--d {
-  left: 88%;
-  top: 8%;
-  width: 640px;
-  height: 640px;
-  transform: translate(-50%, -50%);
-  rotate: 0deg;
-  --ring-color: rgba(94, 200, 255, 0.24);
-  --glow-color: rgba(40, 140, 255, 0.18);
-  --sweep-color: rgba(94, 200, 255, 0.4);
-  animation: rotor-spin 44s linear infinite reverse;
-}
-
-.rotor--e {
-  left: 8%;
-  top: 84%;
-  width: 660px;
-  height: 660px;
-  transform: translate(-50%, -50%);
-  rotate: 0deg;
-  --ring-color: rgba(0, 255, 228, 0.22);
-  --glow-color: rgba(0, 255, 228, 0.14);
-  --sweep-color: rgba(0, 255, 228, 0.4);
-  animation: rotor-spin 32s linear infinite;
-}
-
-@keyframes rotor-spin {
-  to {
-    rotate: 360deg;
-  }
+  background: var(--bg);
 }
 
 .screen__frame {
   position: absolute;
-  inset: 8px;
+  inset: 6px;
   z-index: 0;
   pointer-events: none;
-  border: 1px solid rgba(94, 200, 255, 0.16);
-  box-shadow:
-    inset 0 0 40px rgba(40, 120, 220, 0.08),
-    0 0 24px rgba(40, 140, 255, 0.12);
+  border: 0;
+  box-shadow: none;
 }
 
 .frame-corner {
   position: absolute;
-  width: 28px;
-  height: 28px;
-  filter: drop-shadow(0 0 6px rgba(94, 200, 255, 0.9));
+  width: 14px;
+  height: 14px;
   &::before,
   &::after {
     content: '';
     position: absolute;
-    background: #7ed0ff;
+    background: var(--accent-line);
   }
   &::before {
-    width: 28px;
-    height: 2px;
+    width: 14px;
+    height: 1px;
   }
   &::after {
-    width: 2px;
-    height: 28px;
+    width: 1px;
+    height: 14px;
   }
   &.tl {
     left: -1px;
@@ -408,7 +270,7 @@ watch(activeView, (view) => {
   }
 }
 
-.screen > :not(.screen__bg):not(.screen__grid):not(.screen__rotors):not(.screen__frame) {
+.screen > :not(.screen__bg):not(.screen__grid):not(.screen__circuit):not(.screen__frame) {
   position: relative;
   z-index: 1;
 }
@@ -416,70 +278,73 @@ watch(activeView, (view) => {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   background: transparent;
   /* 高于下方栏目，避免日历/下拉被左侧卡片盖住 */
   z-index: 40;
   overflow: visible;
 }
 .body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  z-index: 1;
-}
-.body-main {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(380px, 26%) 1fr minmax(380px, 26%);
-  gap: 10px;
-  padding-bottom: 0;
-}
-.col {
-  min-height: 0;
-  min-width: 0;
-  display: grid;
-  gap: 8px;
-  align-content: stretch;
-}
-.left,
-.right {
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(140px, 1.05fr);
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-bottom: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 180, 255, 0.35) transparent;
-}
-.middle {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  min-height: 0;
-  overflow: hidden;
-}
-.c1 {
-  width: 100%;
-  height: 100%;
   flex: 1 1 auto;
   min-height: 0;
+  display: grid;
+  /* 左5 : 地图9 : 右6 —— 右侧略收，避免风险/渠道表被拉得过散 */
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 316fr) minmax(0, 306fr) minmax(0, 292fr);
+  grid-template-areas:
+    'trend trend trend trend trend map map map map map map map map map risk risk risk risk risk risk'
+    'launch launch launch launch launch map map map map map map map map map channel channel channel channel channel channel'
+    'matrix matrix matrix matrix matrix matrix matrix category category category category category category category stores stores stores stores stores stores';
+  gap: 8px;
+  z-index: 1;
 }
-.left > *,
-.right > * {
-  min-height: 0;
+.screen__foot {
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  border-top: 0;
+  background: var(--gap);
+  color: var(--c-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  z-index: 2;
+  span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  span:last-child {
+    color: var(--c-num-accent);
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums;
+  }
+}
+.screen__foot-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.screen__foot-frame path { fill: none; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.foot-track { stroke: var(--accent-line); opacity: 0.55; }
+.foot-highlight { stroke: var(--line-glow); filter: drop-shadow(0 0 3px var(--accent-line)) drop-shadow(0 0 8px rgba(60, 140, 255, 0.5)); }
+.screen__source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  i { width: 6px; height: 6px; background: var(--success); border-radius: 50%; }
+  em { margin-left: 12px; padding-left: 18px; border-left: 1px solid var(--border); color: var(--muted); font-style: normal; }
+}
+.mod {
   min-width: 0;
-  overflow: hidden;
-}
-.col-tail {
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 180, 255, 0.35) transparent;
-}
-.middle > * {
   min-height: 0;
-  min-width: 0;
 }
+.trend { grid-area: trend; }
+.launch { grid-area: launch; }
+.matrix { grid-area: matrix; }
+.map { grid-area: map; }
+.risk { grid-area: risk; }
+.channel { grid-area: channel; }
+.category { grid-area: category; }
+.stores { grid-area: stores; }
 </style>

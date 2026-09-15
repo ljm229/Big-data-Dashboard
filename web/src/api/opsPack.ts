@@ -329,17 +329,33 @@ function daysLabel(days: string[]): string {
   return `${days[0]}～${days[days.length - 1]}（${days.length}天）`
 }
 
-function matchStore(row: { shortName?: string; name?: string; id?: string }, storeId: string, storeHint?: string) {
-  if (!storeId || storeId === '全部') return true
-  if (row.id && (row.id === storeId || sameStore(row.id, storeId))) return true
-  const hint = storeHint || storeId
-  if (row.shortName && sameStore(row.shortName, hint)) return true
-  if (row.name && sameStore(row.name, hint)) return true
-  const bareHint = bareStoreName(hint)
-  if (bareHint && row.shortName && (bareHint.includes(bareStoreName(row.shortName)) || bareStoreName(row.shortName).includes(bareHint))) {
-    return true
-  }
-  return false
+function matchStore(row: { shortName?: string; name?: string; id?: string }, storeId: string | string[], storeHint?: string | string[]) {
+  const ids = Array.isArray(storeId)
+    ? storeId
+    : String(storeId || '')
+        .split(/[|、,，]/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+  if (!ids.length || ids.some((id) => !id || id === '全部')) return true
+  const hints = Array.isArray(storeHint)
+    ? storeHint
+    : storeHint
+      ? String(storeHint)
+          .split(/[|、,，]/)
+          .map((x) => x.trim())
+          .filter(Boolean)
+      : []
+  return ids.some((id, i) => {
+    if (row.id && (row.id === id || sameStore(row.id, id))) return true
+    const hint = hints[i] || hints[0] || id
+    if (row.shortName && sameStore(row.shortName, hint)) return true
+    if (row.name && sameStore(row.name, hint)) return true
+    const bareHint = bareStoreName(hint)
+    if (bareHint && row.shortName && (bareHint.includes(bareStoreName(row.shortName)) || bareStoreName(row.shortName).includes(bareHint))) {
+      return true
+    }
+    return false
+  })
 }
 
 function withStoreLabel<T extends { shortName?: string; name?: string }>(row: T): T {
@@ -348,10 +364,19 @@ function withStoreLabel<T extends { shortName?: string; name?: string }>(row: T)
   return { ...row, shortName, name }
 }
 
-function matchCity(city: string, rowCity?: string) {
-  if (!city || city === '全部') return true
+function matchCity(city: string | string[], rowCity?: string) {
+  const list = Array.isArray(city)
+    ? city
+    : String(city || '')
+        .split(/[|、,，]/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+  if (!list.length || list.some((c) => !c || c === '全部' || c === '全国')) return true
   const c = (rowCity || '').replace(/市$/, '')
-  return c === city || c.includes(city) || city.includes(c)
+  return list.some((item) => {
+    const want = item.replace(/市$/, '')
+    return c === want || c.includes(want) || want.includes(c)
+  })
 }
 
 function sumFunnel(list: Funnel[]): Funnel {
@@ -454,7 +479,11 @@ export function fetchTrafficBoard(
       storesMap.set(st.shortName, cur)
     }
     // 来源仅在全国/全店时有意义；单店筛选时按店漏斗为主，来源仍用全量日汇总（数据源无店×来源再筛时的预聚合）
-    if (storeId === '全部') {
+    const storeAll =
+      !storeId ||
+      storeId === '全部' ||
+      (Array.isArray(storeId) && (!storeId.length || storeId.every((s) => s === '全部')))
+    if (storeAll) {
       for (const s of b.sources) {
         const k = `${s.cat}||${s.name}`
         const cur = sourcesMap.get(k) || { ...s, expose: 0, enter: 0, orderUsers: 0 }
@@ -553,8 +582,8 @@ export function fetchTrafficBoard(
   if (prevFunnel) {
     const dEnter = pctDelta(funnel.enterRate, prevFunnel.enterRate)
     const dOrder = pctDelta(funnel.orderRate, prevFunnel.orderRate)
-    if (dEnter != null && dEnter < -0.1) tips.push('进店率环比明显下滑，优先复盘流量入口变化。')
-    if (dOrder != null && dOrder < -0.1) tips.push('下单率环比下滑，结合供给与活动页核对。')
+    if (dEnter != null && dEnter < -0.1) tips.push('进店率日比明显下滑，优先复盘流量入口变化。')
+    if (dOrder != null && dOrder < -0.1) tips.push('下单率日比下滑，结合供给与活动页核对。')
   }
 
   return {

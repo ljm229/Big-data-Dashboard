@@ -1,6 +1,6 @@
 /**
  * 地图地理元数据：省市映射、城市/门店坐标（基于公开地标与地址近似定位）
- * 说明：无官方门店经纬度时，用地址对应商圈/区县中心做可展示级定位。
+ * 说明：无官方门店经纬度时，用门店信息表地址对应商圈/区县中心做可展示级定位。
  */
 
 export type ProvinceKey = 'zhejiang' | 'jiangsu' | 'shanghai' | 'shandong' | 'henan' | 'hubei'
@@ -74,16 +74,16 @@ export const CITY_COORDS: Record<string, [number, number]> = {
 }
 
 /**
- * 门店坐标：key 为短名或全名片段（匹配时去空白/括号）
- * 值：[lng, lat]
+ * 门店概位坐标：按《淘宝便利店门店信息表》地址落到商圈/地标中心（非精确定位）
+ * key 为短名；值：[lng, lat]
  */
 export const STORE_COORDS: Record<string, [number, number]> = {
   // 杭州
   滨江店: [120.212, 30.208],
-  萧山银泰店: [120.274, 30.185],
-  新街店: [120.165, 30.268],
+  萧山银泰店: [120.264, 30.231],
+  新街店: [120.169, 30.259],
   城西中心店: [120.098, 30.292],
-  // 苏州
+  // 苏州（含昆山）
   北门路店: [120.618, 31.335],
   万象汇店: [120.728, 31.323],
   越溪店: [120.592, 31.224],
@@ -91,38 +91,75 @@ export const STORE_COORDS: Record<string, [number, number]> = {
   青剑湖店: [120.652, 31.378],
   吴江店: [120.645, 31.16],
   通安店: [120.482, 31.358],
-  世茂广场店: [120.981, 31.385],
-  永旺店: [120.601, 31.248],
-  // 无锡
+  // 昆山开发区红枫路1号东创科技中心（世茂广场对面）
+  世茂广场店: [120.983, 31.386],
+  // 吴中区水墨花园
+  永旺店: [120.628, 31.265],
+  // 无锡 / 江阴 / 宜兴
   宜兴店: [119.823, 31.34],
-  五洲国际店: [120.285, 31.912],
-  滨湖店: [120.248, 31.523],
-  金惠路店: [120.283, 31.682],
-  无锡新区店: [120.372, 31.491],
-  钱桥店: [120.248, 31.652],
-  周新中路店: [120.272, 31.542],
+  // 江阴五洲国际广场
+  五洲国际店: [120.285, 31.911],
+  // 滨湖荣巷梅园徐巷（梅园开原寺地铁附近）
+  滨湖店: [120.227, 31.535],
+  // 惠山金惠路595号
+  金惠路店: [120.286, 31.685],
+  // 新区汇融商务广场
+  无锡新区店: [120.377, 31.491],
+  // 惠山通溪路79号
+  钱桥店: [120.255, 31.655],
+  // 滨湖周新中路188号
+  周新中路店: [120.275, 31.545],
   // 上海
   大宁中心店: [121.453, 31.278],
   松江万达店: [121.227, 31.032],
-  // 其他
+  // 其他城市（按门店信息表地址）
   金华店: [119.647, 29.079],
   文峰广场店: [120.857, 32.014],
-  汇通市场店: [119.021, 33.602],
-  融创店: [117.145, 36.678],
+  // 淮安清江浦淮海路农贸市场
+  汇通市场店: [119.028, 33.598],
+  // 济南历城经十路×凤集路 融创国主馆
+  融创店: [117.158, 36.675],
   淮南街店: [113.638, 34.732],
   龙湖天街店: [114.238, 30.583],
+  // 南京万象都荟
   万象都荟店: [118.778, 32.041],
-  浦口店: [118.628, 32.071],
-  邗江店: [119.398, 32.394],
-  姜堰店: [120.078, 32.509],
-  滁州路店: [120.375, 36.088],
+  // 浦口新科二路10号
+  浦口店: [118.718, 32.085],
+  // 扬州邗江平山北路81号众鑫大厦
+  邗江店: [119.396, 32.401],
+  // 姜堰新世纪市民广场
+  姜堰店: [120.134, 32.509],
+  // 青岛市北滁州路501
+  滁州路店: [120.368, 36.091],
 }
+
+/** 地址关键词 → 概位（当门店名未命中时，用门店信息表地址二次定位） */
+const ADDRESS_COORDS: Array<{ keys: string[]; coord: [number, number] }> = [
+  { keys: ['红枫路', '东创科技', '昆山开发区'], coord: [120.983, 31.386] },
+  { keys: ['水墨花园'], coord: [120.628, 31.265] },
+  { keys: ['梅园', '开原寺', '荣巷', '徐巷'], coord: [120.227, 31.535] },
+  { keys: ['平山北路', '众鑫大厦'], coord: [119.396, 32.401] },
+  { keys: ['新世纪市民广场', '姜堰'], coord: [120.134, 32.509] },
+  { keys: ['融创国主', '凤集路'], coord: [117.158, 36.675] },
+  { keys: ['万象都荟'], coord: [118.778, 32.041] },
+  { keys: ['五洲国际', '江阴'], coord: [120.285, 31.911] },
+  { keys: ['滁州路'], coord: [120.368, 36.091] },
+  { keys: ['金惠路'], coord: [120.286, 31.685] },
+  { keys: ['新科二路', '浦口'], coord: [118.718, 32.085] },
+  { keys: ['汇融商务'], coord: [120.377, 31.491] },
+  { keys: ['通溪路'], coord: [120.255, 31.655] },
+  { keys: ['周新中路'], coord: [120.275, 31.545] },
+  { keys: ['淮海路农贸', '清江浦'], coord: [119.028, 33.598] },
+]
 
 export function normCityName(name: string) {
   const s = String(name || '').trim()
   if (!s) return ''
   if (s === '全国') return s
-  return /市$|区$|县$|州$/.test(s) ? s : `${s}市`
+  const alias = ({ 昆山: '苏州市', 昆山市: '苏州市', 姜堰: '泰州市', 姜堰区: '泰州市' } as Record<string, string>)[s]
+  if (alias) return alias
+  if (CITY_PROVINCE[`${s}市`]) return `${s}市`
+  return /市$|区$|县$|自治州$/.test(s) ? s : `${s}市`
 }
 
 export function resolveProvince(cityName: string): ProvinceMeta | null {
@@ -144,16 +181,59 @@ function storeKey(name: string) {
     .trim()
 }
 
-/** 按门店名解析坐标；没有则回落到城市中心 + 轻微散列，避免重叠 */
-export function storeCoord(storeName: string, cityName: string, index = 0): [number, number] {
-  const key = storeKey(storeName)
-  if (key && STORE_COORDS[key]) return STORE_COORDS[key]
-  // 模糊包含匹配
-  for (const [k, v] of Object.entries(STORE_COORDS)) {
-    if (key.includes(k) || k.includes(key)) return v
+/** 按地址文本匹配商圈概位 */
+export function coordFromAddress(address: string): [number, number] | null {
+  const text = String(address || '').replace(/\s+/g, '')
+  if (!text) return null
+  for (const row of ADDRESS_COORDS) {
+    if (row.keys.some((k) => text.includes(k))) return row.coord
   }
+  return null
+}
+
+export type StoreLocationPrecision = 'address-approx' | 'city-fallback'
+
+export type StoreLocation = {
+  coord: [number, number]
+  precision: StoreLocationPrecision
+  precisionLabel: '地址概位' | '城市概位'
+}
+
+/**
+ * 按门店名/地址解析可展示坐标，并显式返回定位精度。
+ * 没有经地图服务核验的点一律标“地址概位”，禁止在界面上冒充精确门牌坐标。
+ */
+export function resolveStoreLocation(
+  storeName: string,
+  cityName: string,
+  _index = 0,
+  address?: string,
+): StoreLocation {
+  const key = storeKey(storeName)
+  if (key && STORE_COORDS[key]) {
+    return { coord: STORE_COORDS[key], precision: 'address-approx', precisionLabel: '地址概位' }
+  }
+  for (const [k, v] of Object.entries(STORE_COORDS)) {
+    if (key && (key.includes(k) || k.includes(key))) {
+      return { coord: v, precision: 'address-approx', precisionLabel: '地址概位' }
+    }
+  }
+  const byAddr = address ? coordFromAddress(address) : null
+  if (byAddr) return { coord: byAddr, precision: 'address-approx', precisionLabel: '地址概位' }
   const [lng, lat] = cityCoord(cityName)
-  const angle = (index % 8) * (Math.PI / 4)
-  const r = 0.035 + (index % 3) * 0.012
-  return [lng + Math.cos(angle) * r, lat + Math.sin(angle) * r]
+  return {
+    coord: [lng, lat],
+    precision: 'city-fallback',
+    precisionLabel: '城市概位',
+  }
+}
+
+/** 兼容既有调用，只取坐标。新界面优先用 resolveStoreLocation 展示精度。 */
+export function storeCoord(
+  storeName: string,
+  cityName: string,
+  index = 0,
+  address?: string,
+): [number, number] {
+  return resolveStoreLocation(storeName, cityName, index, address).coord
 }

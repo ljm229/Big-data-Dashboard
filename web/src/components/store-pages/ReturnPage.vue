@@ -59,7 +59,7 @@ const board=computed(()=>fetchReverseOpsBoard(props.dateKey,props.city,props.sto
 const timelyRate=computed(()=>board.value?.summary.deliveryTotal?board.value.summary.timely/board.value.summary.deliveryTotal:null)
 const lateRate=computed(()=>board.value?.summary.deliveryTotal?board.value.summary.late/board.value.summary.deliveryTotal:null)
 const lead=computed(()=>{const b=board.value;if(!b)return'';const top=b.reasons[0];return top?`首要逆向原因是「${top.name}」，共 ${formatInt(top.value)} 个商品行；配送不及时率 ${percent(lateRate.value)}。`:'当前原因明细不足，先关注履约异常趋势。'})
-function money(v:number|null|undefined){return v==null?'—':`¥${formatMoney(v)}`}
+function money(v:number|null|undefined){return formatMoney(v)}
 function percent(v:number|null|undefined){return v==null?'—':`${(v*100).toFixed(1)}%`}
 function short(v:string){return v.length>12?`${v.slice(0,11)}…`:v}
 

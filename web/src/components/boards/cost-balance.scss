@@ -1,0 +1,101 @@
+.cost-detail-button, .cost-tabs button, .cost-dialog button {
+  cursor: pointer; color: var(--c-body); background: var(--panel-head); border: 1px solid var(--border); border-radius: 0;
+  &:hover { background: var(--panel-hover); color: var(--primary-2); }
+  &:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+}
+.cost-detail-button { font-size: 12px; padding: 5px 8px; white-space: nowrap; }
+.cost-detail-button svg { margin-left: 5px; width: 10px; height: 10px; fill: none; stroke: var(--primary-2); stroke-width: 1.5; }
+.cost-panel :deep(.panel__body) { padding: 5px 10px 6px; }
+.cost-content { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.cost-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 0 7px; border-bottom: 1px solid var(--divider); }
+.cost-kpi { padding: 2px 10px; border-right: 1px solid var(--divider); display: flex; flex-direction: column; gap: 5px; }
+.cost-kpi:first-child { padding-left: 0; }
+.cost-kpi:last-child { border: 0; }
+.cost-kpi > span, .cost-dialog-kpis span { font-size: 12px; color: var(--c-muted); display: flex; align-items: center; gap: 6px; }
+.cost-kpi span small, .cost-dialog-kpis span small { color: var(--c-muted); font-size: 10px; }
+.cost-kpi strong { font: 700 27px/1 var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--c-primary); }
+.cost-kpi.balance strong { color: var(--primary-2); }
+.cost-kpi > small { font: 12px/1 var(--font-num); color: var(--c-muted); }
+.cost-tabs { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; gap: 8px; }
+.cost-tabs > div { display: flex; }
+.cost-tabs button { font-size: 13px; padding: 4px 10px; }
+.cost-tabs button[aria-pressed='true'] { color: var(--panel-deep); background: var(--primary-2); border-color: var(--primary-2); font-weight: 700; }
+.cost-tabs > span { font-size: 13px; color: var(--c-muted); white-space: nowrap; }
+.cost-structure, .cost-income-bridge, .cost-empty { flex: 1; min-height: 0; }
+.cost-structure { padding: 0 1px; }
+.cost-structure :deep(.cost-ring) { width: 108px; }
+.cost-structure :deep(.cost-ring strong) { font-size: 24px; }
+.cost-structure :deep(.cost-ring span) { font-size: 11px; }
+.cost-structure :deep(ul) { max-width: min(320px, 100%); gap: 3px; }
+.cost-structure :deep(li) { min-height: 26px; font-size: 14px; }
+.cost-income-bridge { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.cost-income-bridge > div { display: flex; align-items: center; justify-content: space-between; padding: 3px 10px; background: var(--panel-head); font-size: 13px; color: var(--c-body); }
+.cost-income-bridge b { font: 700 17px/1 var(--font-num); white-space: nowrap; }
+.cost-income-bridge small { font-size: 10px; margin-left: 5px; font-weight: 400; }
+.cost-income-bridge p { font-size: 11px; color: var(--c-muted); margin: 0; }
+.deduction { color: var(--warn) !important; }
+.result { color: var(--primary-2) !important; }
+.negative { color: var(--danger) !important; }
+.cost-unfavorable { color: var(--warn) !important; }
+.cost-favorable { color: var(--success) !important; }
+.cost-foot { display: flex; justify-content: space-between; gap: 5px; border-top: 1px solid var(--divider); padding-top: 5px; margin-top: 4px; font-size: 12px; color: var(--c-muted); white-space: nowrap; }
+.cost-foot > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.cost-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; color: var(--c-muted); font-size: 14px; }
+.cost-empty span { font-size: 12px; }
+.cost-dialog { width: min(1120px, calc(100vw - 40px)); max-width: none; max-height: calc(100dvh - 40px); margin: auto; padding: 0; border: 1px solid var(--accent-line); background: var(--panel-solid); color: var(--c-body); box-shadow: 0 20px 80px #0009; font-family: var(--font-cn); }
+.cost-dialog[open] { display: flex; flex-direction: column; }
+.cost-dialog::backdrop { background: #001022c9; backdrop-filter: blur(3px); }
+.cost-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 22px 14px; background: var(--panel-head-solid); border-bottom: 1px solid var(--divider); flex-shrink: 0; }
+.cost-dialog-head small { color: var(--primary-2); font-size: 11px; letter-spacing: 1px; }
+.cost-dialog-head h2 { font-size: 24px; margin: 6px 0; color: var(--c-primary); }
+.cost-dialog-head p { margin: 0; font-size: 12px; color: var(--c-muted); }
+.cost-dialog-head button { width: 34px; height: 34px; font-size: 26px; line-height: 1; flex-shrink: 0; }
+.cost-dialog-scroll { overflow: auto; min-height: 0; padding: 20px 22px; }
+.cost-dialog-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.cost-dialog-kpis > div { border-left: 2px solid var(--primary-2); background: var(--panel-head); padding: 13px 16px; display: flex; flex-direction: column; gap: 8px; }
+.cost-dialog-kpis > div:nth-child(2) { border-color: var(--warn); }
+.cost-dialog-kpis strong { font: 700 28px/1 var(--font-num); color: var(--c-primary); white-space: nowrap; }
+.cost-dialog-kpis > div > small { font-size: 12px; color: var(--c-muted); }
+.cost-notice { padding: 11px 13px; background: #07314f; color: var(--c-body); font-size: 12px; line-height: 1.65; margin: 15px 0 20px; }
+.cost-detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.cost-detail-section { min-width: 0; }
+.cost-detail-section h3 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 0 0 12px; color: var(--c-primary); }
+.cost-detail-section h3 i { height: 15px; width: 3px; background: var(--primary-2); }
+.cost-detail-section h3 small { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--c-muted); }
+.cost-waterfall { height: 141px; padding: 4px 0 6px; display: flex; flex-direction: column; justify-content: space-around; }
+.cost-waterfall > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+.cost-waterfall b { font: 650 16px/1 var(--font-num); }
+.cost-waterfall i { grid-column: 1 / -1; height: 5px; background: var(--primary); }
+.cost-waterfall .deduction i { background: var(--warn); }
+.cost-waterfall .result i { background: var(--primary-2); }
+.cost-modal-composition { height: 141px; }
+.cost-detail-section table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; font-variant-numeric: tabular-nums; }
+.cost-detail-section caption { text-align: left; font-size: 14px; font-weight: 600; padding: 7px 0; color: var(--c-primary); }
+.cost-detail-section th, .cost-detail-section td { border-bottom: 1px solid var(--divider); padding: 10px 7px; text-align: right; }
+.cost-detail-section th:first-child { text-align: left; width: 48%; }
+.cost-detail-section tbody th { font-weight: 400; }
+.cost-detail-section thead { background: var(--panel-head); color: var(--c-muted); }
+.cost-detail-section td { white-space: nowrap; font-family: var(--font-num); }
+.cost-detail-section td small, .cost-detail-section th small { display: block; margin-top: 3px; font-size: 10px; color: var(--warn); }
+.cost-detail-section .total { background: #073351; color: var(--primary-2); font-weight: 700; }
+.cost-section-note { font-size: 11px; line-height: 1.7; color: var(--c-muted); margin: 9px 0; }
+.cost-rebate-strip { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 15px; border: 1px solid var(--border); background: var(--panel-head); margin-top: 14px; font-size: 12px; }
+.cost-rebate-strip b { margin-left: 12px; font: 650 18px/1 var(--font-num); color: var(--primary-2); white-space: nowrap; }
+.cost-source { margin-top: 18px; font-size: 12px; line-height: 1.7; color: var(--c-muted); }
+.cost-source summary { cursor: pointer; color: var(--c-body); padding: 8px 0; }
+.cost-source summary:focus-visible { outline: 2px solid var(--accent); }
+.cost-source summary span { font-size: 11px; margin-left: 10px; color: var(--warn); }
+.cost-source dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; max-width: 600px; gap: 6px 15px; }
+.cost-source dd { text-align: right; margin: 0; color: var(--c-body); font-family: var(--font-num); }
+.cost-dialog-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 22px; border-top: 1px solid var(--divider); flex-shrink: 0; }
+.cost-dialog-foot span { font-size: 11px; color: var(--c-muted); }
+.cost-dialog-foot button { padding: 7px 22px; font-size: 13px; }
+@media (max-width: 760px) {
+  .cost-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .cost-dialog-head, .cost-dialog-scroll, .cost-dialog-foot { padding: 12px; }
+  .cost-dialog-kpis { gap: 7px; }
+  .cost-dialog-kpis > div { padding: 10px 8px; }
+  .cost-dialog-kpis strong { font-size: 18px; }
+  .cost-detail-columns { grid-template-columns: 1fr; }
+  .cost-dialog-foot span { max-width: 60%; }
+}

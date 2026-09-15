@@ -38,11 +38,11 @@ import { SCREEN_SCALE_KEY } from '../../composables/useScale'
 import { formatMoney, formatPercent } from '../../utils/format'
 
 const COLORS: Record<string, { solid: string; from: string; to: string }> = {
-  // 深色大屏友好色系：蓝 / 琥珀 / 青绿 / 珊瑚
-  淘宝闪购: { solid: '#5B8FF9', from: '#8BB5FF', to: '#3D6FE0' },
-  美团: { solid: '#F6BD16', from: '#FFE08A', to: '#D9A40F' },
-  POS: { solid: '#5AD8A6', from: '#8FE7C3', to: '#3DBF8F' },
-  京东: { solid: '#E8684A', from: '#F3A08A', to: '#D4532F' },
+  // 高饱和鲜明色：避免灰蓝哑光
+  淘宝闪购: { solid: '#FF7A1F', from: '#FFB066', to: '#FF5A00' },
+  美团: { solid: '#FFE14A', from: '#FFF0A0', to: '#FFC107' },
+  POS: { solid: '#3DB8FF', from: '#8AD4FF', to: '#1A9AEF' },
+  京东: { solid: '#FF3D6E', from: '#FF8AA8', to: '#E0184A' },
 }
 
 /** 饼图中心偏右，给左侧悬停留空间 */
@@ -51,7 +51,7 @@ const PIE_CY = '48%'
 const PIE_CY_SHADOW = '53%'
 
 const filter = useFilterStore()
-const { dataKey, cityName, loadingTick, hasData } = storeToRefs(filter)
+const { dataKey, cityQuery, loadingTick, hasData } = storeToRefs(filter)
 const el = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const rows = ref<
@@ -157,7 +157,8 @@ async function load() {
       option.value = null
       return
     }
-    rows.value = await fetchChannelShare(dataKey.value, cityName.value)
+    const cityParam = Array.isArray(cityQuery.value) ? cityQuery.value.join('|') : cityQuery.value
+    rows.value = await fetchChannelShare(dataKey.value, cityParam)
     const total = round2(rows.value.reduce((s, r) => s + (r.paid_amount || 0), 0))
     const pieData = rows.value.map((r) => ({
       name: r.channel,
@@ -286,7 +287,7 @@ async function load() {
   }
 }
 
-watch([dataKey, cityName, loadingTick], load, { immediate: true })
+watch([dataKey, cityQuery, loadingTick], load, { immediate: true })
 watch(chart, (c) => {
   if (c) {
     bindTipEvents()

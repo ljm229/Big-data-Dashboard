@@ -1,14 +1,10 @@
 <!-- 中文名：图表外框 -->
 <template>
-  <section class="panel" :class="{ 'is-loading': loading, 'is-error': !!error, 'has-alert': alert }">
+  <section class="panel" :class="{ 'is-loading': loading, 'is-error': !!error, 'has-alert': alert, 'is-deep': tone === 'deep' }">
     <i class="panel__corner tl" aria-hidden="true" />
     <i class="panel__corner tr" aria-hidden="true" />
     <i class="panel__corner bl" aria-hidden="true" />
     <i class="panel__corner br" aria-hidden="true" />
-    <i class="panel__edge top" aria-hidden="true" />
-    <i class="panel__edge bottom" aria-hidden="true" />
-    <i class="panel__edge left" aria-hidden="true" />
-    <i class="panel__edge right" aria-hidden="true" />
 
     <header class="panel__head">
       <div
@@ -19,7 +15,7 @@
         <i class="panel__bar" />
         <h3>{{ title }}</h3>
         <span v-if="clickable" class="panel__arrow" aria-hidden="true">›</span>
-        <span v-if="alert" class="panel__alert" title="告警">⚠</span>
+        <span v-if="alert" class="panel__alert" title="告警" aria-label="告警">!</span>
       </div>
       <div class="panel__extra">
         <slot name="extra" />
@@ -36,66 +32,93 @@
         <p>数据加载失败</p>
         <button type="button" @click="$emit('retry')">重试</button>
       </div>
-      <div v-else-if="empty" class="panel__empty">当前筛选条件下暂无数据</div>
+      <div v-else-if="empty" class="panel__empty">{{ emptyText }}</div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  title: string
-  updatedAt?: string
-  loading?: boolean
-  error?: string | null
-  empty?: boolean
-  alert?: boolean
-  clickable?: boolean
-}>()
+withDefaults(
+  defineProps<{
+    title: string
+    updatedAt?: string
+    loading?: boolean
+    error?: string | null
+    empty?: boolean
+    emptyText?: string
+    alert?: boolean
+    clickable?: boolean
+    tone?: 'default' | 'deep'
+  }>(),
+  { emptyText: '当前筛选条件下暂无数据', tone: 'default' },
+)
 defineEmits<{ retry: []; 'title-click': [] }>()
 </script>
 
 <style scoped lang="scss">
 .panel {
-  --glow: #4ec8ff;
-  --line: rgba(78, 200, 255, 0.72);
+  --glow: var(--accent-line);
+  --line: var(--border);
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border-radius: 2px;
-  background:
-    linear-gradient(165deg, rgba(14, 42, 92, 0.62), rgba(6, 20, 48, 0.48)),
-    rgba(8, 28, 64, 0.42);
-  border: 1px solid rgba(64, 180, 255, 0.32);
+  border-radius: 0;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent-line) 92%, #fff);
   box-shadow:
-    inset 0 0 32px rgba(30, 100, 200, 0.12),
-    0 0 16px rgba(20, 100, 200, 0.14);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+    0 0 10px color-mix(in srgb, var(--accent-line) 28%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--line-glow) 40%, transparent);
   overflow: hidden;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 15px;
+    height: 1.5px;
+    background: var(--line-glow);
+    box-shadow: 0 0 8px var(--accent-line), 0 0 14px color-mix(in srgb, var(--accent-line) 70%, transparent);
+    pointer-events: none;
+    z-index: 5;
+    transform: rotate(45deg);
+  }
+  &::before { top: 4px; right: -3px; }
+  &::after { bottom: 4px; left: -3px; }
+}
+.panel.is-deep {
+  background: var(--panel-deep);
+  .panel__head {
+    background: var(--panel-head);
+  }
+  .panel__head,
+  .panel__body {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .panel__corner {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   pointer-events: none;
   z-index: 3;
-  filter: drop-shadow(0 0 4px rgba(94, 200, 255, 0.85));
   &::before,
   &::after {
     content: '';
     position: absolute;
     background: var(--glow);
+    box-shadow: 0 0 4px var(--line-glow), 0 0 10px var(--glow), 0 0 16px color-mix(in srgb, var(--accent-line) 65%, transparent);
   }
   &::before {
-    width: 16px;
-    height: 2px;
+    width: 12px;
+    height: 1px;
   }
   &::after {
-    width: 2px;
-    height: 16px;
+    width: 1px;
+    height: 12px;
   }
   &.tl {
     left: 0;
@@ -104,12 +127,14 @@ defineEmits<{ retry: []; 'title-click': [] }>()
     &::after { left: 0; top: 0; }
   }
   &.tr {
+    display: none;
     right: 0;
     top: 0;
     &::before { right: 0; top: 0; }
     &::after { right: 0; top: 0; }
   }
   &.bl {
+    display: none;
     left: 0;
     bottom: 0;
     &::before { left: 0; bottom: 0; }
@@ -123,65 +148,38 @@ defineEmits<{ retry: []; 'title-click': [] }>()
   }
 }
 
-.panel__edge {
-  position: absolute;
-  pointer-events: none;
-  z-index: 2;
-  background: linear-gradient(90deg, transparent, var(--line), transparent);
-  box-shadow: 0 0 8px rgba(94, 200, 255, 0.35);
-  &.top,
-  &.bottom {
-    left: 22px;
-    right: 22px;
-    height: 1px;
-  }
-  &.top { top: 0; }
-  &.bottom { bottom: 0; }
-  &.left,
-  &.right {
-    top: 22px;
-    bottom: 22px;
-    width: 1px;
-    background: linear-gradient(180deg, transparent, var(--line), transparent);
-  }
-  &.left { left: 0; }
-  &.right { right: 0; }
-}
-
 .panel__head {
-  height: 42px;
+  height: var(--head-h, 36px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px 0 12px;
+  padding: 0 12px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(94, 200, 255, 0.14);
-  background: linear-gradient(90deg, rgba(94, 200, 255, 0.14), rgba(94, 200, 255, 0.02) 52%, transparent 78%);
+  border-bottom: 1px solid var(--divider);
+  background: linear-gradient(90deg, var(--panel-head), var(--panel));
 }
 
 .panel__title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   h3 {
     margin: 0;
     font-family: var(--font-cn);
     font-size: var(--fs-title);
     font-weight: var(--fw-title);
-    color: #fff;
-    letter-spacing: 1.5px;
+    color: var(--c-normal);
+    letter-spacing: 0.5px;
     line-height: 1.2;
     white-space: nowrap;
-    text-shadow:
-      0 0 14px rgba(94, 200, 255, 0.45),
-      0 1px 0 rgba(0, 20, 50, 0.35);
+    text-shadow: 0 0 10px #0064ad;
   }
   &.is-clickable {
     cursor: pointer;
     &:hover h3,
     &:hover .panel__arrow {
-      color: #9adfff;
+      color: var(--accent-line);
     }
   }
 }
@@ -193,19 +191,23 @@ defineEmits<{ retry: []; 'title-click': [] }>()
 }
 
 .panel__bar {
-  width: 4px;
-  height: 16px;
+  width: 3px;
+  height: 18px;
   flex-shrink: 0;
-  border-radius: 1px;
-  background: linear-gradient(180deg, #c8f0ff, #3aa0ff 55%, #1a6cff);
-  box-shadow:
-    0 0 10px rgba(94, 200, 255, 0.95),
-    0 0 2px rgba(154, 223, 255, 0.8);
+  border-radius: 0;
+  background: var(--accent-line);
+  box-shadow: 0 0 6px var(--line-glow), 0 0 12px var(--accent-line), 0 0 16px color-mix(in srgb, var(--accent-line) 55%, transparent);
 }
 
 .panel__alert {
-  color: #ff4d4f;
-  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--danger);
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  color: var(--danger);
+  font: 800 11px/1 var(--font-num);
 }
 
 .panel__extra {
@@ -227,7 +229,7 @@ defineEmits<{ retry: []; 'title-click': [] }>()
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: 10px 12px 12px;
+  padding: 8px 10px 10px;
 }
 
 .panel__content {
@@ -238,10 +240,6 @@ defineEmits<{ retry: []; 'title-click': [] }>()
     width: 100%;
     height: 100%;
     min-height: 0;
-  }
-  &.dim {
-    opacity: 0.25;
-    pointer-events: none;
   }
 }
 
@@ -260,15 +258,16 @@ defineEmits<{ retry: []; 'title-click': [] }>()
   inset: 0;
   display: grid;
   place-items: center;
-  color: #a7b8d1;
-  font-size: 14px;
+  color: var(--c-body);
+  font-size: 15px;
+  font-weight: 600;
   z-index: 3;
-  background: rgba(8, 22, 52, 0.55);
+  background: var(--panel);
   button {
     cursor: pointer;
-    border: 1px solid #5ec8ff;
+    border: 1px solid var(--accent-line);
     background: transparent;
-    color: #5ec8ff;
+    color: var(--accent-line);
     padding: 4px 12px;
     border-radius: 4px;
   }

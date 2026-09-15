@@ -95,11 +95,11 @@ export const ASSESS_DEFS: Array<{
 ]
 
 export const GRADE_RULES: Array<{ grade: StoreGrade; label: string; min: number; max: number; color: string }> = [
-  { grade: 'S', label: '标杆店', min: 90, max: 100, color: '#10b981' },
-  { grade: 'A', label: '合格店', min: 80, max: 90, color: '#1d6bff' },
-  { grade: 'B', label: '基线店', min: 60, max: 80, color: '#f59e0b' },
+  { grade: 'S', label: '标杆店', min: 90, max: 100, color: '#059669' },
+  { grade: 'A', label: '合格店', min: 80, max: 90, color: '#2563eb' },
+  { grade: 'B', label: '基线店', min: 60, max: 80, color: '#eab308' },
   { grade: 'C', label: '不合格店', min: 40, max: 60, color: '#f97316' },
-  { grade: 'D', label: '红线店', min: 0, max: 40, color: '#ef4444' },
+  { grade: 'D', label: '红线店', min: 0, max: 40, color: '#dc2626' },
 ]
 
 /** JSON 里比率多为小数；仓T 为分钟 */

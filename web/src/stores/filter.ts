@@ -1,112 +1,75 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import raw from '../data/dashboard.json'
 import { getOpsAvailableDates, hasOpsData as opsHasData } from '../api/opsDashboard'
+import { SOURCE1_CHANNELS, SOURCE1_CITIES, SOURCE1_DAYS, SOURCE1_STORES, canonCity, source1StoreCity } from '../api/source1'
+import { calendarWeekLabel, fridayOfWeek, shiftDay, thursdayOfWeek } from '../utils/bizWeek'
+
+export { calendarWeekLabel, fridayOfWeek, thursdayOfWeek } from '../utils/bizWeek'
 
 type WeekMeta = { id: string; label: string; start: string; end: string; days: string[]; complete?: boolean }
 type MonthMeta = { id: string; label: string; start: string; end: string; days: string[]; complete?: boolean }
 
-const rawDays: string[] = (raw as { days?: string[] }).days || []
-const rawWeeks: WeekMeta[] = (raw as { weeks?: WeekMeta[] }).weeks || []
-const rawMonths: MonthMeta[] = (raw as { months?: MonthMeta[] }).months || []
-const rawChannels: string[] = (raw as { channels?: string[] }).channels || ['全部']
-
-/** 大屏可选自然日（ISO） */
-export const COCKPIT_DAYS = rawDays.length
-  ? rawDays
-  : Object.keys((raw as { storeRank?: Record<string, unknown> }).storeRank || {})
-      .filter((k) => !k.startsWith('W:') && !k.startsWith('M:'))
-      .sort()
-
-export const COCKPIT_CHANNELS = rawChannels
-
-/** 周五=周起点，周四=周终点（上周五 → 下周四） */
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
-}
-function toIsoFromDate(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-export function fridayOfWeek(iso: string) {
-  const d = new Date(`${iso}T12:00:00`)
-  // Fri=0 … Thu=6
-  const sinceFri = (d.getDay() + 2) % 7
-  d.setDate(d.getDate() - sinceFri)
-  return toIsoFromDate(d)
-}
-export function thursdayOfWeek(iso: string) {
-  const d = new Date(`${fridayOfWeek(iso)}T12:00:00`)
-  d.setDate(d.getDate() + 6)
-  return toIsoFromDate(d)
-}
-/**
- * 日历周标签：归属周五所在月，该月内第几个周五 →「8月第3周」
- * 周窗口仍为周五→周四。
- */
-export function calendarWeekLabel(friIso: string) {
-  const fri = new Date(`${friIso}T12:00:00`)
-  if (Number.isNaN(fri.getTime())) return friIso
-  const y = fri.getFullYear()
-  const m = fri.getMonth()
-  let ordinal = 0
-  for (let day = 1; day <= fri.getDate(); day++) {
-    const dt = new Date(y, m, day, 12)
-    if (dt.getDay() === 5) ordinal++
-  }
-  return `${m + 1}月第${ordinal}周`
-}
-
-function friThuWeekLabel(start: string, _end?: string) {
-  const fri = fridayOfWeek(start || '')
-  return calendarWeekLabel(fri)
-}
+/** 大屏可选自然日：仅数据源1 */
+export const COCKPIT_DAYS = SOURCE1_DAYS
+export const COCKPIT_CHANNELS = SOURCE1_CHANNELS.length ? SOURCE1_CHANNELS : ['全部']
+export const COCKPIT_CITIES = SOURCE1_CITIES
+export const COCKPIT_STORE_OPTIONS = SOURCE1_STORES
 
 /** 数据最新日：未结束的周（周四晚于此日）不进入可选列表 */
 const latestDataDay = COCKPIT_DAYS[COCKPIT_DAYS.length - 1] || ''
 
-/** 周列表：标签为「M月第N周」；仅展示已结束的周五→周四周 */
-export const COCKPIT_WEEKS: WeekMeta[] = rawWeeks
-  .map((w) => {
-    const fri = fridayOfWeek(w.start || w.days?.[0] || '')
-    const thu = thursdayOfWeek(fri)
-    return {
-      fri,
-      thu,
-      week: {
-        ...w,
-        start: fri || w.start,
-        end: w.end || thu,
-        label: friThuWeekLabel(w.start || w.days?.[0] || '', w.end || ''),
-      } satisfies WeekMeta,
-    }
-  })
-  .filter((x) => !!x.thu && !!latestDataDay && x.thu <= latestDataDay)
-  .map((x) => x.week)
+function weekId(fri: string) {
+  return `${fri}_${thursdayOfWeek(fri)}`
+}
 
-/** 按自然月（无 months 元数据时从日列表推导） */
-export const COCKPIT_MONTHS: MonthMeta[] = rawMonths.length
-  ? rawMonths
-  : (() => {
-      const map: Record<string, string[]> = {}
-      COCKPIT_DAYS.forEach((d) => {
-        const ym = d.slice(0, 7)
-        if (!map[ym]) map[ym] = []
-        map[ym].push(d)
-      })
-      return Object.keys(map)
-        .sort()
-        .map((ym) => {
-          const days = map[ym].sort()
-          const [y, mo] = ym.split('-')
-          return {
-            id: ym,
-            label: `${Number(y)}年${Number(mo)}月`,
-            start: days[0],
-            end: days[days.length - 1],
-            days,
-          }
-        })
-    })()
+/** 周列表：周五→周四；仅展示周四已落到数据范围内的周 */
+export const COCKPIT_WEEKS: WeekMeta[] = (() => {
+  const map = new Map<string, string[]>()
+  COCKPIT_DAYS.forEach((d) => {
+    const fri = fridayOfWeek(d)
+    const list = map.get(fri) || []
+    list.push(d)
+    map.set(fri, list)
+  })
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([fri, days]) => {
+      const thu = thursdayOfWeek(fri)
+      const sorted = days.sort()
+      return {
+        id: weekId(fri),
+        label: calendarWeekLabel(fri),
+        start: fri,
+        end: thu,
+        days: sorted,
+        complete: sorted.length === 7 && thu <= latestDataDay,
+      }
+    })
+    .filter((w) => !!latestDataDay && w.complete && w.end <= latestDataDay)
+})()
+
+/** 按自然月从数据源1日列表推导 */
+export const COCKPIT_MONTHS: MonthMeta[] = (() => {
+  const map: Record<string, string[]> = {}
+  COCKPIT_DAYS.forEach((d) => {
+    const ym = d.slice(0, 7)
+    if (!map[ym]) map[ym] = []
+    map[ym].push(d)
+  })
+  return Object.keys(map)
+    .sort()
+    .map((ym) => {
+      const days = map[ym].sort()
+      const [y, mo] = ym.split('-')
+      return {
+        id: ym,
+        label: `${Number(y)}年${Number(mo)}月`,
+        start: days[0],
+        end: days[days.length - 1],
+        days,
+      }
+    })
+})()
 
 /** 兼容旧引用：默认日期列表 = 日列表 */
 export const COCKPIT_DATES = COCKPIT_DAYS
@@ -118,19 +81,10 @@ export const DATE_TO_KEY: Record<string, string> = Object.fromEntries(COCKPIT_DA
 export const OPS_DATES = getOpsAvailableDates()
 export const UNIFIED_DATES = [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
 
-function shiftDay(iso: string, delta: number) {
-  const d = new Date(`${iso}T12:00:00`)
-  d.setDate(d.getDate() + delta)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
 function lastDayOfMonth(ym: string) {
   const [y, mo] = ym.split('-').map(Number)
   const last = new Date(y, mo, 0, 12)
-  return `${y}-${pad2(mo)}-${pad2(last.getDate())}`
+  return `${y}-${String(mo).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
 }
 
 function isCompleteWeek(w: WeekMeta) {
@@ -155,8 +109,7 @@ function monthIndex(id: string) {
 export type PeriodMode = 'day' | 'week' | 'month'
 export type StoreSortBy = 'default' | 'refund_amount' | 'refund_rate' | 'refund_orders' | 'inafter_ratio'
 
-const defaultDay =
-  (raw as { primaryDate?: string }).primaryDate || COCKPIT_DAYS[COCKPIT_DAYS.length - 1] || ''
+const defaultDay = COCKPIT_DAYS[COCKPIT_DAYS.length - 1] || ''
 const defaultWeek = COCKPIT_WEEKS[COCKPIT_WEEKS.length - 1]?.id || ''
 const defaultMonth =
   COCKPIT_MONTHS.find((m) => m.days.includes(defaultDay))?.id ||
@@ -169,8 +122,9 @@ export const useFilterStore = defineStore('filter', () => {
   const selectedWeekId = ref(defaultWeek)
   const selectedMonthId = ref(defaultMonth)
   const channel = ref('全部')
+  const selectedCities = ref<string[]>([])
+  const selectedStores = ref<string[]>([])
   const cityId = ref('all')
-  const cityName = ref('全国')
   const abnormalOnly = ref(false)
   const drawer = ref<{ type: 'city' | 'store'; payload: Record<string, unknown> } | null>(null)
   const updatedAt = ref('')
@@ -192,16 +146,70 @@ export const useFilterStore = defineStore('filter', () => {
   })
 
   const hasData = computed(() => {
-    const key = dataKey.value
-    if (!key) return false
-    const ranks = (raw as { storeRank?: Record<string, unknown[]> }).storeRank
-    return !!(ranks && ranks[key])
+    if (periodMode.value === 'week') return COCKPIT_WEEKS.some((w) => w.id === selectedWeekId.value)
+    if (periodMode.value === 'month') return COCKPIT_MONTHS.some((m) => m.id === selectedMonthId.value)
+    return COCKPIT_DAYS.includes(selectedDate.value)
   })
 
+  const periodRange = computed(() => {
+    if (periodMode.value === 'week') {
+      const w = COCKPIT_WEEKS.find((x) => x.id === selectedWeekId.value)
+      return { from: w?.start || '', to: w?.end || '' }
+    }
+    if (periodMode.value === 'month') {
+      const m = COCKPIT_MONTHS.find((x) => x.id === selectedMonthId.value)
+      return { from: m?.start || '', to: m?.end || '' }
+    }
+    return { from: selectedDate.value, to: selectedDate.value }
+  })
+
+  const cityName = computed(() => {
+    if (!selectedCities.value.length) return '全国'
+    if (selectedCities.value.length === 1) return selectedCities.value[0]!
+    if (selectedCities.value.length === 2) return selectedCities.value.join('、')
+    return `已选${selectedCities.value.length}城`
+  })
+  const selectedStore = computed(() => {
+    if (!selectedStores.value.length) return '全部'
+    if (selectedStores.value.length === 1) return selectedStores.value[0]!
+    return `已选${selectedStores.value.length}店`
+  })
+  const cityQuery = computed(() => (selectedCities.value.length ? selectedCities.value : '全国'))
+  const storeQuery = computed(() => (selectedStores.value.length ? selectedStores.value : '全部'))
   const hasOpsData = computed(() => opsHasData(selectedDate.value))
   const hasCockpitData = computed(() => hasData.value)
 
-  /** 环比对照键：日→昨天；周→上一完整周；月→上一完整月。残周/未结束月不比。 */
+  function pruneStoresToCities() {
+    if (!selectedCities.value.length || !selectedStores.value.length) return
+    selectedStores.value = selectedStores.value.filter((name) => {
+      const city = source1StoreCity(name)
+      return city && selectedCities.value.some((c) => canonCity(c) === canonCity(city))
+    })
+  }
+
+  function setCities(names: string[]) {
+    const last = names[names.length - 1]
+    if (!names.length || names.includes('全国') && last === '全国') {
+      selectedCities.value = []
+    } else {
+      selectedCities.value = [...new Set(names.filter((n) => n && n !== '全国').map((n) => canonCity(n)))]
+    }
+    cityId.value = selectedCities.value.length === 1 ? selectedCities.value[0]! : selectedCities.value.length ? 'multi' : 'all'
+    pruneStoresToCities()
+    bump()
+  }
+
+  function setStores(names: string[]) {
+    const last = names[names.length - 1]
+    if (!names.length || names.includes('全部') && last === '全部') {
+      selectedStores.value = []
+    } else {
+      selectedStores.value = [...new Set(names.filter((n) => n && n !== '全部'))]
+    }
+    bump()
+  }
+
+  /** 日比对照键：日→昨天；周→上一完整周；月→上一完整月。残周/未结束月不比。 */
   const compareKey = computed(() => {
     if (periodMode.value === 'week') {
       const i = weekIndex(selectedWeekId.value)
@@ -223,7 +231,7 @@ export const useFilterStore = defineStore('filter', () => {
     return COCKPIT_DAYS.includes(prev) ? prev : null
   })
 
-  /** 周环比（按日）：上周同一天。周/月模式不再另给同比。 */
+  /** 周比（按日）：上周同一天。周/月模式不再另给同比。 */
   const wowKey = computed(() => {
     if (periodMode.value !== 'day') return null
     const prev = shiftDay(selectedDate.value, -7)
@@ -247,17 +255,8 @@ export const useFilterStore = defineStore('filter', () => {
   let focusTimer = 0
   let flashTimer = 0
 
-  function clearCityFilter() {
-    if (cityName.value && cityName.value !== '全国') {
-      cityId.value = 'all'
-      cityName.value = '全国'
-    }
-  }
-
   function setPeriodMode(mode: PeriodMode) {
     periodMode.value = mode
-    // 切换日/周/月时回到全国，避免仍停在无成交城市导致 KPI/图表全 0
-    clearCityFilter()
     bump()
   }
 
@@ -267,7 +266,6 @@ export const useFilterStore = defineStore('filter', () => {
     if (w) selectedWeekId.value = w.id
     const m = COCKPIT_MONTHS.find((x) => x.days.includes(iso))
     if (m) selectedMonthId.value = m.id
-    clearCityFilter()
     bump()
   }
 
@@ -279,7 +277,6 @@ export const useFilterStore = defineStore('filter', () => {
       const m = COCKPIT_MONTHS.find((x) => x.days.includes(w.end))
       if (m) selectedMonthId.value = m.id
     }
-    clearCityFilter()
     bump()
   }
 
@@ -291,7 +288,6 @@ export const useFilterStore = defineStore('filter', () => {
       const w = COCKPIT_WEEKS.find((x) => x.days.includes(m.end))
       if (w) selectedWeekId.value = w.id
     }
-    clearCityFilter()
     bump()
   }
 
@@ -301,9 +297,21 @@ export const useFilterStore = defineStore('filter', () => {
   }
 
   function setCity(id: string, name: string) {
-    cityId.value = id
-    cityName.value = name
-    bump()
+    const label = !name || name === '全国' ? '全国' : canonCity(name)
+    setCities(label === '全国' ? [] : [label])
+  }
+
+  function setStore(name: string) {
+    if (!name || name === '全部') {
+      setStores([])
+      return
+    }
+    setStores([name])
+    const city = source1StoreCity(name)
+    if (city && selectedCities.value.length && !selectedCities.value.some((c) => canonCity(c) === canonCity(city))) {
+      selectedCities.value = [...selectedCities.value, canonCity(city)]
+      cityId.value = selectedCities.value.length === 1 ? selectedCities.value[0]! : 'multi'
+    }
   }
 
   function setAbnormalOnly(value: boolean) {
@@ -352,6 +360,11 @@ export const useFilterStore = defineStore('filter', () => {
     selectedWeekId,
     selectedMonthId,
     channel,
+    selectedStore,
+    selectedCities,
+    selectedStores,
+    cityQuery,
+    storeQuery,
     cityId,
     cityName,
     abnormalOnly,
@@ -363,6 +376,7 @@ export const useFilterStore = defineStore('filter', () => {
     focusStoreName,
     storeSortBy,
     dataKey,
+    periodRange,
     hasData,
     hasOpsData,
     hasCockpitData,
@@ -376,6 +390,9 @@ export const useFilterStore = defineStore('filter', () => {
     setMonth,
     setChannel,
     setCity,
+    setStore,
+    setCities,
+    setStores,
     setAbnormalOnly,
     flashCostPanel,
     flashProductStores,

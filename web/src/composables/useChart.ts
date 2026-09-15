@@ -4,7 +4,7 @@ import type { EChartsOption } from 'echarts'
 import { nextTick, onMounted, onUnmounted, shallowRef, watch, type Ref } from 'vue'
 
 const chartBase = {
-  textStyle: { fontFamily: 'PingFang SC, Noto Sans SC, sans-serif', color: '#9bb0cc', fontSize: 12 },
+  textStyle: { fontFamily: 'PingFang SC, Noto Sans SC, sans-serif', color: '#D8E8FF', fontSize: 14 },
 }
 
 function applyAxisBase(axis: Record<string, unknown> | undefined) {
@@ -13,9 +13,10 @@ function applyAxisBase(axis: Record<string, unknown> | undefined) {
   return {
     ...axis,
     axisLabel: {
-      color: '#9bb0cc',
-      fontSize: 12,
+      color: '#D8E8FF',
+      fontSize: 13,
       fontFamily: 'PingFang SC, Noto Sans SC, sans-serif',
+      fontWeight: 700,
       ...label,
     },
   }
@@ -35,7 +36,10 @@ function cloneOption(opt: EChartsOption): EChartsOption {
           String((s as { type?: string }).type || ''),
         ),
     )
-  if (raw.geo3D || raw.grid3D || raw.globe || hasGlSeries) {
+  const hasCustom =
+    Array.isArray(series) &&
+    series.some((s) => s && typeof s === 'object' && String((s as { type?: string }).type || '') === 'custom')
+  if (raw.geo || raw.geo3D || raw.grid3D || raw.globe || hasGlSeries || hasCustom) {
     return { ...opt }
   }
   try {
@@ -78,8 +82,10 @@ function withChartBase(opt: EChartsOption): EChartsOption {
             String((s as { type?: string }).type || ''),
           ),
       ))
-  // GL 图保留原 option，避免破坏 parametricEquation / grid3D
-  if (hasGl) return opt
+  const hasCustom =
+    Array.isArray(series) &&
+    series.some((s) => s && typeof s === 'object' && String((s as { type?: string }).type || '') === 'custom')
+  if (src.geo || hasGl || hasCustom) return opt
 
   const raw = cloneOption(opt) as Record<string, unknown>
   const base = chartBase as Record<string, unknown>
@@ -92,8 +98,9 @@ function withChartBase(opt: EChartsOption): EChartsOption {
   if (raw.legend && !Array.isArray(raw.legend)) {
     const legend = { ...(raw.legend as Record<string, unknown>) }
     legend.textStyle = {
-      color: '#9bb0cc',
-      fontSize: 12,
+      color: '#e8f3ff',
+      fontSize: 14,
+      fontWeight: 650,
       fontFamily: 'PingFang SC, Noto Sans SC, sans-serif',
       ...((legend.textStyle as Record<string, unknown> | undefined) || {}),
     }
@@ -139,7 +146,10 @@ export function useChart(elRef: Ref<HTMLElement | null>, option: Ref<any>) {
 
   function applyOption(opt: EChartsOption) {
     if (!chart.value || !opt) return
-    chart.value.setOption(withChartBase(opt), { notMerge: true })
+    chart.value.setOption(
+      { animationDurationUpdate: 0, ...(withChartBase(opt) as Record<string, unknown>) },
+      { notMerge: true, lazyUpdate: true },
+    )
   }
 
   function ensure() {
@@ -173,7 +183,6 @@ export function useChart(elRef: Ref<HTMLElement | null>, option: Ref<any>) {
       return
     }
     applyOption(opt)
-    chart.value.resize()
   })
 
   watch(elRef, async () => {

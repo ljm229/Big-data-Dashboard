@@ -70,7 +70,7 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panelEl = ref<HTMLElement | null>(null)
-const { panelStyle } = useFloatingPanel(root, open, 360)
+const { panelStyle } = useFloatingPanel(root, open, 280)
 const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 const available = computed(() => new Set(props.dates))
@@ -138,7 +138,10 @@ const cells = computed(() => {
   const prevDays = new Date(y, m - 1, 0).getDate()
 
   const out: Array<{ key: string; day: number; iso: string; inMonth: boolean; enabled: boolean }> = []
-  for (let i = 0; i < 42; i++) {
+  // 只铺当月实际周数，不固定 6 行，避免末尾整行下月日期撑高
+  const weekCount = Math.ceil((mondayIndex + daysInMonth) / 7)
+  const total = weekCount * 7
+  for (let i = 0; i < total; i++) {
     let day: number
     let iso: string
     let inMonth = true
@@ -211,9 +214,9 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   width: 100%;
   height: 36px;
   padding: 0 10px 0 12px;
-  border: 1px solid rgba(94, 200, 255, 0.45);
-  border-radius: 6px;
-  background: rgba(8, 24, 56, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--panel-solid);
   color: #e8f3ff;
   font-size: 15px;
   font-weight: 600;
@@ -241,8 +244,8 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
 
 <style lang="scss">
 .dash-date__panel {
-  width: 300px;
-  padding: 12px;
+  width: 280px;
+  padding: 10px;
   border: 1px solid rgba(94, 200, 255, 0.5);
   border-radius: 8px;
   background: #0a1e3c;
@@ -253,20 +256,20 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .dash-date__head strong {
-  font-size: 16px;
+  font-size: 15px;
   color: #e8f3ff;
 }
 .dash-date__head .nav {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: 1px solid rgba(94, 200, 255, 0.35);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: #e8f3ff;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
 }
 .dash-date__head .nav:disabled {
@@ -277,14 +280,14 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .dash-date__weekdays span {
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   color: rgba(160, 190, 220, 0.75);
-  padding: 4px 0;
+  padding: 2px 0;
   letter-spacing: 0;
 }
 .dash-date__grid {
@@ -293,12 +296,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   gap: 2px;
 }
 .dash-date__panel .cell {
-  height: 36px;
+  height: 30px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: #e8f3ff;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }

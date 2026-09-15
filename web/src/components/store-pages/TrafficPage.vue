@@ -54,7 +54,7 @@
             <p>{{ item.tip }}</p>
           </article>
         </div>
-        <p v-else class="good">当前筛选下没有明显尾部门店，继续观察来源效率与环比变化。</p>
+        <p v-else class="good">当前筛选下没有明显尾部门店，继续观察来源效率与日比变化。</p>
       </section>
     </template>
   </div>
@@ -82,7 +82,7 @@ const leadText = computed(() => `${breakPoint.value.title}；${board.value?.tips
 function deltaText(cur: number | null | undefined, prev: number | null | undefined) {
   if (cur == null || prev == null || !prev) return '上期无完整对照'
   const d = (cur - prev) / Math.abs(prev)
-  return `较上期 ${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
+  return `日比 ${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
 }
 function tone(v: number | null | undefined, line: number) { return (v || 0) >= line ? 'ok' : 'bad' }
 

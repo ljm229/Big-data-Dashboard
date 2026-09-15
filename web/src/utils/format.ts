@@ -1,21 +1,75 @@
-/** 金额/数量格式化：≥1亿→X.XX亿，≥1万→X.XX万 */
-export function formatMoney(n: number | null | undefined, digits = 2): string {
-  if (n == null || Number.isNaN(n)) return '--'
+/**
+ * 金额展示约定（源数据均为「元」）：
+ * - |n| < 100万 → 数值 + 单位「元」
+ * - |n| ≥ 100万 → 数值（万）+ 单位「万元」
+ * - |n| ≥ 1亿 → 数值（亿）+ 单位「亿元」
+ * KPI 标题用 unit，数值区只写数字；表格等可继续用 formatMoney 合写。
+ */
+function moneyNumber(abs: number, minDigits = 2, maxDigits = 3): string {
+  const factor = 10 ** maxDigits
+  const rounded = Math.round(abs * factor) / factor
+  const asMax = rounded.toFixed(maxDigits)
+  const digits = asMax.endsWith('0') ? minDigits : maxDigits
+  return rounded.toLocaleString('zh-CN', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+}
+
+export type MoneyUnit = '' | '元' | '万元' | '亿元'
+
+export function formatMoneyParts(
+  n: number | null | undefined,
+  digits = 2,
+): { value: string; unit: MoneyUnit } {
+  if (n == null || Number.isNaN(n)) return { value: '—', unit: '' }
   const v = Number(n)
   const abs = Math.abs(v)
   const sign = v < 0 ? '-' : ''
-  if (abs >= 1e8) return `${sign}${(abs / 1e8).toFixed(digits)}亿`
-  if (abs >= 1e4) return `${sign}${(abs / 1e4).toFixed(digits)}万`
-  return `${sign}${abs.toFixed(digits)}`
+  const fixed = digits !== 2
+  if (abs >= 1e8) {
+    const x = abs / 1e8
+    return {
+      value: `${sign}${fixed ? x.toFixed(digits) : moneyNumber(x)}`,
+      unit: '亿元',
+    }
+  }
+  if (abs >= 1e6) {
+    const x = abs / 1e4
+    return {
+      value: `${sign}${fixed ? x.toFixed(digits) : moneyNumber(x)}`,
+      unit: '万元',
+    }
+  }
+  return {
+    value: `${sign}${fixed
+      ? abs.toLocaleString('zh-CN', {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        })
+      : moneyNumber(abs)}`,
+    unit: '元',
+  }
+}
+
+export function formatMoney(n: number | null | undefined, digits = 2): string {
+  const { value, unit } = formatMoneyParts(n, digits)
+  if (!unit || value === '—') return value
+  return unit === '万元' ? `${value}万` : unit === '亿元' ? `${value}亿` : `${value}元`
+}
+
+/** 与 formatMoney 同口径；兼容旧调用 */
+export function formatYuan(n: number | null | undefined, digits = 2): string {
+  return formatMoney(n, digits)
 }
 
 export function formatInt(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return '--'
+  if (n == null || Number.isNaN(n)) return '—'
   return Math.round(Number(n)).toLocaleString('zh-CN')
 }
 
 export function formatPercent(n: number | null | undefined, digits = 1): string {
-  if (n == null || Number.isNaN(n)) return '--'
+  if (n == null || Number.isNaN(n)) return '—'
   const v = Number(n)
   // Excel 中已是小数（0.35）或百分比数字（35）均兼容
   const p = Math.abs(v) <= 1 ? v * 100 : v
@@ -23,7 +77,7 @@ export function formatPercent(n: number | null | undefined, digits = 1): string 
 }
 
 export function formatRatio(a: number, b: number): string {
-  if (!b) return '--'
+  if (!b) return '—'
   return `${a}/${b}`
 }
 

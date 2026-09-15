@@ -1,138 +1,110 @@
-<!-- 中文名：即时零售经营驾驶舱（经典版壳） -->
+<!-- 中文名：数据看板（经典版壳） -->
 <template>
-  <div class="cockpit">
-    <header class="ck-top">
-      <div class="ck-top__brand">
-        <div class="ck-top__mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M4 8h16l-1.2 11.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" />
-            <path d="M8 8V6a4 4 0 0 1 8 0v2" />
-          </svg>
+  <div class="cockpit" :class="{ 'cockpit--traffic': activeTab === 'traffic' }">
+    <header class="ck-chrome">
+      <div class="ck-chrome__top">
+        <div class="ck-chrome__lead">
+          <div class="ck-brand" aria-label="数据看板">
+            <span class="ck-brand__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M4 19V11h3v8H4Zm6.5 0V5h3v14h-3Zm6.5 0V8h3v11h-3Z" fill="currentColor" />
+              </svg>
+            </span>
+            <strong>数据看板</strong>
+          </div>
+
+          <nav class="ck-nav" aria-label="数据看板导航">
+            <button
+              v-for="item in navItems"
+              :key="item.id"
+              type="button"
+              :class="{ active: item.id !== 'overview' && activeTab === item.id }"
+              :aria-current="item.id !== 'overview' && activeTab === item.id ? 'page' : undefined"
+              @click="onNav(item.id)"
+            >
+              {{ item.label }}
+            </button>
+          </nav>
         </div>
-        <div class="ck-top__titles">
-          <h1>闪玩家数据看板</h1>
-          <p>数据驱动经营 · 让好商品更快到达消费者</p>
+
+        <div class="ck-meta">
+          <button type="button" class="ghost" title="切换运营 Tab 版" @click="emit('switch-edition')">Tab</button>
+          <span class="ck-data-status" :title="`当前数据截至 ${statusDate}`">
+            <i aria-hidden="true"></i>
+            数据至 {{ statusDate }}
+          </span>
         </div>
       </div>
 
-      <nav class="ck-nav" aria-label="驾驶舱导航">
-        <button
-          v-for="item in navItems"
-          :key="item.id"
-          type="button"
-          :class="{ active: activeTab === item.id }"
-          @click="onNav(item.id)"
-        >
-          <span class="ck-nav__glyph" v-html="item.svg" aria-hidden="true" />
-          <span class="ck-nav__label">{{ item.label }}</span>
-        </button>
-      </nav>
-
-      <div class="ck-top__tools">
-        <button type="button" class="ghost" @click="emit('switch-edition')">运营·Tab</button>
-        <span class="updated">数据更新时间 · 待同步</span>
-        <button type="button" class="icon-btn" title="刷新" @click="refreshTick++">↻</button>
+      <div class="ck-chrome__bottom">
+        <div class="ck-page-heading">
+          <h1 class="ck-page-title">{{ pageTitle }}</h1>
+          <QualityRulesPop v-if="activeTab === 'quality'" />
+          <div
+            v-if="activeTab === 'traffic'"
+            class="ck-dim-seg"
+            role="group"
+            aria-label="来源分析视角"
+          >
+            <button
+              type="button"
+              :aria-pressed="trafficDimension === 'platform'"
+              :class="{ active: trafficDimension === 'platform' }"
+              @click="trafficDimension = 'platform'"
+            >
+              平台渠道
+            </button>
+            <button
+              type="button"
+              :aria-pressed="trafficDimension === 'app'"
+              :class="{ active: trafficDimension === 'app' }"
+              @click="trafficDimension = 'app'"
+            >
+              APP 内页面
+            </button>
+          </div>
+        </div>
+        <div class="ck-filters">
+          <DateFilter
+            variant="light"
+            scope="cockpit"
+            :show-location="false"
+            :show-channel="false"
+          />
+            <SelectMenu
+              class="ctrl ctrl-city"
+              variant="light"
+              multiple
+              all-value="全国"
+              :model-value="selectedCities"
+              :options="cityOptions"
+              placeholder="全国"
+              search-placeholder="搜索城市"
+              @update:model-value="onCities"
+            />
+            <SelectMenu
+              class="ctrl ctrl-store"
+              variant="light"
+              multiple
+              all-value="全部"
+              :model-value="selectedStores"
+              :options="storeOptions"
+              search-placeholder="搜索门店"
+              placeholder="全部门店"
+              @update:model-value="onStores"
+            />
+        </div>
       </div>
     </header>
 
-    <div class="ck-filters">
-      <template v-if="activeTab === 'quality'">
-        <DateFilter variant="light" scope="ops" />
-        <label class="filter">
-          <span>城市</span>
-          <SelectMenu
-            class="filter__select"
-            variant="light"
-            :model-value="qualityCity"
-            :options="qualityCityOptions"
-            search-placeholder="搜索城市"
-            @update:model-value="qualityCity = $event"
-          />
-        </label>
-        <label class="filter">
-          <span>门店</span>
-          <SelectMenu
-            class="filter__select filter__select--store"
-            variant="light"
-            :model-value="qualityStoreId"
-            :options="qualityStoreOptions"
-            search-placeholder="搜索门店"
-            @update:model-value="qualityStoreId = $event"
-          />
-        </label>
-      </template>
-      <template v-else>
-        <label class="filter">
-          <span>经营日期</span>
-          <DatePicker
-            class="ctrl-date"
-            variant="light"
-            :model-value="selectedDate"
-            :dates="filterDates"
-            @update:model-value="filter.setDate"
-          />
-        </label>
-        <label class="filter">
-          <span>城市</span>
-          <SelectMenu
-            class="filter__select"
-            variant="light"
-            :model-value="city"
-            :options="cityOptions"
-            search-placeholder="搜索城市"
-            @update:model-value="city = $event"
-          />
-        </label>
-        <label class="filter">
-          <span>渠道</span>
-          <SelectMenu
-            class="filter__select"
-            variant="light"
-            :model-value="channel"
-            :options="channelOptions"
-            @update:model-value="onChannel"
-          />
-        </label>
-        <label class="filter">
-          <span>门店</span>
-          <SelectMenu
-            class="filter__select filter__select--store"
-            variant="light"
-            :model-value="storeId"
-            :options="storeOptions"
-            search-placeholder="搜索门店"
-            @update:model-value="storeId = $event"
-          />
-        </label>
-        <label v-if="activeTab === 'category'" class="filter">
-          <span>品类</span>
-          <SelectMenu
-            class="filter__select"
-            variant="light"
-            :model-value="category"
-            :options="categoryOptions"
-            @update:model-value="category = $event"
-          />
-        </label>
-      </template>
-      <div class="ck-filters__slogan" aria-hidden="true">即时零售，近在身边</div>
-    </div>
-
-    <main class="ck-main" :key="`${activeTab}-${refreshTick}`">
+    <main class="ck-main">
       <CityStorePage v-if="activeTab === 'city'" />
       <ProfitCostPage v-else-if="activeTab === 'profit'" />
       <ChannelOrderPage v-else-if="activeTab === 'channel'" />
       <CategoryPage v-else-if="activeTab === 'category'" />
-      <WarningPage v-else-if="activeTab === 'warning'" />
-      <QualityPage
-        v-else-if="activeTab === 'quality'"
-        :city="qualityCity"
-        :store-id="qualityStoreId"
-        :assess-key="assessKey"
-        :has-assess-data="hasAssessData"
-        :data-source="dataSource"
-        :updated-hint="updatedHint"
-      />
+      <TrafficConvertPage v-else-if="activeTab === 'traffic'" />
+      <QualityPage v-else-if="activeTab === 'quality'" />
+      <WarningPage v-else />
     </main>
   </div>
 </template>
@@ -140,324 +112,376 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import DatePicker from './DatePicker.vue'
 import DateFilter from './DateFilter.vue'
 import SelectMenu from './SelectMenu.vue'
 import CityStorePage from './classic-pages/CityStorePage.vue'
 import ProfitCostPage from './classic-pages/ProfitCostPage.vue'
 import ChannelOrderPage from './classic-pages/ChannelOrderPage.vue'
 import CategoryPage from './classic-pages/CategoryPage.vue'
-import WarningPage from './classic-pages/WarningPage.vue'
+import TrafficConvertPage from './classic-pages/TrafficAnalysisPage.vue'
 import QualityPage from './classic-pages/QualityPage.vue'
-import { useFilterStore, COCKPIT_CHANNELS, UNIFIED_DATES } from '../stores/filter'
-import { useStoreScore } from '../composables/useStoreScore'
+import QualityRulesPop from './classic-pages/QualityRulesPop.vue'
+import WarningPage from './classic-pages/WarningPage.vue'
+import { useFilterStore, COCKPIT_CITIES } from '../stores/filter'
+import { SOURCE1_STORES, canonCity } from '../api/source1'
+import { trafficDimension } from '../api/trafficSummary'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
 
-type TabId = 'flash' | 'city' | 'profit' | 'channel' | 'category' | 'warning' | 'quality'
+type TabId = 'overview' | 'city' | 'profit' | 'channel' | 'category' | 'traffic' | 'quality' | 'warning'
 
-const navItems: Array<{ id: TabId; label: string; svg: string }> = [
-  {
-    id: 'flash',
-    label: '数据大屏',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 5h18v12H3z"/><path d="M8 21h8M12 17v4"/></svg>`,
-  },
-  {
-    id: 'city',
-    label: '城市门店经营',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg>`,
-  },
-  {
-    id: 'profit',
-    label: '利润成本拆解',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 3v9h9"/></svg>`,
-  },
-  {
-    id: 'channel',
-    label: '渠道订单大盘',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H7"/></svg>`,
-  },
-  {
-    id: 'category',
-    label: '商品品类大盘',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h16v4H4zM6 12h12v4H6zM8 16h8v4H8z"/></svg>`,
-  },
-  {
-    id: 'warning',
-    label: '经营预警中心',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg>`,
-  },
-  {
-    id: 'quality',
-    label: '门店运营质量',
-    svg: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19h16M7 19V9l5-4 5 4v10"/><path d="M10 19v-5h4v5"/></svg>`,
-  },
+const navItems: Array<{ id: TabId; label: string }> = [
+  { id: 'overview', label: '数据大屏' },
+  { id: 'quality', label: '门店运营质量' },
+  { id: 'profit', label: '利润成本' },
+  { id: 'traffic', label: '流量转化' },
+  { id: 'city', label: '城市门店' },
+  { id: 'channel', label: '渠道订单' },
+  { id: 'category', label: '商品品类' },
+  { id: 'warning', label: '预警中心' },
 ]
 
-const activeTab = ref<Exclude<TabId, 'flash'>>('city')
-const refreshTick = ref(0)
-const city = ref('全部')
-const storeId = ref('全部')
-const category = ref('全部')
-
+const requestedTab = new URLSearchParams(window.location.search).get('tab')
+const classicTabs: Array<Exclude<TabId, 'overview'>> = ['quality', 'profit', 'traffic', 'city', 'channel', 'category', 'warning']
+const activeTab = ref<Exclude<TabId, 'overview'>>(
+  classicTabs.includes(requestedTab as Exclude<TabId, 'overview'>)
+    ? requestedTab as Exclude<TabId, 'overview'>
+    : 'city',
+)
 const filter = useFilterStore()
-const { channel, selectedDate } = storeToRefs(filter)
-const filterDates = UNIFIED_DATES
-
-const {
-  city: qualityCity,
-  storeId: qualityStoreId,
-  cityOptions: qualityCities,
-  storeOptions: qualityStores,
-  assessKey,
-  hasAssessData,
-  updatedHint,
-  dataSource,
-} = useStoreScore()
-
-const qualityCityOptions = computed(() =>
-  qualityCities.value.map((c) => ({ value: c, label: c === '全部' ? '全部城市' : c })),
-)
-const qualityStoreOptions = computed(() => [
-  { value: '全部', label: '全部门店' },
-  ...qualityStores.value.map((s) => ({ value: s.id, label: s.shortName })),
-])
-
-const cityOptions = [
-  { value: '全部', label: '全部城市' },
-  { value: '杭州市', label: '杭州市' },
-  { value: '南京市', label: '南京市' },
-  { value: '上海市', label: '上海市' },
-]
-const storeOptions = [{ value: '全部', label: '全部门店' }]
-const categoryOptions = [
-  { value: '全部', label: '全部品类' },
-  { value: '生鲜', label: '生鲜' },
-  { value: '餐饮', label: '餐饮' },
-  { value: '日配', label: '日配' },
-]
-const channelOptions = computed(() =>
-  COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部渠道' : c })),
+const { selectedCities, selectedStores, selectedDate } = storeToRefs(filter)
+const statusDate = computed(() => {
+  const iso = selectedDate.value
+  return iso ? iso.slice(5).replace('-', '.') : '—'
+})
+const pageTitle = computed(
+  () => navItems.find((item) => item.id === activeTab.value)?.label || '数据看板',
 )
 
-function onChannel(value: string) {
-  filter.setChannel(value)
+const cityOptions = computed(() => COCKPIT_CITIES.map((c) => ({ value: c, label: c })))
+const storeOptions = computed(() => {
+  const cities = selectedCities.value
+  const stores =
+    !cities.length
+      ? SOURCE1_STORES
+      : SOURCE1_STORES.filter((s) => cities.some((c) => canonCity(s.city) === canonCity(c)))
+  return [{ value: '全部', label: '全部门店' }, ...stores.map((s) => ({ value: s.name, label: s.name }))]
+})
+
+function onCities(value: string | string[]) {
+  filter.setCities(Array.isArray(value) ? value : value ? [value] : [])
 }
 
+function onStores(value: string | string[]) {
+  filter.setStores(Array.isArray(value) ? value : value ? [value] : [])
+}
+
+filter.setChannel('全部')
+
 function onNav(id: TabId) {
-  if (id === 'flash') {
+  if (id === 'overview') {
     emit('switch-view')
     return
   }
   activeTab.value = id
+  const url = new URL(window.location.href)
+  url.searchParams.set('tab', id)
+  window.history.replaceState(window.history.state, '', url)
 }
 </script>
 
 <style scoped lang="scss">
 .cockpit {
-  --primary: #1d6bff;
-  --line: #dbe3ef;
-  --text: #0f172a;
-  --muted: #64748b;
   min-height: 100vh;
-  min-width: 1280px;
-  padding: 0 0 28px;
-  background: linear-gradient(180deg, #f5f8fc 0%, #eef2f7 50%, #e8eef6 100%);
-  color: var(--text);
-  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  padding: 0;
+  background: #f3f4f6;
+  color: var(--ck-text);
+  font-family: var(--ck-font);
+  font-size: var(--ck-fs-sm);
+  font-weight: var(--ck-fw-regular);
+  overflow-x: hidden;
 }
-.ck-top {
-  display: grid;
-  grid-template-columns: minmax(240px, 0.95fr) minmax(720px, 2.6fr) minmax(200px, 0.85fr);
-  align-items: stretch;
-  gap: 8px 12px;
-  padding: 10px 20px 0;
-  background: #fff;
-  border-bottom: 1px solid var(--line);
+.ck-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 20px 14px;
+  background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
 }
-.ck-top__brand {
+.ck-chrome__top {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
   min-width: 0;
-  padding-bottom: 10px;
 }
-.ck-top__mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+.ck-chrome__lead {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.ck-chrome__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.ck-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  strong {
+    margin: 0;
+    color: #111827;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1;
+  }
+}
+.ck-brand__icon {
   display: grid;
   place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   color: #fff;
-  background: linear-gradient(145deg, #38bdf8, #1d6bff 55%, #0b3d91);
-  box-shadow: 0 4px 14px rgba(29, 107, 255, 0.3);
+  background: linear-gradient(145deg, #4b5563 0%, #111827 100%);
+  border: 1px solid #111827;
+  box-shadow: 0 4px 10px rgba(17, 24, 39, 0.18);
   flex-shrink: 0;
+  :deep(svg), svg { width: 16px; height: 16px; }
 }
-.ck-top__titles {
-  min-width: 0;
-  h1 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 800;
-    color: #0b3d91;
-    white-space: nowrap;
-  }
-  p {
-    margin: 3px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-}
-
-/* 原型导航：五枚横排，图标在上、文字在下 */
 .ck-nav {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  align-items: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 4px;
   min-width: 0;
-  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
   button {
-    appearance: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 100%;
-    margin: 0;
-    padding: 10px 8px 12px;
+    height: 32px;
+    padding: 0 12px;
     border: 0;
-    border-radius: 0;
+    border-radius: 999px;
     background: transparent;
-    color: #475569;
+    color: var(--ck-body);
+    font-size: 13px;
+    font-weight: var(--ck-fw-medium);
+    letter-spacing: 0;
     cursor: pointer;
-    position: relative;
+    white-space: nowrap;
+    flex-shrink: 0;
     transition: background 0.15s ease, color 0.15s ease;
     &:hover {
-      background: #f5f9ff;
-      color: var(--primary);
+      color: var(--ck-text);
+      background: rgba(255, 255, 255, 0.72);
     }
     &.active {
-      background: #eaf2ff;
-      color: var(--primary);
-      &::after {
-        content: '';
-        position: absolute;
-        left: 12%;
-        right: 12%;
-        bottom: 0;
-        height: 3px;
-        border-radius: 3px 3px 0 0;
-        background: #1d6bff;
-      }
+      color: #fff;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      font-weight: var(--ck-fw-title);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
     }
   }
 }
-.ck-nav__glyph {
-  display: grid;
-  place-items: center;
-  height: 24px;
-  color: inherit;
-  :deep(svg) {
-    display: block;
-  }
-}
-.ck-nav__label {
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.ck-top__tools {
+.ck-meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+.ck-page-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
-.ghost {
-  border: 1px solid var(--line);
-  background: #f8fafc;
-  color: var(--muted);
+.ck-dim-seg {
+  display: inline-flex;
+  border: 1px solid var(--ck-line);
   border-radius: 999px;
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  &:hover {
-    border-color: #93c5fd;
-    color: var(--primary);
-    background: #eff6ff;
+  overflow: hidden;
+  background: var(--ck-btn);
+  flex-shrink: 0;
+  button {
+    height: 30px;
+    padding: 0 12px;
+    border: 0;
+    border-right: 1px solid var(--ck-line);
+    background: transparent;
+    color: var(--ck-body);
+    font-size: 12px;
+    font-weight: var(--ck-fw-medium);
+    cursor: pointer;
+    white-space: nowrap;
+    &:last-child { border-right: 0; }
+    &.active {
+      color: #fff;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      font-weight: var(--ck-fw-title);
+    }
   }
 }
-.updated {
-  font-size: 12px;
-  color: var(--muted);
+.ck-page-title {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   white-space: nowrap;
-}
-.icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 15px;
 }
 .ck-filters {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px 18px;
-  margin: 0;
-  padding: 12px 20px;
-  background: #fff;
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
-}
-.filter {
-  display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  font-size: 13px;
-  color: var(--muted);
-  flex-shrink: 0;
-  span {
-    flex-shrink: 0;
-    font-weight: 600;
-  }
+  min-width: 0;
+  max-width: min(720px, 100%);
+  margin-right: 4px;
+  --filter-fill: var(--ck-btn);
+  --filter-fill-hover: var(--ck-btn-hover);
+  --filter-line: var(--ck-line);
   :deep(.date-bar) {
+    width: auto;
+    flex-wrap: nowrap;
     gap: 8px;
   }
-  :deep(.ctrl-date),
-  :deep(.dash-date) {
-    width: 132px;
+  :deep(.seg) {
+    gap: 0 !important;
+    border: 1px solid var(--filter-line) !important;
+    border-radius: 999px !important;
+    background: var(--filter-fill) !important;
+    overflow: hidden;
   }
-  :deep(.filter__select) {
-    min-width: 110px;
+  :deep(.seg button) {
+    height: 34px !important;
+    padding: 0 12px !important;
+    font-size: var(--ck-fs-xs) !important;
+    font-weight: var(--ck-fw-medium) !important;
+    border-radius: 0 !important;
+    color: var(--ck-body) !important;
+    background: transparent !important;
   }
-  :deep(.filter__select--store) {
-    min-width: 140px;
+  :deep(.seg button:hover) {
+    background: var(--filter-fill-hover) !important;
+    color: var(--ck-text) !important;
+  }
+  :deep(.seg button.active) {
+    color: #fff !important;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.22) !important;
+  }
+  :deep(.dash-date),
+  :deep(.ctrl),
+  :deep(.ctrl-select) { width: 118px; }
+  :deep(.ctrl-city) { width: 96px; }
+  :deep(.ctrl-store) { width: 128px; }
+  :deep(.ctrl-select--week) { width: 148px; }
+  :deep(.ctrl-select--month) { width: 112px; }
+  :deep(.dash-date__trigger),
+  :deep(.dash-select__trigger) {
+    height: 34px !important;
+    border: 1px solid var(--filter-line) !important;
+    border-radius: 999px !important;
+    background: var(--filter-fill) !important;
+    color: var(--ck-text-2) !important;
+    font-size: var(--ck-fs-xs);
+    font-weight: var(--ck-fw-medium);
+    padding: 0 12px;
+  }
+  :deep(.dash-date__trigger:hover),
+  :deep(.dash-select__trigger:hover),
+  :deep(.dash-date.open .dash-date__trigger),
+  :deep(.dash-select.open .dash-select__trigger) {
+    background: var(--filter-fill-hover) !important;
+    border-color: #d1d5db !important;
   }
 }
-.ck-filters__slogan {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-size: 12px;
-  color: #93c5fd;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+.ck-data-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ck-muted);
+  font-size: 11px;
+  font-weight: var(--ck-fw-medium);
   white-space: nowrap;
+  i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  }
+}
+.ghost {
+  border: 1px solid var(--ck-line);
+  background: var(--ck-btn);
+  color: var(--ck-text-2);
+  border-radius: 999px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: var(--ck-fs-xs);
+  font-weight: var(--ck-fw-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  &:hover { background: var(--ck-btn-hover); border-color: #d1d5db; }
 }
 .ck-main {
-  padding: 14px 20px 0;
+  padding: 18px 20px 22px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
+  min-height: calc(100vh - 120px);
+  background: #f3f4f6;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+@media (max-width: 1100px) {
+  .ck-chrome__lead { gap: 12px; }
+  .ck-nav button { padding: 0 9px; font-size: 13px; }
+}
+@media (max-width: 900px) {
+  .ck-chrome__bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .ck-filters { justify-content: flex-start; width: 100%; }
+  .ck-main { padding: 12px 16px; }
+}
+@media (max-width: 640px) {
+  .ck-chrome { padding: 10px 12px; }
+  .ck-chrome__lead { gap: 10px; }
+  .ck-brand strong { font-size: 16px; }
+  .ck-brand__icon { width: 26px; height: 26px; }
+  .ck-page-title { font-size: 18px; }
+  .ck-data-status { display: none; }
+  .ck-main { padding: 12px; }
 }
 </style>
 

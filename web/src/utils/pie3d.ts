@@ -1,226 +1,246 @@
-/** ECharts GL 立体饼图（surface 参数方程） */
+/** PPT 风格等距立体饼（canvas，不依赖 echarts-gl） */
 
 export type Pie3DItem = {
   name: string
   value: number
-  itemStyle?: { color?: string; opacity?: number }
+  itemStyle?: { color?: string }
+  profit?: number | null
+  profitRate?: number | null
+  unitProfit?: number | null
+  delta?: number | null
 }
 
-function getParametricEquation(
-  startRatio: number,
-  endRatio: number,
-  isSelected: boolean,
-  isHovered: boolean,
-  k: number,
-  height: number,
-) {
-  const startRadian = startRatio * Math.PI * 2
-  const endRadian = endRatio * Math.PI * 2
-  const midRadian = (startRadian + endRadian) / 2
-  k = typeof k === 'number' && !Number.isNaN(k) ? k : 1 / 3
-  const offsetX = isSelected ? Math.cos(midRadian) * 0.12 : 0
-  const offsetY = isSelected ? Math.sin(midRadian) * 0.12 : 0
-  const hoverRate = isHovered ? 1.08 : 1
+export type LaidSlice = Pie3DItem & {
+  start: number
+  end: number
+  share: number
+  exploded: boolean
+  color: string
+}
 
+export type PieGeom = {
+  cx: number
+  cy: number
+  rx: number
+  ry: number
+  depth: number
+}
+
+function parseRgb(input?: string): [number, number, number] {
+  if (!input) return [85, 185, 255]
+  if (input.startsWith('#')) {
+    const h = input.slice(1)
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+    const n = Number.parseInt(full.slice(0, 6), 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+  const m = input.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])]
+  return [85, 185, 255]
+}
+
+function rgba(rgb: [number, number, number], alpha = 1, lift = 0) {
+  const t = (c: number) => {
+    if (lift >= 0) return Math.round(c + (255 - c) * lift)
+    return Math.round(c * (1 + lift))
+  }
+  return `rgba(${t(rgb[0])},${t(rgb[1])},${t(rgb[2])},${alpha})`
+}
+
+function polar(cx: number, cy: number, rx: number, ry: number, a: number): [number, number] {
+  return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]
+}
+
+export function pieGeom(w: number, h: number): PieGeom {
+  const rx = Math.min(w * 0.44, h * 0.5)
   return {
-    u: { min: -Math.PI, max: Math.PI * 3, step: Math.PI / 28 },
-    v: { min: 0, max: Math.PI * 2, step: Math.PI / 18 },
-    x(u: number, v: number) {
-      if (u < startRadian) {
-        return offsetX + Math.cos(startRadian) * (1 + Math.cos(v) * k) * hoverRate
-      }
-      if (u > endRadian) {
-        return offsetX + Math.cos(endRadian) * (1 + Math.cos(v) * k) * hoverRate
-      }
-      return offsetX + Math.cos(u) * (1 + Math.cos(v) * k) * hoverRate
-    },
-    y(u: number, v: number) {
-      if (u < startRadian) {
-        return offsetY + Math.sin(startRadian) * (1 + Math.cos(v) * k) * hoverRate
-      }
-      if (u > endRadian) {
-        return offsetY + Math.sin(endRadian) * (1 + Math.cos(v) * k) * hoverRate
-      }
-      return offsetY + Math.sin(u) * (1 + Math.cos(v) * k) * hoverRate
-    },
-    z(u: number, v: number) {
-      if (u < -Math.PI * 0.5) return Math.sin(u)
-      if (u > Math.PI * 2.5) return Math.sin(u) * height
-      return Math.sin(v) > 0 ? height : -1
-    },
+    cx: w * 0.5,
+    cy: h * 0.44,
+    rx,
+    ry: rx * 0.32,
+    depth: Math.min(36, Math.max(20, h * 0.16)),
   }
 }
 
-/** 生成立体饼图 option（需先 import 'echarts-gl'） */
-export function buildPie3DOption(
-  pieData: Pie3DItem[],
-  opts?: {
-    internalDiameterRatio?: number
-    alpha?: number
-    beta?: number
-    distance?: number
-    selectedName?: string
-  },
-) {
-  const internalDiameterRatio = opts?.internalDiameterRatio ?? 0.58
-  const series: any[] = []
-  let sumValue = 0
-  let startValue = 0
-  const k =
-    typeof internalDiameterRatio !== 'undefined'
-      ? (1 - internalDiameterRatio) / (1 + internalDiameterRatio)
-      : 1 / 3
-
-  const cleaned = pieData
-    .filter((d) => d.value > 0)
-    .map((d) => ({ ...d, value: Math.max(0, Number(d.value) || 0) }))
-
-  for (const item of cleaned) {
-    sumValue += item.value
-    const seriesItem: any = {
-      name: item.name,
-      type: 'surface',
-      parametric: true,
-      wireframe: { show: false },
-      pieData: item,
-      pieStatus: { selected: false, hovered: false, k },
-      itemStyle: {
-        color: item.itemStyle?.color,
-        opacity: item.itemStyle?.opacity ?? 0.95,
-      },
-    }
-    series.push(seriesItem)
-  }
-
-  if (!sumValue || !series.length) {
+export function layoutPieSlices(pieData: Pie3DItem[], selectedName?: string): LaidSlice[] {
+  const cleaned = pieData.filter((d) => Number(d.value) > 0)
+  const sum = cleaned.reduce((s, d) => s + d.value, 0)
+  if (!sum) return []
+  let acc = 0
+  const start0 = -Math.PI / 2
+  return cleaned.map((d) => {
+    const start = start0 + (acc / sum) * Math.PI * 2
+    acc += d.value
+    const share = d.value / sum
     return {
-      title: {
-        text: '暂无渠道数据',
-        left: 'center',
-        top: 'middle',
-        textStyle: { color: '#94a3b8', fontSize: 13, fontWeight: 500 },
-      },
+      ...d,
+      start,
+      end: start0 + (acc / sum) * Math.PI * 2,
+      share,
+      exploded: selectedName === d.name || (!selectedName && share < 0.35),
+      color: d.itemStyle?.color || '#55b9ff',
     }
-  }
-
-  const maxVal = Math.max(...cleaned.map((d) => d.value))
-  for (let i = 0; i < series.length; i++) {
-    const endValue = startValue + series[i].pieData.value
-    series[i].pieData.startRatio = startValue / sumValue
-    series[i].pieData.endRatio = endValue / sumValue
-    const h = 0.55 + (series[i].pieData.value / maxVal) * 0.85
-    const selected = opts?.selectedName === series[i].name
-    series[i].parametricEquation = getParametricEquation(
-      series[i].pieData.startRatio,
-      series[i].pieData.endRatio,
-      selected,
-      false,
-      k,
-      h,
-    )
-    startValue = endValue
-  }
-
-  // 扇区中部标注百分比
-  const labelData = series
-    .filter((s) => s.pieData)
-    .map((s) => {
-      const start = s.pieData.startRatio as number
-      const end = s.pieData.endRatio as number
-      const mid = ((start + end) / 2) * Math.PI * 2
-      const selected = opts?.selectedName === s.name
-      const r = (selected ? 1.05 : 0.92) * (1 + k * 0.35)
-      const pct = ((s.pieData.value / sumValue) * 100).toFixed(1)
-      return {
-        name: `${pct}%`,
-        value: [
-          Math.cos(mid) * r,
-          Math.sin(mid) * r,
-          Math.max(0.2, (0.55 + (s.pieData.value / maxVal) * 0.85) * 0.55),
-        ],
-        itemStyle: { color: 'transparent' },
-        label: {
-          show: true,
-          formatter: `${s.name}\n${pct}%`,
-          color: '#334155',
-          fontSize: 11,
-          fontWeight: 700,
-          backgroundColor: 'rgba(255,255,255,0.88)',
-          padding: [3, 6],
-          borderRadius: 4,
-        },
-      }
-    })
-
-  series.push({
-    type: 'scatter3D',
-    symbolSize: 1,
-    silent: true,
-    label: { show: true },
-    data: labelData,
   })
+}
 
-  // 透明鼠标拾取盘
-  series.push({
-    name: 'mouseoutSeries',
-    type: 'surface',
-    parametric: true,
-    wireframe: { show: false },
-    itemStyle: { opacity: 0 },
-    parametricEquation: {
-      u: { min: 0, max: Math.PI * 2, step: Math.PI / 20 },
-      v: { min: 0, max: Math.PI, step: Math.PI / 20 },
-      x: (u: number, v: number) => Math.sin(v) * Math.sin(u) + Math.sin(u),
-      y: (u: number, v: number) => Math.sin(v) * Math.cos(u) + Math.cos(u),
-      z: (u: number, v: number) => (Math.cos(v) > 0 ? 0.1 : -0.1),
-    },
-  })
-
-  const legendPct: Record<string, string> = {}
-  cleaned.forEach((d) => {
-    legendPct[d.name] = ((d.value / sumValue) * 100).toFixed(1) + '%'
-  })
-
+function slicePose(g: PieGeom, s: LaidSlice, extra = 0) {
+  const mid = (s.start + s.end) / 2
+  const explode = (s.exploded ? 24 : 5) + extra
+  const height = g.depth * (0.92 + s.share * 0.28)
   return {
-    tooltip: {
-      formatter: (p: any) => {
-        if (p.seriesName === 'mouseoutSeries' || p.seriesType === 'scatter3D') return ''
-        const d = series.find((s) => s.name === p.seriesName)?.pieData
-        if (!d) return p.seriesName
-        const share = ((d.value / sumValue) * 100).toFixed(1)
-        return `${d.name}<br/>实付 ¥${Math.round(d.value).toLocaleString()}（${share}%）`
-      },
-    },
-    legend: {
-      bottom: 4,
-      left: 'center',
-      itemWidth: 10,
-      itemHeight: 10,
-      textStyle: { color: '#64748b', fontSize: 11 },
-      data: cleaned.map((d) => d.name),
-      formatter: (name: string) => `${name}  ${legendPct[name] || ''}`,
-    },
-    xAxis3D: { min: -1.35, max: 1.35 },
-    yAxis3D: { min: -1.35, max: 1.35 },
-    zAxis3D: { min: -1.2, max: 1.2 },
-    grid3D: {
-      show: false,
-      boxHeight: 18,
-      top: '-8%',
-      viewControl: {
-        alpha: opts?.alpha ?? 28,
-        beta: opts?.beta ?? 35,
-        distance: opts?.distance ?? 170,
-        rotateSensitivity: 1,
-        zoomSensitivity: 0,
-        panSensitivity: 0,
-        autoRotate: false,
-      },
-      light: {
-        main: { intensity: 1.15, shadow: true },
-        ambient: { intensity: 0.55 },
-      },
-    },
-    series,
+    cx: g.cx + Math.cos(mid) * explode,
+    cy: g.cy + Math.sin(mid) * explode * 0.55,
+    mid,
+    height,
   }
+}
+
+function fillSector(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  a0: number,
+  a1: number,
+) {
+  ctx.beginPath()
+  ctx.moveTo(cx, cy)
+  const n = Math.max(10, Math.ceil(Math.abs(a1 - a0) / 0.05))
+  for (let i = 0; i <= n; i += 1) {
+    const a = a0 + ((a1 - a0) * i) / n
+    ctx.lineTo(...polar(cx, cy, rx, ry, a))
+  }
+  ctx.closePath()
+  ctx.fill()
+}
+
+function drawRadialWall(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  depth: number,
+  a: number,
+  fill: string,
+) {
+  const [tx, ty] = polar(cx, cy, rx, ry, a)
+  ctx.beginPath()
+  ctx.moveTo(cx, cy)
+  ctx.lineTo(tx, ty)
+  ctx.lineTo(tx, ty + depth)
+  ctx.lineTo(cx, cy + depth)
+  ctx.closePath()
+  ctx.fillStyle = fill
+  ctx.fill()
+}
+
+function drawRim(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  depth: number,
+  a0: number,
+  a1: number,
+  rgb: [number, number, number],
+) {
+  const n = Math.max(8, Math.ceil(Math.abs(a1 - a0) / 0.05))
+  for (let i = 0; i < n; i += 1) {
+    const a = a0 + ((a1 - a0) * i) / n
+    const a2 = a0 + ((a1 - a0) * (i + 1)) / n
+    if ((Math.sin(a) + Math.sin(a2)) / 2 < -0.12) continue
+    const [x1, y1] = polar(cx, cy, rx, ry, a)
+    const [x2, y2] = polar(cx, cy, rx, ry, a2)
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    ctx.lineTo(x2, y2 + depth)
+    ctx.lineTo(x1, y1 + depth)
+    ctx.closePath()
+    ctx.fillStyle = rgba(rgb, 1, -0.14 - Math.max(0, Math.sin((a + a2) / 2)) * 0.28)
+    ctx.fill()
+  }
+}
+
+export function drawIsometricPie(
+  ctx: CanvasRenderingContext2D,
+  slices: LaidSlice[],
+  w: number,
+  h: number,
+  hoverName?: string,
+) {
+  ctx.clearRect(0, 0, w, h)
+  if (!slices.length || w < 8 || h < 8) return
+  const g = pieGeom(w, h)
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.ellipse(g.cx, g.cy + g.depth * 1.55, g.rx * 1.06, g.ry * 0.78, 0, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(0, 8, 24, 0.42)'
+  ctx.fill()
+  ctx.restore()
+
+  const ordered = [...slices].sort((a, b) => {
+    const pa = slicePose(g, a)
+    const pb = slicePose(g, b)
+    return pa.cy - pb.cy
+  })
+
+  for (const s of ordered) {
+    const extra = hoverName === s.name ? 5 : 0
+    const { cx, cy, height } = slicePose(g, s, extra)
+    const rgb = parseRgb(s.color)
+    drawRadialWall(ctx, cx, cy, g.rx, g.ry, height, s.start, rgba(rgb, 1, -0.44))
+    drawRadialWall(ctx, cx, cy, g.rx, g.ry, height, s.end, rgba(rgb, 1, -0.44))
+    drawRim(ctx, cx, cy, g.rx, g.ry, height, s.start, s.end, rgb)
+    ctx.fillStyle = rgba(rgb, 1, hoverName === s.name ? 0.22 : 0.1)
+    fillSector(ctx, cx, cy, g.rx, g.ry, s.start, s.end)
+    ctx.strokeStyle = rgba(rgb, 0.95, 0.34)
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
+
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = '800 12px PingFang SC, Noto Sans SC, sans-serif'
+  for (const s of slices) {
+    if (s.share < 0.07) continue
+    const { cx, cy, mid } = slicePose(g, s, hoverName === s.name ? 5 : 0)
+    const r = s.share >= 0.16 ? 0.5 : 0.78
+    const [lx, ly] = polar(cx, cy, g.rx * r, g.ry * r, mid)
+    const pct = `${Math.round(s.share * 100)}%`
+    ctx.shadowColor = 'rgba(0, 12, 36, 0.9)'
+    ctx.shadowBlur = 6
+    ctx.fillStyle = '#f4fbff'
+    ctx.fillText(s.name, lx, ly - 8)
+    ctx.fillText(pct, lx, ly + 8)
+    ctx.shadowBlur = 0
+  }
+}
+
+export function hitPieSlice(
+  slices: LaidSlice[],
+  w: number,
+  h: number,
+  x: number,
+  y: number,
+): LaidSlice | null {
+  if (!slices.length) return null
+  const g = pieGeom(w, h)
+  const frontFirst = [...slices].sort((a, b) => slicePose(g, b).cy - slicePose(g, a).cy)
+  for (const s of frontFirst) {
+    const { cx, cy, height } = slicePose(g, s)
+    const nx = (x - cx) / g.rx
+    const ny = (y - cy) / g.ry
+    const onTop = nx * nx + ny * ny <= 1
+    const onSide = y >= cy && y <= cy + height && nx * nx <= 1
+    if (!onTop && !onSide) continue
+    let ang = Math.atan2(onTop ? ny : 0.7, nx)
+    if (ang < -Math.PI / 2) ang += Math.PI * 2
+    if (ang >= s.start && ang <= s.end) return s
+  }
+  return null
 }

@@ -3,10 +3,10 @@
   <div class="ops-tabs ops-theme">
     <aside class="ops-tabs__nav">
       <div class="nav-brand">
-        <b>运</b>
+        <b>数</b>
         <div>
-          <strong>经营管理工作台</strong>
-          <span>老板总览 · 主管诊断</span>
+          <strong>数据看板</strong>
+          <span>经典运营 · Tab 版</span>
         </div>
       </div>
 
@@ -30,7 +30,7 @@
       </nav>
 
       <div class="nav-foot">
-        <span>同一套数据，两种管理视角</span>
+        <span>同一套数据，一种经营口径</span>
         <b>结果 → 诊断 → 辅导 → 复盘</b>
       </div>
     </aside>
@@ -45,14 +45,6 @@
           <div class="source-pill" :class="currentSourceTone">
             <i />{{ currentSourceLabel }}
             <span v-if="activeTab === 'overview' && updatedHint">{{ updatedHint }}</span>
-          </div>
-          <div class="role-switch" role="group" aria-label="看板视角">
-            <button type="button" :class="{ active: viewRole === 'boss' }" @click="viewRole = 'boss'">
-              老板视角
-            </button>
-            <button type="button" :class="{ active: viewRole === 'manager' }" @click="viewRole = 'manager'">
-              主管视角
-            </button>
           </div>
           <details v-if="activeTab === 'overview'" class="rules">
             <summary>考核规则</summary>
@@ -88,10 +80,13 @@
               <SelectMenu
                 class="filter__select"
                 variant="light"
-                :model-value="city"
+                multiple
+                all-value="全部"
+                :model-value="cities"
                 :options="citySelectOptions"
+                placeholder="全部城市"
                 search-placeholder="搜索城市"
-                @update:model-value="city = $event"
+                @update:model-value="onCities"
               />
             </label>
             <label class="filter">
@@ -99,22 +94,15 @@
               <SelectMenu
                 class="filter__select filter__select--store"
                 variant="light"
-                :model-value="storeId"
+                multiple
+                all-value="全部"
+                :model-value="storeIds"
                 :options="storeSelectOptions"
+                placeholder="全部门店"
                 search-placeholder="搜索门店名/编码"
-                @update:model-value="storeId = $event"
+                @update:model-value="onStores"
               />
             </label>
-          </div>
-          <div class="role-brief">
-            <div>
-              <b>{{ viewRole === 'boss' ? '老板关注' : '主管关注' }}</b>
-              <span>{{ roleDescription }}</span>
-            </div>
-            <ul>
-              <li v-for="item in roleFocus" :key="item">{{ item }}</li>
-            </ul>
-            <small v-if="viewRole === 'manager'">当前通过城市和门店筛选查看；接入主管—门店映射后自动限定管辖范围。</small>
           </div>
       </header>
 
@@ -216,30 +204,30 @@ const tabs: TabDef[] = [
     no: '02',
     label: '经营结果',
     desc: '订单 / 实付 / 毛利是否达标',
-    status: 'partial',
-    dataLabel: '可展示',
+    status: 'ready',
+    dataLabel: '已接入',
   },
   {
     id: 'traffic',
     no: '03',
     label: '流量与转化',
-    desc: 'UV · P1进店 · P2下单断点',
-    status: 'partial',
+    desc: '曝光 · 进店 · 下单断点',
+    status: 'ready',
     dataLabel: '已接入',
   },
   {
     id: 'promo',
     no: '04',
-    label: '推广消耗',
-    desc: '费用趋势 · 活动产出 · 拉新',
+    label: '推广与活动',
+    desc: '投入强度 · 活动产出 · 拉新结构',
     status: 'partial',
-    dataLabel: '可分析',
+    dataLabel: '已接入',
   },
   {
     id: 'supply',
     no: '05',
     label: '商品供给',
-    desc: '品类 · 数量 · 缺货损失下钻',
+    desc: '品类版图 · 缺货损失 · 补货优先级',
     status: 'partial',
     dataLabel: '已接入',
   },
@@ -247,7 +235,7 @@ const tabs: TabDef[] = [
     id: 'reverse',
     no: '06',
     label: '逆向客诉',
-    desc: '逆向原因 · 配送异常 · 客诉商品',
+    desc: '逆向原因 · 配送履约 · 客诉商品',
     status: 'ready',
     dataLabel: '已接入',
   },
@@ -255,24 +243,23 @@ const tabs: TabDef[] = [
     id: 'coach',
     no: '07',
     label: '门店辅导',
-    desc: '按断点打标签 · 本周盯店动作',
+    desc: '待处理 · 处理中 · 已复盘',
     status: 'partial',
-    dataLabel: '待任务闭环',
+    dataLabel: '任务待接',
   },
 ]
 
 type TabId = string
 const activeTab = ref<TabId>('overview')
-const viewRole = ref<'boss' | 'manager'>('boss')
 const currentTab = computed(() => tabs.find((t) => t.id === activeTab.value))
 
 const sourceCopy: Record<string, { label: string; tone: string }> = {
   result: { label: '经营趋势与渠道门店数据', tone: 'static' },
-  traffic: { label: '流量分来源 · 30 日明细', tone: 'static' },
-  promo: { label: '推广费用趋势 + 活动明细', tone: 'static' },
-  supply: { label: '商品销售、退款与缺货明细', tone: 'static' },
+  traffic: { label: '流量分来源 · 约 08-13～09-11', tone: 'static' },
+  promo: { label: '推广费用 + 活动明细 · 无预算/小时', tone: 'static' },
+  supply: { label: '商品明细区间汇总 · 非日切片', tone: 'static' },
   reverse: { label: '逆向订单 + 配送异常明细', tone: 'static' },
-  coach: { label: '质量评分可用 · 辅导任务待接', tone: 'partial' },
+  coach: { label: '待处理来自考核 · 任务状态未接入', tone: 'partial' },
 }
 
 const currentSourceLabel = computed(() => {
@@ -287,35 +274,9 @@ const currentSourceTone = computed(() => {
   return dataSource.value
 })
 
-const roleDescriptions: Record<'boss' | 'manager', string> = {
-  boss: '先判断整体是否达标，再定位区域、主管和风险门店。',
-  manager: '先看负责门店的异常，再下钻原因并形成当天动作。',
-}
-const roleDescription = computed(() => roleDescriptions[viewRole.value])
-
-const focusMap: Record<'boss' | 'manager', Record<string, string[]>> = {
-  boss: {
-    overview: ['健康门店率', '主管对比', '风险门店'],
-    result: ['经营规模', '环比趋势', '门店贡献'],
-    traffic: ['整体漏斗', '来源结构', '转化短板'],
-    promo: ['总消耗', '投产效率', '预算风险'],
-    supply: ['供给健康', '缺货损失', '品类风险'],
-    reverse: ['退款损失', '原因结构', '风险门店'],
-    coach: ['覆盖率', '完成率', '改善率'],
-  },
-  manager: {
-    overview: ['门店扣分项', '未达标指标', '优先处理店'],
-    result: ['目标缺口', '下降门店', '渠道原因'],
-    traffic: ['低转化门店', '低效来源', '改善动作'],
-    promo: ['计划异常', '预算进度', '调价复查'],
-    supply: ['缺货商品', '低动销商品', '补货清单'],
-    reverse: ['异常订单', '责任原因', '处理时效'],
-    coach: ['今日待办', '责任人', '复查结果'],
-  },
-}
-const roleFocus = computed(() => focusMap[viewRole.value][activeTab.value] || [])
-
 const {
+  cities,
+  storeIds,
   city,
   storeId,
   cityOptions,
@@ -340,9 +301,27 @@ const storeSelectOptions = computed(() => [
   })),
 ])
 
+function onCities(value: string | string[]) {
+  cities.value = Array.isArray(value)
+    ? value.filter((v) => v && v !== '全部')
+    : value && value !== '全部'
+      ? [value]
+      : []
+}
+
+function onStores(value: string | string[]) {
+  storeIds.value = Array.isArray(value)
+    ? value.filter((v) => v && v !== '全部')
+    : value && value !== '全部'
+      ? [value]
+      : []
+}
+
 const storeHint = computed(() => {
-  if (storeId.value === '全部') return ''
-  return storeOptions.value.find((s) => s.id === storeId.value)?.shortName || storeId.value
+  if (!storeIds.value.length) return ''
+  return storeIds.value
+    .map((id) => storeOptions.value.find((s) => s.id === id)?.shortName || id)
+    .join('|')
 })
 
 const assessDefs = ASSESS_DEFS
@@ -595,67 +574,6 @@ nav {
     font-size: 12px;
   }
 }
-.role-switch {
-  display: inline-flex;
-  margin-left: auto;
-  padding: 3px;
-  border-radius: 10px;
-  background: #eef2f7;
-  button {
-    border: 0;
-    border-radius: 8px;
-    padding: 7px 12px;
-    background: transparent;
-    color: var(--ops-muted);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 700;
-    &.active {
-      color: #fff;
-      background: var(--ops-primary);
-      box-shadow: 0 3px 10px rgba(29, 107, 255, 0.22);
-    }
-  }
-}
-.role-brief {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid var(--ops-border-soft);
-  > div {
-    min-width: 260px;
-    b,
-    span { display: block; }
-    b { color: var(--ops-primary-deep); font-size: 12px; }
-    span { margin-top: 2px; color: var(--ops-text-2); font-size: 12px; }
-  }
-  ul {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    li {
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: var(--ops-primary-soft);
-      color: var(--ops-primary);
-      font-size: 11px;
-      font-weight: 700;
-    }
-  }
-  small {
-    margin-left: auto;
-    color: var(--ops-muted);
-    font-size: 11px;
-    text-align: right;
-    max-width: 260px;
-  }
-}
 .filter-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -839,8 +757,8 @@ nav {
       color: var(--ops-primary);
     }
     &.g-B {
-      background: #f5f3ff;
-      color: #8b5cf6;
+      background: var(--ops-warn-bg);
+      color: var(--ops-warn);
     }
     &.g-C {
       background: var(--ops-warn-bg);

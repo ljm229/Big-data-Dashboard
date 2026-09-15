@@ -8,20 +8,27 @@
             城市
             <SelectMenu
               class="city-filter__select"
-              :model-value="cityId === 'all' ? 'all' : cityName"
+              multiple
+              all-value="全国"
+              :model-value="selectedCities"
               :options="citySelectOptions"
-              @update:model-value="onCitySelect"
+              placeholder="全国"
+              search-placeholder="搜索城市"
+              @update:model-value="onCitiesSelect"
             />
           </label>
           <label class="city-filter">
             门店
             <SelectMenu
               class="city-filter__select"
-              :model-value="storeFocus"
+              multiple
+              all-value=""
+              :model-value="selectedStores"
               :options="storeSelectOptions"
               :disabled="!storeOptions.length"
               placeholder="全部门店"
-              @update:model-value="onStoreSelect"
+              search-placeholder="搜索门店"
+              @update:model-value="onStoresSelect"
             />
           </label>
           <label class="city-filter city-filter--metric">
@@ -120,7 +127,7 @@ type GeoCity = {
 type StoreProfile = NonNullable<Awaited<ReturnType<typeof fetchStoreProfile>>>
 
 const filter = useFilterStore()
-const { dataKey, loadingTick, cityId, cityName, hasData, channel } = storeToRefs(filter)
+const { dataKey, loadingTick, cityId, cityName, selectedCities, selectedStores, hasData, channel } = storeToRefs(filter)
 const el = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const option = ref<any>(null)
@@ -142,28 +149,32 @@ const lastMode = ref<'nation' | 'province'>('nation')
 const lastProvinceKey = ref<string>('')
 let mapClickHandled = false
 
-const provinceView = computed(() => !!activeProvince.value && cityName.value !== '全国')
+const provinceView = computed(() => !!activeProvince.value && selectedCities.value.length > 0)
 const panelTitle = computed(() =>
   provinceView.value ? `${activeProvince.value?.name || ''} · ${cityName.value}` : '城市分布',
 )
 
-function matchCityLocal(a: string, b: string) {
-  if (!b || b === '全国') return true
-  return a.replace(/市$/, '') === b.replace(/市$/, '') || a === b
+function matchCityLocal(a: string, b: string | string[]) {
+  const list = Array.isArray(b) ? b : b ? [b] : []
+  if (!list.length || list.some((x) => !x || x === '全国' || x === 'all')) return true
+  const left = a.replace(/市$/g, '')
+  return list.some((item) => left === String(item).replace(/市$/g, '') || a === item)
 }
 
 /** 门店下拉：全国列出全部门店；选城市后仅该城门店 */
 const storeOptions = computed(() => {
-  if (!cityName.value || cityName.value === '全国') return stores.value
-  return stores.value.filter((s) => matchCityLocal(s.city, cityName.value))
+  if (!selectedCities.value.length) return stores.value
+  return stores.value.filter((s) => matchCityLocal(s.city, selectedCities.value))
 })
 
-const citySelectOptions = computed(() => cities.value.map((c) => ({ value: c.id, label: c.name })))
+const citySelectOptions = computed(() =>
+  cities.value.map((c) => ({ value: c.id === 'all' ? '全国' : c.name, label: c.name })),
+)
 const storeSelectOptions = computed(() => [
   { value: '', label: '全部门店' },
   ...storeOptions.value.map((s) => ({
     value: s.shortName,
-    label: cityName.value === '全国' && s.city ? `${s.shortName} · ${s.city}` : s.shortName,
+    label: !selectedCities.value.length && s.city ? `${s.shortName} · ${s.city}` : s.shortName,
   })),
 ])
 const metricOptions = [
@@ -174,14 +185,14 @@ const metricOptions = [
 
 /** 省内门店点：始终保留全部门店，高亮用 storeFocus，不删点（避免只能点一次） */
 const cityStores = computed(() => {
-  if (cityName.value && cityName.value !== '全国') {
-    return stores.value.filter((s) => matchCityLocal(s.city, cityName.value))
+  if (selectedCities.value.length) {
+    return stores.value.filter((s) => matchCityLocal(s.city, selectedCities.value))
   }
   return stores.value
 })
 
 const visibleStoreCnt = computed(() => {
-  if (cityName.value && cityName.value !== '全国') return storeOptions.value.length
+  if (selectedCities.value.length) return storeOptions.value.length
   return fetchCoverageStoreCnt(dataKey.value, '全国')
 })
 
@@ -234,6 +245,13 @@ async function ensureProvinceMap(meta: ProvinceMeta) {
   return mapName
 }
 
+function onCitiesSelect(value: string | string[]) {
+  const names = (Array.isArray(value) ? value : value ? [value] : []).filter((v) => v && v !== '全国' && v !== 'all')
+  storeFocus.value = ''
+  closePopup()
+  filter.setCities(names)
+}
+
 function onCitySelect(id: string) {
   const name = cities.value.find((c) => c.id === id)?.name || '全国'
   storeFocus.value = ''
@@ -243,7 +261,7 @@ function onCitySelect(id: string) {
 
 function backNationwide() {
   storeFocus.value = ''
-  filter.setCity('all', '全国')
+  filter.setCities([])
   closePopup()
 }
 
@@ -252,6 +270,30 @@ function findStoreByFocus(value: string) {
   return stores.value.find(
     (s) => s.shortName === value || bareStoreName(s.shortName) === bareStoreName(value),
   )
+}
+
+function onStoresSelect(value: string | string[]) {
+  const names = (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean)
+  if (!names.length) {
+    pendingStoreFocus.value = ''
+    storeFocus.value = ''
+    filter.setStores([])
+    closePopup()
+    void paint()
+    return
+  }
+  filter.setStores(names)
+  const last = names[names.length - 1]!
+  const store = findStoreByFocus(last)
+  if (store && !selectedCities.value.length) {
+    const cityOpt = cities.value.find((c) => c.id !== 'all' && matchCityLocal(c.name, store.city))
+    if (cityOpt) {
+      pendingStoreFocus.value = store.shortName
+      filter.setCities([cityOpt.name])
+    }
+  }
+  storeFocus.value = last
+  onStoreFocus()
 }
 
 function onStoreSelect(value: string) {
@@ -264,7 +306,7 @@ function onStoreSelect(value: string) {
   }
   const store = findStoreByFocus(value)
   // 全国选店：先切到所属城市，再聚焦门店
-  if (store && (!cityName.value || cityName.value === '全国')) {
+  if (store && !selectedCities.value.length) {
     const cityOpt = cities.value.find((c) => c.id !== 'all' && matchCityLocal(c.name, store.city))
     if (cityOpt) {
       pendingStoreFocus.value = store.shortName
@@ -302,9 +344,12 @@ function focusMapOnStore(store: MapStorePoint) {
   )
 }
 
-function onMetricSelect(value: string) {
-  mapMetric.value = value as 'paid' | 'orders' | 'profit'
-  void paint()
+function onMetricSelect(value: string | string[]) {
+  const next = Array.isArray(value) ? value[0] : value
+  if (next === 'paid' || next === 'orders' || next === 'profit') {
+    mapMetric.value = next
+    void paint()
+  }
 }
 
 /** 气泡大小看规模，颜色看毛利率 */
@@ -762,10 +807,13 @@ function buildProvinceOption(mapName: string) {
 
 async function paint() {
   const ok = ensureChinaMap()
-  const selected = list.value.find((c) => c.city === cityName.value) || null
+  const selected =
+    selectedCities.value.length === 1
+      ? list.value.find((c) => matchCityLocal(c.city, selectedCities.value[0]!)) || null
+      : null
   applyFocus(selected)
 
-  const province = cityName.value !== '全国' ? resolveProvince(cityName.value) : null
+  const province = selectedCities.value.length === 1 ? resolveProvince(selectedCities.value[0]!) : null
   activeProvince.value = province
 
   let mapName: string | undefined = ok ? 'china' : undefined
@@ -815,9 +863,10 @@ async function load() {
     }
     cities.value = await fetchCityOptions(dataKey.value)
     list.value = (await fetchGeo(dataKey.value)) as typeof list.value
+    const cityParam = selectedCities.value.length ? selectedCities.value.join('|') : '全国'
     stores.value = await fetchMapStores(
       dataKey.value,
-      cityName.value === '全国' ? '全国' : cityName.value,
+      cityParam,
       channel.value,
     )
     await paint()
@@ -833,14 +882,15 @@ async function load() {
 }
 
 watch([dataKey, loadingTick, channel], load, { immediate: true })
-watch([cityName, channel], async () => {
+watch([selectedCities, channel], async () => {
   if (!list.value.length) return
   const keepFocus = pendingStoreFocus.value
   pendingStoreFocus.value = ''
   storeFocus.value = keepFocus || ''
+  const cityParam = selectedCities.value.length ? selectedCities.value.join('|') : '全国'
   stores.value = await fetchMapStores(
     dataKey.value,
-    cityName.value === '全国' ? '全国' : cityName.value,
+    cityParam,
     channel.value,
   )
   await paint()

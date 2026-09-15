@@ -51,7 +51,7 @@ export interface AssessMetric {
   met: boolean
   trendGood: boolean
   trend?: number[]
-  /** 默认「环比」，单日数据可改为「距标准」 */
+  /** 默认「日比」，单日数据可改为「距标准」 */
   deltaLabel?: string
   tier?: 'excellent' | 'pass' | 'warn' | 'fail'
   tierLabel?: string
@@ -90,7 +90,7 @@ const badWidth = computed(() => {
   return m.value < m.standard ? standardPct.value - actualPct.value : 0
 })
 
-const unitSuffix = computed(() => (props.metric.unit === 'min' ? 'min' : 'pp'))
+const unitSuffix = computed(() => (props.metric.unit === 'min' ? 'min' : '%'))
 const gap = computed(() => props.metric.value - props.metric.standard)
 const gapText = computed(() => (gap.value >= 0 ? '+' : '') + gap.value.toFixed(2) + unitSuffix.value)
 const gapSide = computed(() => {
@@ -107,7 +107,7 @@ const deltaText = computed(
   () => (props.metric.deltaPp >= 0 ? '+' : '') + props.metric.deltaPp.toFixed(2) + unitSuffix.value,
 )
 const deltaArrow = computed(() => (props.metric.deltaPp >= 0 ? '▲' : '▼'))
-const deltaLabel = computed(() => props.metric.deltaLabel || '环比')
+const deltaLabel = computed(() => props.metric.deltaLabel || '日比')
 const directionText = computed(() => (props.metric.direction === 'down' ? '越小越好' : '越大越好'))
 
 const tierClass = computed(() => {

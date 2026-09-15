@@ -107,11 +107,19 @@ function storeName(v: unknown) {
   return formatStoreName(v)
 }
 
-function matchCity(rowCity: string, selected: string) {
-  if (!selected || selected === '全国') return true
-  const a = rowCity.replace(/市$/, '')
-  const b = selected.replace(/市$/, '')
-  return a === b || rowCity === selected
+function matchCity(rowCity: string, selected: string | string[]) {
+  const list = Array.isArray(selected)
+    ? selected
+    : String(selected || '')
+        .split(/[|、,，]/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+  if (!list.length || list.some((c) => !c || c === '全国' || c === '全部' || c === 'all')) return true
+  const a = String(rowCity || '').replace(/市$/g, '')
+  return list.some((selectedCity) => {
+    const b = String(selectedCity || '').replace(/市$/g, '')
+    return a === b || rowCity === selectedCity
+  })
 }
 
 type StoreRow = Record<string, unknown>

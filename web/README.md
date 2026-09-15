@@ -14,8 +14,8 @@ npm run dev
 
 ## 数据
 
-- 当前数据来自 `数据源/` 下 Excel，经根目录 `scripts/` 同步为 `web/src/data/*.json`
-- 常用同步：`npm run data:sync` / `data:sync-ops` / `data:sync-pack`
+- `web/src/data/*.json` 为前端原型保留的静态快照，不会自动更新。
+- 数据采集、源文件和同步脚本已从项目移除。
 
 ## 设计基准
 

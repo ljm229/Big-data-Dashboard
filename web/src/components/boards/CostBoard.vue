@@ -71,7 +71,7 @@ type CostItem = {
 }
 
 const filter = useFilterStore()
-const { dataKey, cityName, channel, loadingTick, costFlashTick } = storeToRefs(filter)
+const { dataKey, cityName, cityQuery, channel, loadingTick, costFlashTick } = storeToRefs(filter)
 const loading = ref(true)
 const items = ref<CostItem[]>([])
 const activities = ref<{ name: string; cost: number; store: string; paid?: number }[]>([])
@@ -99,7 +99,8 @@ async function loadActivities() {
     activities.value = []
     return
   }
-  activities.value = await fetchMarketingActivities(dataKey.value, cityName.value)
+  const cityParam = Array.isArray(cityQuery.value) ? cityQuery.value.join('|') : cityQuery.value
+  activities.value = await fetchMarketingActivities(dataKey.value, cityParam)
 }
 
 async function onItemClick(item: CostItem) {
@@ -111,7 +112,8 @@ async function onItemClick(item: CostItem) {
 async function load(showLoading = false) {
   if (showLoading) loading.value = true
   try {
-    const data = await fetchCost(dataKey.value, cityName.value, channel.value)
+    const cityParam = Array.isArray(cityQuery.value) ? cityQuery.value.join('|') : cityQuery.value
+    const data = await fetchCost(dataKey.value, cityParam, channel.value)
     items.value = data.items as CostItem[]
   } finally {
     loading.value = false
@@ -119,7 +121,7 @@ async function load(showLoading = false) {
 }
 
 watch(
-  [dataKey, cityName, channel, loadingTick],
+  [dataKey, cityQuery, channel, loadingTick],
   () => {
     void load(true)
     void loadActivities()

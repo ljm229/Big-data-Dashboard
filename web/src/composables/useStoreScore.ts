@@ -21,13 +21,37 @@ import {
 } from '../api/qualityDatabase'
 import { GRADE_RULES, type AssessKey } from '../utils/opsAssessment'
 
+function encodeLoc(values: string[], allToken = '全部') {
+  const list = values.filter((v) => v && v !== allToken && v !== '全国' && v !== 'all')
+  return list.length ? list.join('|') : allToken
+}
+
+function decodeLoc(value: string | string[] | undefined, allToken = '全部') {
+  if (Array.isArray(value)) return value.filter((v) => v && v !== allToken && v !== '全国' && v !== 'all')
+  const raw = String(value || '').trim()
+  if (!raw || raw === allToken || raw === '全国' || raw === 'all') return []
+  return raw.split(/[|、,，]/).map((x) => x.trim()).filter((v) => v && v !== allToken && v !== '全国')
+}
+
 /** 运营看板考核数据（经典版 / Tab 版共用） */
 export function useStoreScore() {
   const filter = useFilterStore()
   const { selectedDate, dataKey, loadingTick } = storeToRefs(filter)
 
-  const city = ref('全部')
-  const storeId = ref('全部')
+  const cities = ref<string[]>([])
+  const storeIds = ref<string[]>([])
+  const city = computed({
+    get: () => encodeLoc(cities.value, '全部'),
+    set: (value: string | string[]) => {
+      cities.value = decodeLoc(value, '全部')
+    },
+  })
+  const storeId = computed({
+    get: () => encodeLoc(storeIds.value, '全部'),
+    set: (value: string | string[]) => {
+      storeIds.value = decodeLoc(value, '全部')
+    },
+  })
   const cityOptions = ref<string[]>(['全部'])
   const storeOptions = ref<Array<{ id: string; shortName: string; code?: string; city?: string; name?: string }>>([])
 
@@ -59,7 +83,7 @@ export function useStoreScore() {
   const assessRows = computed(() => assessBoard.value?.rows || [])
   const storeCntText = computed(() => (assessBoard.value ? `${assessBoard.value.storeCnt} 家门店` : ''))
 
-  const isSingleStore = computed(() => storeId.value !== '全部' || (assessBoard.value?.storeCnt || 0) <= 1)
+  const isSingleStore = computed(() => storeIds.value.length === 1 || (assessBoard.value?.storeCnt || 0) <= 1)
   const headerScore = computed(() => {
     if (!assessBoard.value) return 0
     return Math.round(isSingleStore.value ? assessBoard.value.composite : assessBoard.value.medianComposite)
@@ -89,12 +113,12 @@ export function useStoreScore() {
     return p.value.toFixed(2) + '%'
   }
 
-  watch(city, () => {
-    storeId.value = '全部'
+  watch(cities, () => {
+    storeIds.value = []
   })
   watch([selectedDate, dataKey], () => {
-    city.value = '全部'
-    storeId.value = '全部'
+    cities.value = []
+    storeIds.value = []
   })
 
   async function reloadFilters() {
@@ -115,13 +139,15 @@ export function useStoreScore() {
         dataSource.value = 'unavailable'
       }
     }
-    if (!cityOptions.value.includes(city.value)) city.value = '全部'
-    if ((dataSource.value === 'database' || dataSource.value === 'static') && city.value !== '全部') {
-      storeOptions.value = storeOptions.value.filter((store) => store.city === city.value)
+    const nextCities = cities.value.filter((c) => cityOptions.value.includes(c))
+    if (nextCities.length !== cities.value.length) cities.value = nextCities
+    if ((dataSource.value === 'database' || dataSource.value === 'static') && cities.value.length) {
+      storeOptions.value = storeOptions.value.filter((store) =>
+        cities.value.some((c) => store.city === c || store.city?.replace(/市$/, '') === c.replace(/市$/, '')),
+      )
     }
-    if (storeId.value !== '全部' && !storeOptions.value.some((s) => s.id === storeId.value)) {
-      storeId.value = '全部'
-    }
+    const nextStores = storeIds.value.filter((id) => storeOptions.value.some((s) => s.id === id))
+    if (nextStores.length !== storeIds.value.length) storeIds.value = nextStores
   }
 
   async function reload() {
@@ -142,7 +168,7 @@ export function useStoreScore() {
     metrics.value = board?.metrics || []
   }
 
-  watch([city, storeId, selectedDate, dataKey, loadingTick], async () => {
+  watch([cities, storeIds, selectedDate, dataKey, loadingTick], async () => {
     await reloadFilters()
     void reload()
   })
@@ -174,6 +200,8 @@ export function useStoreScore() {
   onUnmounted(unsubscribe)
 
   return {
+    cities,
+    storeIds,
     city,
     storeId,
     cityOptions,

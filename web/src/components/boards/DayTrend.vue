@@ -15,7 +15,7 @@ import { useChart } from '../../composables/useChart'
 import { formatMoney, formatInt, formatPercent } from '../../utils/format'
 
 const filter = useFilterStore()
-const { dataKey, cityName, channel, loadingTick, updatedAt, hasData } = storeToRefs(filter)
+const { dataKey, cityQuery, channel, loadingTick, updatedAt, hasData } = storeToRefs(filter)
 const el = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const rows = ref<
@@ -33,7 +33,8 @@ async function load() {
       option.value = null
       return
     }
-    rows.value = await fetchDayTrend(dataKey.value, cityName.value, channel.value)
+    const cityParam = Array.isArray(cityQuery.value) ? cityQuery.value.join('|') : cityQuery.value
+    rows.value = await fetchDayTrend(dataKey.value, cityParam, channel.value)
     const paid = rows.value.map((r) => r.paid_amount)
     const profit = rows.value.map((r) => r.est_profit)
 
@@ -228,7 +229,7 @@ async function load() {
   }
 }
 
-watch([dataKey, cityName, channel, loadingTick], load, { immediate: true })
+watch([dataKey, cityQuery, channel, loadingTick], load, { immediate: true })
 </script>
 
 <style scoped lang="scss">

@@ -48,7 +48,7 @@
 
       <section class="decision-strip">
         <span class="no">4</span>
-        <div><b>经营判断</b><p>{{ headline || '当前周期暂无完整环比，先看渠道贡献和门店分化。' }}</p></div>
+        <div><b>经营判断</b><p>{{ headline || '当前周期暂无完整对比，先看渠道贡献和门店分化。' }}</p></div>
         <div class="decision-tip"><b>下钻顺序</b><p>订单弱看流量漏斗；实付弱看客单与活动；毛利弱看商品和退款。</p></div>
       </section>
 
@@ -149,7 +149,7 @@ function fmtKpiDelta(k: BizKpi) {
   }
   if (k.deltaKind === 'pp') {
     const sign = k.delta >= 0 ? '+' : ''
-    return `${sign}${k.delta.toFixed(2)}pp`
+    return `${sign}${k.delta.toFixed(2)}%`
   }
   const sign = k.delta >= 0 ? '+' : ''
   return `${sign}${k.delta.toFixed(1)}`

@@ -32,9 +32,10 @@
             :key="String(opt.value)"
             role="option"
             class="dash-select__option"
-            :class="{ active: String(opt.value) === String(modelValue) }"
+            :class="{ active: isActive(opt.value) }"
             @click="pick(opt.value)"
           >
+            <i v-if="multiple" class="dash-select__check" :class="{ on: isActive(opt.value) }" aria-hidden="true" />
             {{ opt.label }}
           </li>
           <li v-if="!filtered.length" class="dash-select__empty">无匹配结果</li>
@@ -52,13 +53,15 @@ export type SelectMenuOption = { value: string; label: string }
 
 const props = withDefaults(
   defineProps<{
-    modelValue: string
+    modelValue: string | string[]
     options: SelectMenuOption[]
     disabled?: boolean
     variant?: 'dark' | 'light'
     placeholder?: string
     searchable?: boolean
     searchPlaceholder?: string
+    multiple?: boolean
+    allValue?: string
   }>(),
   {
     disabled: false,
@@ -66,21 +69,55 @@ const props = withDefaults(
     placeholder: '请选择',
     searchable: true,
     searchPlaceholder: '输入关键词搜索',
+    multiple: false,
+    allValue: '',
   },
 )
 
-const emit = defineEmits<{ 'update:modelValue': [string]; change: [string] }>()
+const emit = defineEmits<{
+  'update:modelValue': [string | string[]]
+  change: [string | string[]]
+}>()
 
 const open = ref(false)
 const query = ref('')
 const root = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
 const searchEl = ref<HTMLInputElement | null>(null)
-const { panelStyle } = useFloatingPanel(root, open, 380)
+const { panelStyle } = useFloatingPanel(root, open, 260)
+
+const selectedValues = computed(() => {
+  if (Array.isArray(props.modelValue)) return props.modelValue.map(String)
+  return props.modelValue ? [String(props.modelValue)] : []
+})
+
+const allToken = computed(() => props.allValue || '')
+
+function isAllSelected() {
+  if (!selectedValues.value.length) return true
+  return !!allToken.value && selectedValues.value.every((v) => v === allToken.value)
+}
+
+function isActive(value: string) {
+  if (props.multiple && isAllSelected()) return !!allToken.value && String(value) === allToken.value
+  return selectedValues.value.includes(String(value))
+}
 
 const displayLabel = computed(() => {
+  if (props.multiple) {
+    if (isAllSelected()) return props.placeholder
+    const labels = selectedValues.value
+      .map((v) => props.options.find((o) => String(o.value) === v)?.label || v)
+      .filter((x) => x && x !== allToken.value)
+    if (!labels.length) return props.placeholder
+    if (labels.length === 1) return labels[0]!
+    if (labels.length === 2) return labels.join('、')
+    return `${labels[0]}、${labels[1]} 等${labels.length}项`
+  }
   const hit = props.options.find((o) => String(o.value) === String(props.modelValue))
-  return hit?.label || props.placeholder
+  if (hit) return hit.label
+  if (props.modelValue && props.modelValue !== '全部') return String(props.modelValue)
+  return props.placeholder
 })
 
 function norm(s: string) {
@@ -120,9 +157,22 @@ function close() {
 }
 
 function pick(value: string) {
-  emit('update:modelValue', value)
-  emit('change', value)
-  open.value = false
+  if (!props.multiple) {
+    emit('update:modelValue', value)
+    emit('change', value)
+    open.value = false
+    return
+  }
+  const token = allToken.value
+  if (token && String(value) === token) {
+    emit('update:modelValue', [])
+    emit('change', [])
+    return
+  }
+  const cur = selectedValues.value.filter((v) => v !== token)
+  const next = cur.includes(String(value)) ? cur.filter((v) => v !== String(value)) : [...cur, String(value)]
+  emit('update:modelValue', next)
+  emit('change', next)
 }
 
 function pickFirst() {
@@ -165,9 +215,9 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   min-width: 0;
   height: 36px;
   padding: 0 10px 0 12px;
-  border: 1px solid rgba(94, 200, 255, 0.45);
-  border-radius: 6px;
-  background: rgba(8, 24, 56, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--panel-solid);
   color: #e8f3ff;
   font-size: 15px;
   font-weight: 600;
@@ -213,8 +263,9 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
 
 <style lang="scss">
 .dash-select__panel {
+  box-sizing: border-box;
   min-width: 168px;
-  max-width: min(420px, 92vw);
+  max-width: min(420px, calc(100vw - 16px));
   margin: 0;
   border: 1px solid rgba(94, 200, 255, 0.5);
   border-radius: 8px;
@@ -223,15 +274,15 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 380px;
+  max-height: 240px;
 }
 .dash-select__search {
-  padding: 8px 8px 4px;
+  padding: 6px 6px 2px;
   flex-shrink: 0;
 }
 .dash-select__input {
   width: 100%;
-  height: 32px;
+  height: 30px;
   box-sizing: border-box;
   border: 1px solid rgba(94, 200, 255, 0.35);
   border-radius: 6px;
@@ -249,27 +300,43 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
 }
 .dash-select__menu {
   margin: 0;
-  padding: 4px 0;
+  padding: 2px 0;
   list-style: none;
   overflow: auto;
   min-height: 0;
   flex: 1;
 }
 .dash-select__option {
-  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
   color: #e8f3ff;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
 }
+.dash-select__check {
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  flex-shrink: 0;
+  opacity: 0.45;
+  &.on {
+    opacity: 1;
+    background: currentColor;
+    box-shadow: inset 0 0 0 2px #fff;
+  }
+}
 .dash-select__option:hover,
 .dash-select__option.active {
-  background: linear-gradient(135deg, rgba(154, 223, 255, 0.95), rgba(58, 160, 255, 0.95));
-  color: #04122a;
+  background: var(--panel-head);
+  color: #fff;
 }
 .dash-select__empty {
   padding: 14px;

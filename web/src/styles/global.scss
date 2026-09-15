@@ -13,8 +13,8 @@ body,
   padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #04122f;
-  color: #e8f3ff;
+  background: #020c1b;
+  color: #f0f7ff;
   font-family: var(--font-cn);
   font-size: var(--fs-data);
   line-height: 1.45;
@@ -23,36 +23,61 @@ body,
 }
 
 :root {
-  --bg: #04122f;
-  --panel: rgba(8, 28, 64, 0.48);
-  --primary: #4ec8ff;
-  --primary-2: #9adfff;
-  --accent: #ffc53d;
-  --danger: #ff4d4f;
-  --warn: #faad14;
-  --text: #f2f7ff;
-  --muted: #9bb0cc;
+  --bg: #020f25;
+  --gap: #010b1a;
 
-  /* 中文：屏显清晰；数字：等宽表格感 */
+  /*
+   * 大屏模块玻璃底色（Panel / KPI 卡）——自己调这里即可
+   * - 最后一位是透明度：0.30 更透，0.55 更实
+   * - 不要加 backdrop-filter: blur，容易发雾
+   * - 弹窗/下拉请用 --panel-solid，保持不透
+   */
+  --panel: rgba(3, 36, 72, 0.36);
+  --panel-deep: rgba(2, 24, 48, 0.30);
+  --panel-head: rgba(8, 56, 104, 0.40);
+  --panel-hover: rgba(10, 72, 120, 0.48);
+  --panel-solid: #032043;
+  --panel-deep-solid: #02162f;
+  --panel-head-solid: #073361;
+
+  --primary: #2f8cff;
+  --primary-2: #4eb2ff;
+  --accent: #ffe14a;
+  --danger: #ff3d5a;
+  --warn: #ff8a1f;
+  --success: #2aff9a;
+  --grow: #00f0a8;
+  --blue: #2f8cff;
+  /* 边框线条：蓝调微亮（非青调）——改这里即可 */
+  --border: #3d92e0;
+  --accent-line: #5eb4ff;
+  --line-glow: #8ec8ff;
+  --divider: rgba(40, 100, 170, 0.55);
+  --grid: #103553;
+  --text: #f1f8ff;
+  --muted: #b2cbe3;
+  --line: #3a86c8;
+
   --font-cn: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
-  --font-num: 'Rajdhani', 'DIN Alternate', Bahnschrift, 'Roboto Mono', Consolas, monospace;
+  --font-num: 'Bahnschrift', 'DIN Alternate', 'Segoe UI', 'Microsoft YaHei', sans-serif;
 
-  /* 字号阶梯：标题更醒目，正文/轴标签可读 */
-  --fs-kpi: 32px;
+  --fs-kpi: 34px;
   --fw-kpi: 700;
-  --fs-title: 18px;
+  --fs-title: 24px;
   --fw-title: 700;
-  --fs-sub: 15px;
+  --fs-sub: 17px;
   --fw-sub: 600;
-  --fs-data: 14px;
-  --fs-axis: 12px;
-  --fs-tiny: 11px;
+  --fs-data: 16px;
+  --fs-axis: 15px;
+  --fs-tiny: 14px;
+  --head-h: 46px;
 
   --c-primary: #ffffff;
-  --c-normal: #e8f3ff;
-  --c-muted: #9bb0cc;
+  --c-normal: #f1f8ff;
+  --c-muted: #b2cbe3;
+  --c-body: #d9eaff;
   --c-num: #ffffff;
-  --c-num-accent: #f3f120;
+  --c-num-accent: #5eb4ff;
 }
 
 /* 全局数字默认用数字字体 + 等宽 */
@@ -78,12 +103,20 @@ select {
   font-size: inherit;
 }
 
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #35e6f2;
+  outline-offset: 2px;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 212, 255, 0.4);
+  background: #2a9fd6;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-track {

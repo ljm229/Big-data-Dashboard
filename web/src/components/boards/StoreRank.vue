@@ -65,7 +65,7 @@ const ANIM_MS = 680
 const MAX_ROWS = 30
 
 const filter = useFilterStore()
-const { dataKey, loadingTick, updatedAt, cityName, channel } = storeToRefs(filter)
+const { dataKey, loadingTick, updatedAt, cityQuery, channel } = storeToRefs(filter)
 const loading = ref(true)
 const rows = ref<RankRow[]>([])
 const offsetIndex = ref(0)
@@ -73,7 +73,11 @@ const offsetY = ref(0)
 const scrolling = ref(false)
 const paused = ref(false)
 const time = computed(() => (updatedAt.value ? updatedAt.value.slice(11, 19) : ''))
-const cityFilter = computed(() => (cityName.value === '全国' ? '全国' : cityName.value))
+const cityFilter = computed(() => {
+  const q = cityQuery.value
+  if (!q || q === '全国' || (Array.isArray(q) && !q.length)) return '全国'
+  return Array.isArray(q) ? q.join('|') : q
+})
 const title = computed(() => (cityFilter.value === '全国' ? '门店效能榜' : `门店榜 · ${cityFilter.value}`))
 const max = computed(() => Math.max(...rows.value.map((r) => r.paid_amount), 1))
 

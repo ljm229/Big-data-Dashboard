@@ -246,7 +246,8 @@ function fmtDelta(m: WeeklyMetricCard) {
   if (m.delta === 0) return '→ 0'
   const arrow = m.delta > 0 ? '↑' : '↓'
   const sign = m.delta > 0 ? '+' : ''
-  return `${arrow} ${sign}${m.delta}`
+  const unit = m.unit === 'min' ? 'min' : '%'
+  return `${arrow} ${sign}${m.delta}${unit}`
 }
 
 function partOf(row: WeeklyStoreRow, key: AssessKey) {
@@ -273,7 +274,9 @@ function fmtRowDelta(row: WeeklyStoreRow, key: AssessKey) {
   if (d === 0) return '→ 0'
   const arrow = d > 0 ? '↑' : '↓'
   const sign = d > 0 ? '+' : ''
-  return `${arrow} ${sign}${d}`
+  const def = ASSESS_DEFS.find((x) => x.key === key)!
+  const unit = def.unit === 'min' ? 'min' : '%'
+  return `${arrow} ${sign}${d}${unit}`
 }
 
 async function reload() {
