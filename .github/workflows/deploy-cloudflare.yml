@@ -1,0 +1,33 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  # 日常推送仍只跑 GitHub Pages；配好 Secrets 后可在 Actions 里手动跑，或改回 push
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install & Build
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=flash-player-dashboard
+          workingDirectory: web

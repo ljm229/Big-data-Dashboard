@@ -67,9 +67,9 @@
           <h3>门店 × 指标热力矩阵</h3>
             <div class="ck-pills" role="tablist" aria-label="矩阵筛选">
               <button type="button" :class="{ active: heatFilter === 'all' }" @click="heatFilter = 'all'">全部</button>
-              <button type="button" :class="{ active: heatFilter === 'pass' }" @click="heatFilter = 'pass'">优秀(已达标)</button>
-              <button type="button" :class="{ active: heatFilter === 'warn' }" @click="heatFilter = 'warn'">预警</button>
-              <button type="button" :class="{ active: heatFilter === 'fail' }" @click="heatFilter = 'fail'">不合格</button>
+              <button type="button" :class="{ active: heatFilter === 'pass' }" @click="heatFilter = 'pass'">优秀 S/A</button>
+              <button type="button" :class="{ active: heatFilter === 'warn' }" @click="heatFilter = 'warn'">预警 B</button>
+              <button type="button" :class="{ active: heatFilter === 'fail' }" @click="heatFilter = 'fail'">不合格 C/D</button>
           </div>
         </header>
           <div class="table-scroll">
@@ -316,12 +316,13 @@ const metricPassRates = computed(() =>
 
 const heatRows = computed(() => {
   let rows = [...assessRows.value]
+  // 与左侧等级图一致：按综合等级筛，而不是「任一指标踩线」
   if (heatFilter.value === 'pass') {
-    rows = rows.filter((r) => r.parts.every((p) => p.missing || p.pass) && r.composite >= 80)
+    rows = rows.filter((r) => r.grade.grade === 'S' || r.grade.grade === 'A')
   } else if (heatFilter.value === 'warn') {
-    rows = rows.filter((r) => r.parts.some((p) => !p.missing && p.tier === 'warn') || (r.composite >= 40 && r.composite < 80))
+    rows = rows.filter((r) => r.grade.grade === 'B')
   } else if (heatFilter.value === 'fail') {
-    rows = rows.filter((r) => r.parts.some((p) => !p.missing && !p.pass) || r.grade.grade === 'D' || r.grade.grade === 'C')
+    rows = rows.filter((r) => r.grade.grade === 'C' || r.grade.grade === 'D')
   }
   return rows.slice(0, 24)
 })
