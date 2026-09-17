@@ -3,7 +3,7 @@
   <div class="ops-tabs ops-theme">
     <aside class="ops-tabs__nav">
       <div class="nav-brand">
-        <b>数</b>
+        <b>淘便</b>
         <div>
           <strong>数据看板</strong>
           <span>经典运营 · Tab 版</span>
@@ -99,7 +99,7 @@
                 :model-value="storeIds"
                 :options="storeSelectOptions"
                 placeholder="全部门店"
-                search-placeholder="搜索门店名/编码"
+                search-placeholder="搜索淘宝便利店"
                 @update:model-value="onStores"
               />
             </label>
@@ -176,6 +176,7 @@ import ReturnPage from './store-pages/ReturnPage.vue'
 import CoachPage from './store-pages/CoachPage.vue'
 import EmptyPage from './store-pages/EmptyPage.vue'
 import { ASSESS_DEFS, GRADE_RULES } from '../utils/opsAssessment'
+import { storeFilterLabel } from '../utils/storeName'
 import '../styles/ops-theme.scss'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
@@ -297,7 +298,7 @@ const storeSelectOptions = computed(() => [
   { value: '全部', label: '全部门店' },
   ...storeOptions.value.map((s) => ({
     value: s.id,
-    label: s.shortName,
+    label: storeFilterLabel(s.shortName || s.name || s.id),
   })),
 ])
 
@@ -334,14 +335,14 @@ const gradeRules = GRADE_RULES
   display: grid;
   grid-template-columns: 228px minmax(0, 1fr);
   background:
-    radial-gradient(circle at 10% 0%, rgba(29, 107, 255, 0.1), transparent 36%),
-    radial-gradient(circle at 92% 8%, rgba(34, 211, 238, 0.08), transparent 34%),
+    radial-gradient(circle at 10% 0%, var(--ops-bg-glow-a, rgba(255, 185, 0, 0.07)), transparent 36%),
+    radial-gradient(circle at 92% 8%, var(--ops-bg-glow-b, rgba(56, 189, 248, 0.06)), transparent 34%),
     linear-gradient(180deg, var(--ops-bg-top) 0%, var(--ops-bg) 48%, var(--ops-bg-bottom) 100%);
   color: var(--ops-text);
   font-family: var(--ops-font);
 }
 .ops-tabs__nav {
-  background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+  background: rgba(255, 255, 255, 0.68);
   color: var(--ops-text);
   display: flex;
   flex-direction: column;
@@ -351,6 +352,8 @@ const gradeRules = GRADE_RULES
   top: 0;
   border-right: 1px solid var(--ops-line);
   box-shadow: none;
+  backdrop-filter: var(--ops-frost);
+  -webkit-backdrop-filter: var(--ops-frost);
 }
 .nav-brand {
   display: flex;
@@ -363,16 +366,17 @@ const gradeRules = GRADE_RULES
     border-radius: 12px;
     display: grid;
     place-items: center;
-    background: linear-gradient(145deg, #38bdf8, #1d6bff 55%, #0b3d91);
+    background: linear-gradient(145deg, #fbbf24, #f59e0b 55%, #d97706);
     color: #fff;
     font-weight: 800;
-    font-size: 14px;
-    box-shadow: 0 4px 14px rgba(29, 107, 255, 0.35);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
   }
   strong {
     display: block;
     font-size: 14px;
-    color: var(--ops-text);
+    color: #111827;
     font-weight: 800;
   }
   span {
@@ -400,8 +404,8 @@ const gradeRules = GRADE_RULES
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     &:hover {
       background: var(--ops-nav-hover);
-      color: var(--ops-primary);
-      border-color: #bfdbfe;
+      color: var(--ops-primary-deep);
+      border-color: #fde68a;
     }
   }
 }
@@ -453,15 +457,15 @@ nav {
     }
     &:hover {
       background: var(--ops-nav-hover);
-      color: var(--ops-primary);
-      border-color: #dbeafe;
+      color: var(--ops-primary-deep);
+      border-color: #fde68a;
     }
     &.active {
-      background: linear-gradient(135deg, #1d6bff, #0ea5e9);
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
       color: #fff;
       font-weight: 700;
       border-color: transparent;
-      box-shadow: 0 6px 16px rgba(29, 107, 255, 0.28);
+      box-shadow: 0 6px 16px rgba(245, 158, 11, 0.28);
       em {
         color: rgba(255, 255, 255, 0.88);
       }
@@ -486,7 +490,7 @@ nav {
   }
   b {
     margin-top: 5px;
-    color: var(--ops-primary-deep);
+    color: #111827;
     font-size: 12px;
   }
 }
@@ -546,16 +550,18 @@ nav {
   gap: 12px;
   margin-bottom: 14px;
   padding: 14px 16px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
-  border: 1px solid var(--ops-line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow: var(--ops-shadow-lg);
+  backdrop-filter: var(--ops-frost);
+  -webkit-backdrop-filter: var(--ops-frost);
   h1 {
     margin: 0;
     flex-shrink: 0;
     font-size: 18px;
     font-weight: 800;
-    color: var(--ops-text);
+    color: var(--ops-title, #111827);
     letter-spacing: 0.01em;
     white-space: nowrap;
   }
@@ -590,7 +596,7 @@ nav {
   }
   :deep(.date-bar.light .seg) {
     border: 1px solid var(--ops-line);
-    background: #f8fafc;
+    background: rgba(255, 255, 255, 0.72);
     gap: 0;
     border-radius: 999px;
     overflow: hidden;
@@ -604,13 +610,13 @@ nav {
     background: transparent;
   }
   :deep(.date-bar.light .seg button:hover) {
-    background: #eff6ff;
-    color: var(--ops-primary);
+    background: #fffbeb;
+    color: var(--ops-primary-deep);
   }
   :deep(.date-bar.light .seg button.active) {
     color: #fff;
-    background: linear-gradient(135deg, #1d6bff, #0ea5e9);
-    box-shadow: 0 4px 14px rgba(29, 107, 255, 0.28);
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.28);
     font-weight: 700;
   }
   :deep(.date-bar.light .ctrl-date),
@@ -623,11 +629,11 @@ nav {
   :deep(.dash-select.light .dash-select__trigger) {
     height: 34px;
     border: 1px solid var(--ops-line) !important;
-    background: #fff !important;
+    background: rgba(255, 255, 255, 0.78) !important;
     box-shadow: none;
     font-size: 13px;
     padding: 0 10px;
-    border-radius: 8px;
+    border-radius: 999px;
     color: var(--ops-text);
     font-weight: 600;
   }
@@ -635,8 +641,8 @@ nav {
   :deep(.dash-select.light .dash-select__trigger:hover),
   :deep(.dash-select.light.open .dash-select__trigger),
   :deep(.dash-date.light.open .dash-date__trigger) {
-    border-color: #93c5fd !important;
-    background: #eff6ff !important;
+    border-color: #fcd34d !important;
+    background: #fffbeb !important;
   }
   :deep(.filter__select) {
     font-size: 13px;
@@ -774,13 +780,15 @@ nav {
   margin-top: 20px;
   padding: 28px;
   text-align: center;
-  background: #fff;
-  border-radius: 14px;
-  border: 1px dashed rgba(29, 107, 255, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  border: 1px dashed rgba(245, 158, 11, 0.35);
   box-shadow: var(--ops-shadow);
+  backdrop-filter: var(--ops-frost);
+  -webkit-backdrop-filter: var(--ops-frost);
   strong {
     display: block;
-    color: var(--ops-primary);
+    color: var(--ops-title, #111827);
     margin-bottom: 6px;
   }
   p {

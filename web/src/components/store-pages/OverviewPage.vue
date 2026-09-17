@@ -324,11 +324,13 @@ onUnmounted(unsubscribe)
   padding: 36px;
 }
 .card {
-  background: #fff;
-  border-radius: 14px;
+  background: var(--ops-surface, rgba(255, 255, 255, 0.72));
+  border-radius: 18px;
   padding: 16px 16px 14px;
-  border: 1px solid var(--ops-line);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow: var(--ops-shadow);
+  backdrop-filter: var(--ops-frost);
+  -webkit-backdrop-filter: var(--ops-frost);
 }
 .sec-head {
   display: flex;
@@ -337,14 +339,14 @@ onUnmounted(unsubscribe)
   gap: 10px;
   font-size: 16px;
   font-weight: 700;
-  color: var(--ops-primary);
+  color: var(--ops-title, #111827);
   margin-bottom: 14px;
   .no {
     display: inline-flex;
     width: 22px;
     height: 22px;
     border-radius: 6px;
-    background: linear-gradient(135deg, #1d6bff, #0ea5e9);
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
     color: #fff;
     align-items: center;
     justify-content: center;

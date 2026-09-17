@@ -18,7 +18,7 @@ import { computed } from 'vue'
 import { costMoney, type CostSummary } from '../../utils/costAnalysis'
 const props = defineProps<{ summary: CostSummary }>()
 const colors = ['#3DDCFF', '#2F8CFF', '#FFE14A', '#2AFF9A', '#FF8A1F', '#FF3D5A']
-const percent = (v: number | null) => v === null ? '—' : `${(v * 100).toFixed(1)}%`
+const percent = (v: number | null) => v === null ? '—' : `${(v * 100).toFixed(2)}%`
 const visibleRows = computed(() => props.summary.expenses.filter(r => r.key !== 'maintenance' || r.value !== 0))
 const gradient = computed(() => {
   let offset = 0

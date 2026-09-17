@@ -3,13 +3,11 @@
  * - |n| < 100万 → 数值 + 单位「元」
  * - |n| ≥ 100万 → 数值（万）+ 单位「万元」
  * - |n| ≥ 1亿 → 数值（亿）+ 单位「亿元」
- * KPI 标题用 unit，数值区只写数字；表格等可继续用 formatMoney 合写。
+ * 金额、百分比统一保留 2 位小数。
  */
-function moneyNumber(abs: number, minDigits = 2, maxDigits = 3): string {
-  const factor = 10 ** maxDigits
+function moneyNumber(abs: number, digits = 2): string {
+  const factor = 10 ** digits
   const rounded = Math.round(abs * factor) / factor
-  const asMax = rounded.toFixed(maxDigits)
-  const digits = asMax.endsWith('0') ? minDigits : maxDigits
   return rounded.toLocaleString('zh-CN', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -26,28 +24,20 @@ export function formatMoneyParts(
   const v = Number(n)
   const abs = Math.abs(v)
   const sign = v < 0 ? '-' : ''
-  const fixed = digits !== 2
   if (abs >= 1e8) {
-    const x = abs / 1e8
     return {
-      value: `${sign}${fixed ? x.toFixed(digits) : moneyNumber(x)}`,
+      value: `${sign}${moneyNumber(abs / 1e8, digits)}`,
       unit: '亿元',
     }
   }
   if (abs >= 1e6) {
-    const x = abs / 1e4
     return {
-      value: `${sign}${fixed ? x.toFixed(digits) : moneyNumber(x)}`,
+      value: `${sign}${moneyNumber(abs / 1e4, digits)}`,
       unit: '万元',
     }
   }
   return {
-    value: `${sign}${fixed
-      ? abs.toLocaleString('zh-CN', {
-          minimumFractionDigits: digits,
-          maximumFractionDigits: digits,
-        })
-      : moneyNumber(abs)}`,
+    value: `${sign}${moneyNumber(abs, digits)}`,
     unit: '元',
   }
 }
@@ -68,12 +58,20 @@ export function formatInt(n: number | null | undefined): string {
   return Math.round(Number(n)).toLocaleString('zh-CN')
 }
 
-export function formatPercent(n: number | null | undefined, digits = 1): string {
+/** 百分比：小数(0.35)或百分数(35)均兼容，默认两位小数 */
+export function formatPercent(n: number | null | undefined, digits = 2): string {
   if (n == null || Number.isNaN(n)) return '—'
   const v = Number(n)
-  // Excel 中已是小数（0.35）或百分比数字（35）均兼容
   const p = Math.abs(v) <= 1 ? v * 100 : v
   return `${p.toFixed(digits)}%`
+}
+
+/** 相对变化（如日比 +5.50%），默认两位小数 */
+export function formatDeltaPercent(n: number | null | undefined, digits = 2): string {
+  if (n == null || Number.isNaN(n)) return '—'
+  const p = Number(n) * 100
+  const sign = p > 0 ? '+' : ''
+  return `${sign}${p.toFixed(digits)}%`
 }
 
 export function formatRatio(a: number, b: number): string {

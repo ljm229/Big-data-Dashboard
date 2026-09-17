@@ -59,6 +59,7 @@
       :variant="variant"
       :model-value="channel"
       :options="channelOptions"
+      placeholder="全部渠道"
       @update:model-value="(v) => filter.setChannel(pickOne(v, '全部'))"
     />
 
@@ -70,7 +71,7 @@
       all-value="全部"
       :model-value="selectedStores"
       :options="storeOptions"
-      search-placeholder="搜索门店"
+      search-placeholder="搜索淘宝便利店"
       placeholder="全部门店"
       @update:model-value="onStores"
     />
@@ -97,6 +98,7 @@ import {
 import SelectMenu from './SelectMenu.vue'
 import DatePicker from './DatePicker.vue'
 import { canonCity } from '../api/source1'
+import { storeFilterLabel } from '../utils/storeName'
 
 const props = withDefaults(
   defineProps<{
@@ -161,7 +163,7 @@ const weekOptions = computed(() =>
 )
 const monthOptions = computed(() => props.scope === 'ops' ? liveMonths.value : COCKPIT_MONTHS.map((m) => ({ value: m.id, label: m.label })))
 const channelOptions = computed(() =>
-  COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部平台' : c })),
+  COCKPIT_CHANNELS.map((c) => ({ value: c, label: c === '全部' ? '全部渠道' : c })),
 )
 const cityOptions = computed(() => COCKPIT_CITIES.map((c) => ({ value: c, label: c })))
 const storeOptions = computed(() => {
@@ -170,7 +172,7 @@ const storeOptions = computed(() => {
     if (!cities.length) return true
     return cities.some((c) => canonCity(s.city) === canonCity(c))
   })
-  return [{ value: '全部', label: '全部门店' }, ...inCity.map((s) => ({ value: s.name, label: s.name }))]
+  return [{ value: '全部', label: '全部门店' }, ...inCity.map((s) => ({ value: s.name, label: storeFilterLabel(s.name) }))]
 })
 function onCities(value: string | string[]) {
   filter.setCities(Array.isArray(value) ? value : value ? [value] : [])
@@ -231,7 +233,7 @@ function pickOne(value: string | string[], fallback = '') {
   width: 118px;
 }
 .ctrl-select--channel {
-  width: 108px;
+  width: 118px;
 }
 .ctrl-select--city {
   width: 92px;

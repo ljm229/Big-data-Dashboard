@@ -1,5 +1,4 @@
-/** 门店名称规范：统一展示为「淘宝便利店（店名）」 */
-
+/** 门店展示名：筛选项只写店名，不含「淘宝便利店」 */
 const BRAND = '淘宝便利店'
 
 /** 去掉品牌与括号，得到店名核心，如 黄桥店 */
@@ -11,7 +10,12 @@ export function bareStoreName(v: unknown): string {
     .trim()
 }
 
-/** 规范展示名：淘宝便利店（黄桥店） */
+/** 筛选项/列表短名：金华店 */
+export function storeFilterLabel(v: unknown): string {
+  return bareStoreName(v) || String(v || '')
+}
+
+/** 规范展示名：淘宝便利店（黄桥店）——数据键仍可用；界面筛选请用 storeFilterLabel */
 export function formatStoreName(v: unknown): string {
   const bare = bareStoreName(v)
   if (!bare) return ''

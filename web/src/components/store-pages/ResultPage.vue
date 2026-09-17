@@ -128,15 +128,15 @@ function channelColor(name: string) {
 
 function fmtMoney(v: number) {
   if (!Number.isFinite(v)) return '—'
-  if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(1)}万`
-  return String(Math.round(v))
+  if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(2)}万`
+  return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function fmtKpiVal(k: BizKpi) {
   if (k.deltaKind === 'pp' || k.key.includes('rate') || k.key === 'neg_profit') {
     return `${(k.value * 100).toFixed(2)}%`
   }
-  if (k.deltaKind === 'money' || k.key === 'aov') return `¥${k.value.toFixed(1)}`
+  if (k.deltaKind === 'money' || k.key === 'aov') return `¥${k.value.toFixed(2)}`
   if (k.key === 'orders') return Math.round(k.value).toLocaleString()
   return `¥${fmtMoney(k.value)}`
 }
@@ -145,14 +145,14 @@ function fmtKpiDelta(k: BizKpi) {
   if (k.delta == null) return '—'
   if (k.deltaKind === 'pct') {
     const sign = k.delta >= 0 ? '+' : ''
-    return `${sign}${(k.delta * 100).toFixed(1)}%`
+    return `${sign}${(k.delta * 100).toFixed(2)}%`
   }
   if (k.deltaKind === 'pp') {
     const sign = k.delta >= 0 ? '+' : ''
     return `${sign}${k.delta.toFixed(2)}%`
   }
   const sign = k.delta >= 0 ? '+' : ''
-  return `${sign}${k.delta.toFixed(1)}`
+  return `${sign}${k.delta.toFixed(2)}`
 }
 
 function isWorse(k: BizKpi) {
@@ -188,9 +188,9 @@ function buildHeadline(r: StoreBusinessReport) {
     }
   }
   const parts: string[] = []
-  if (paid?.delta != null) parts.push(`实付${paid.delta >= 0 ? '+' : ''}${(paid.delta * 100).toFixed(1)}%`)
+  if (paid?.delta != null) parts.push(`实付${paid.delta >= 0 ? '+' : ''}${(paid.delta * 100).toFixed(2)}%`)
   if (orders?.delta != null)
-    parts.push(`订单${orders.delta >= 0 ? '+' : ''}${(orders.delta * 100).toFixed(1)}%`)
+    parts.push(`订单${orders.delta >= 0 ? '+' : ''}${(orders.delta * 100).toFixed(2)}%`)
   if (lead) parts.push(`${lead.channel}${(lead.share * 100).toFixed(0)}%`)
   if (trendTxt) parts.push(trendTxt)
   headline.value = parts.join(' · ')
@@ -426,11 +426,13 @@ watch(
   padding: 32px;
 }
 .card {
-  background: #fff;
-  border-radius: 14px;
+  background: var(--ops-surface, rgba(255, 255, 255, 0.72));
+  border-radius: 18px;
   padding: 16px 18px;
-  border: 1px solid #eef1f5;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: var(--ops-shadow, 0 12px 28px rgba(15, 23, 42, 0.05));
+  backdrop-filter: var(--ops-frost, blur(14px));
+  -webkit-backdrop-filter: var(--ops-frost, blur(14px));
 }
 .sec-head {
   display: flex;
@@ -439,15 +441,15 @@ watch(
   gap: 8px 10px;
   font-size: 15px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--ops-title, #111827);
   margin-bottom: 10px;
   .no {
     display: inline-flex;
     width: 22px;
     height: 22px;
     border-radius: 7px;
-    background: #ecfeff;
-    color: #0d9488;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #fff;
     align-items: center;
     justify-content: center;
     font-size: 12px;

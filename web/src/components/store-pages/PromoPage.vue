@@ -57,7 +57,7 @@ const board = computed(() => fetchPromoBoard(props.dateKey, props.storeId, props
 const totalNew = computed(() => board.value?.activities.reduce((a, x) => a + x.newUsers, 0) || 0)
 const totalOld = computed(() => board.value?.activities.reduce((a, x) => a + x.oldUsers, 0) || 0)
 const newPct = computed(() => totalNew.value + totalOld.value ? totalNew.value / (totalNew.value + totalOld.value) * 100 : 0)
-const newShare = computed(() => totalNew.value + totalOld.value ? `新客占 ${newPct.value.toFixed(1)}%` : '暂无客群分层')
+const newShare = computed(() => totalNew.value + totalOld.value ? `新客占 ${newPct.value.toFixed(2)}%` : '暂无客群分层')
 const lead = computed(() => {
   const s = board.value?.summary
   if (!s) return ''
@@ -82,15 +82,15 @@ const trendOpt = computed<any>(() => {
     const gaugeMax = Math.max(100, Math.ceil(totalRate / 20) * 20)
     const gaugeColor = totalRate > 80 ? '#EF5B5B' : totalRate > 50 ? '#F59E0B' : '#14B8A6'
     return {
-      tooltip: { formatter: `全店实付 ${money(row.paid)}<br/>推广费 ${money(row.promotionSpend)} · ${promoRate.toFixed(1)}%<br/>活动成本 ${money(row.activityCost)} · ${activityRate.toFixed(1)}%` },
+      tooltip: { formatter: `全店实付 ${money(row.paid)}<br/>推广费 ${money(row.promotionSpend)} · ${promoRate.toFixed(2)}%<br/>活动成本 ${money(row.activityCost)} · ${activityRate.toFixed(2)}%` },
       graphic: [
         { type: 'group', left: '17%', top: '74%', children: [
           { type: 'circle', shape: { cx: 0, cy: 0, r: 5 }, style: { fill: '#8B5CF6' } },
-          { type: 'text', left: 12, top: -8, style: { text: `推广费率  ${promoRate.toFixed(1)}%\n${money(row.promotionSpend)}`, fill: '#475569', font: '600 13px sans-serif', lineHeight: 22 } },
+          { type: 'text', left: 12, top: -8, style: { text: `推广费率  ${promoRate.toFixed(2)}%\n${money(row.promotionSpend)}`, fill: '#475569', font: '600 13px sans-serif', lineHeight: 22 } },
         ] },
         { type: 'group', right: '17%', top: '74%', children: [
           { type: 'circle', shape: { cx: 0, cy: 0, r: 5 }, style: { fill: '#F59E0B' } },
-          { type: 'text', left: 12, top: -8, style: { text: `活动成本率  ${activityRate.toFixed(1)}%\n${money(row.activityCost)}`, fill: '#475569', font: '600 13px sans-serif', lineHeight: 22 } },
+          { type: 'text', left: 12, top: -8, style: { text: `活动成本率  ${activityRate.toFixed(2)}%\n${money(row.activityCost)}`, fill: '#475569', font: '600 13px sans-serif', lineHeight: 22 } },
         ] },
       ],
       series: [{
@@ -101,7 +101,7 @@ const trendOpt = computed<any>(() => {
         axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
         title: { show: true, offsetCenter: [0, '28%'], color: '#64748B', fontSize: 13 },
         detail: { valueAnimation: true, offsetCenter: [0, '-4%'], color: '#0F172A', fontSize: 36, fontWeight: 800, formatter: '{value}%' },
-        data: [{ value: Number(totalRate.toFixed(1)), name: '总营销投入率' }],
+        data: [{ value: Number(totalRate.toFixed(2)), name: '总营销投入率' }],
       }],
     }
   }
@@ -116,7 +116,7 @@ const trendOpt = computed<any>(() => {
   }))
   return {
     grid: { left: 55, right: 26, top: 40, bottom: 34 }, legend: { top: 4, right: 8 },
-    tooltip: { trigger: 'axis', formatter: (params: any[]) => { const i = params[0]?.dataIndex || 0; const row = ratios[i]; return `${row.day}<br/>全店实付 ${money(row.paid)}<br/>推广费 ${money(row.promotionSpend)} · ${row.promo.toFixed(1)}%<br/>活动成本 ${money(row.activityCost)} · ${row.activity.toFixed(1)}%<br/><b>总投入率 ${row.total.toFixed(1)}%</b>` } },
+    tooltip: { trigger: 'axis', formatter: (params: any[]) => { const i = params[0]?.dataIndex || 0; const row = ratios[i]; return `${row.day}<br/>全店实付 ${money(row.paid)}<br/>推广费 ${money(row.promotionSpend)} · ${row.promo.toFixed(2)}%<br/>活动成本 ${money(row.activityCost)} · ${row.activity.toFixed(2)}%<br/><b>总投入率 ${row.total.toFixed(2)}%</b>` } },
     xAxis: { type: 'category', data: ratios.map(x => x.day.slice(5)), axisTick: { show: false }, axisLine: { lineStyle: { color: '#dbe5ef' } } },
     yAxis: { type: 'value', name: '占实付比例', axisLabel: { formatter: '{value}%' }, splitLine: { lineStyle: { color: '#edf2f7' } } },
     series: [
@@ -141,7 +141,7 @@ const customerOpt = computed<any>(() => ({
   legend: { bottom: 2, left: 'center', itemWidth: 10, itemHeight: 10 },
   graphic: [{
     type: 'text', left: 'center', top: '37%',
-    style: { text: `新客占比\n${newPct.value.toFixed(1)}%`, textAlign: 'center', font: '700 17px sans-serif', fill: '#0F172A', lineHeight: 24 },
+    style: { text: `新客占比\n${newPct.value.toFixed(2)}%`, textAlign: 'center', font: '700 17px sans-serif', fill: '#0F172A', lineHeight: 24 },
   }],
   series: [{
     type: 'pie', radius: ['50%', '72%'], center: ['50%', '43%'],

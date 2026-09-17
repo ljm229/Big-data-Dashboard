@@ -6,23 +6,23 @@
         name="渠道贡献利润"
         :value="profitKpi.value"
         :unit="profitKpi.unit"
-        :hints="kpiRatioHint(delta.profit)"
+        :hints="kpiRatioHint(delta.profit, deltaLabel)"
       />
       <ClassicKpi
         name="渠道利润率"
         :value="fmtPct(kpi.profitRate)"
-        :hints="kpiPtsHint(delta.profitRate)"
+        :hints="kpiPtsHint(delta.profitRate, deltaLabel)"
       />
       <ClassicKpi
         name="有效订单"
         :value="kpi.orders != null ? formatInt(kpi.orders) : '—'"
-        :hints="kpiRatioHint(delta.orders)"
+        :hints="kpiRatioHint(delta.orders, deltaLabel)"
       />
       <ClassicKpi
         name="单均贡献利润"
-        :value="kpi.unitProfit != null ? kpi.unitProfit.toFixed(1) : '—'"
+        :value="kpi.unitProfit != null ? kpi.unitProfit.toFixed(2) : '—'"
         unit="元"
-        :hints="kpiRatioHint(delta.unitProfit)"
+        :hints="kpiRatioHint(delta.unitProfit, deltaLabel)"
       />
       <ClassicKpi name="履约完成率" value="—" hint="数据未接入" />
       <ClassicKpi
@@ -47,7 +47,7 @@
                 <th class="num">利润率</th>
                 <th class="num">订单占比</th>
                 <th class="num">单均贡献（元）</th>
-                <th class="num">日比</th>
+                <th class="num">{{ deltaLabel }}</th>
               </tr>
             </thead>
             <tbody>
@@ -62,7 +62,7 @@
                 </td>
                 <td class="num">{{ fmtPct(row.profitRate) }}</td>
                 <td class="num">{{ fmtPct(row.orderShare) }}</td>
-                <td class="num">{{ row.unitProfit != null ? row.unitProfit.toFixed(1) : '—' }}</td>
+                <td class="num">{{ row.unitProfit != null ? row.unitProfit.toFixed(2) : '—' }}</td>
                 <td class="num" :class="toneOf(row.growth)">{{ ratioText(row.growth) }}</td>
               </tr>
             </tbody>
@@ -99,7 +99,7 @@
                 <td class="num muted">—</td>
                 <td class="num muted">—</td>
                 <td class="num">{{ fmtPct(row.refundRate) }}</td>
-                <td class="num">{{ row.arpu != null ? row.arpu.toFixed(1) : '—' }}</td>
+                <td class="num">{{ row.arpu != null ? row.arpu.toFixed(2) : '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -143,14 +143,14 @@ import { useFilterStore } from '../../stores/filter'
 import {
   aggregateSource1Kpi,
   deltaOf,
-  previousDayRange,
+  previousPeriodRange,
   source1ByChannel,
 } from '../../api/source1'
 import { formatInt } from '../../utils/format'
 import { fmtPct, fmtMoneyKpi, fmtMoneyInUnit, moneyUnitOf, toneOf, kpiRatioHint, kpiPtsHint } from '../../utils/classicHints'
 
 const filter = useFilterStore()
-const { periodRange, channel, cityQuery, storeQuery } = storeToRefs(filter)
+const { periodRange, channel, cityQuery, storeQuery, periodMode, deltaLabel } = storeToRefs(filter)
 
 const q = computed(() => ({
   from: periodRange.value.from,
@@ -159,7 +159,7 @@ const q = computed(() => ({
   store: storeQuery.value,
   city: cityQuery.value,
 }))
-const prevQ = computed(() => ({ ...q.value, ...previousDayRange(q.value.from, q.value.to) }))
+const prevQ = computed(() => ({ ...q.value, ...previousPeriodRange(q.value.from, q.value.to, periodMode.value) }))
 const kpi = computed(() => aggregateSource1Kpi(q.value))
 const delta = computed(() => deltaOf(kpi.value, aggregateSource1Kpi(prevQ.value)))
 const profitKpi = computed(() => fmtMoneyKpi(kpi.value.profit))
@@ -186,11 +186,11 @@ const profitUnit = computed(() => moneyUnitOf(channelRows.value.map((r) => r.pro
 
 function ratioText(d: number | null | undefined) {
   if (d == null) return '—'
-  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
+  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(2)}%`
 }
 function ptsText(d: number | null | undefined) {
   if (d == null) return '—'
-  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
+  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(2)}%`
 }
 </script>
 

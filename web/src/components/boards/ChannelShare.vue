@@ -8,7 +8,7 @@
           <i :style="{ background: colorOf(r.channel).solid }" />
           <div class="meta">
             <span class="name">{{ r.channel }}</span>
-            <em>{{ (r.paid_share * 100).toFixed(1) }}%</em>
+            <em>{{ (r.paid_share * 100).toFixed(2) }}%</em>
           </div>
           <div class="vals">
             <b>{{ formatMoney(r.paid_amount) }}</b>
@@ -127,7 +127,7 @@ function bindTipEvents() {
 function onPieOver(params: any) {
   if (params?.seriesType !== 'pie' || params?.seriesIndex !== 1) return
   const val = round2(Number(params.value))
-  const pct = typeof params.percent === 'number' ? params.percent.toFixed(1) : '--'
+  const pct = typeof params.percent === 'number' ? params.percent.toFixed(2) : '--'
   tip.value = {
     name: String(params.name || ''),
     money: formatMoney(val),

@@ -65,7 +65,7 @@ const supply=computed(()=>fetchSupplyBoard(props.dateKey,props.city,props.storeI
 const attendance=computed(()=>supply.value?.summary.attendance ?? null)
 const attendanceText=computed(()=>{
   if (attendance.value == null) return '—'
-  return `${(attendance.value * 100).toFixed(1)}%`
+  return `${(attendance.value * 100).toFixed(2)}%`
 })
 const periodTip=computed(()=>{
   const label = product.value?.label || supply.value?.label
@@ -82,7 +82,7 @@ const categoryOpt=computed<any>(()=>({
   tooltip:{formatter:(p:any)=>`${p.name}<br/>销售额 ${money(p.value)}`},
   series:[{type:'treemap',roam:false,nodeClick:false,breadcrumb:{show:false},label:{show:true,formatter:(p:any)=>`${shortName(p.name)}\n${money(p.value)}`,fontSize:12,lineHeight:18},upperLabel:{show:false},itemStyle:{borderColor:'#fff',borderWidth:3,gapWidth:2},levels:[{color:['#1D6BFF','#0EA5E9','#14B8A6','#8B5CF6','#F59E0B','#FB7185','#64748B'],colorSaturation:[.32,.68]}],data:(product.value?.categories||[]).slice(0,14).map(x=>({name:x.name,value:x.sales,refund:x.refundAmt,loss:x.stockoutLoss}))}]
 }))
-const lossOpt=computed<any>(()=>{const rows=[...(product.value?.topLossSku||[])].slice(0,9).reverse();return{grid:{left:118,right:62,top:12,bottom:22},tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},xAxis:{type:'value',axisLabel:{formatter:(v:number)=>v>=10000?`${(v/10000).toFixed(1)}万`:v},splitLine:{lineStyle:{color:'#edf2f7'}}},yAxis:{type:'category',data:rows.map(x=>shortName(x.name)),axisLine:{show:false},axisTick:{show:false},axisLabel:{width:108,overflow:'truncate'}},series:[{type:'bar',barWidth:14,data:rows.map((x,i)=>({value:x.loss,itemStyle:{color:i>=rows.length-3?'#EF5B5B':'#F59E0B',borderRadius:[0,8,8,0]}})),label:{show:true,position:'right',color:'#64748b',formatter:(p:any)=>money(p.value)}}]}})
+const lossOpt=computed<any>(()=>{const rows=[...(product.value?.topLossSku||[])].slice(0,9).reverse();return{grid:{left:118,right:62,top:12,bottom:22},tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},xAxis:{type:'value',axisLabel:{formatter:(v:number)=>v>=10000?`${(v/10000).toFixed(2)}万`:Number(v).toFixed(2)},splitLine:{lineStyle:{color:'#edf2f7'}}},yAxis:{type:'category',data:rows.map(x=>shortName(x.name)),axisLine:{show:false},axisTick:{show:false},axisLabel:{width:108,overflow:'truncate'}},series:[{type:'bar',barWidth:14,data:rows.map((x,i)=>({value:x.loss,itemStyle:{color:i>=rows.length-3?'#EF5B5B':'#F59E0B',borderRadius:[0,8,8,0]}})),label:{show:true,position:'right',color:'#64748b',formatter:(p:any)=>money(p.value)}}]}})
 const storeOpt=computed<any>(()=>{const rows=product.value?.stores||[];return{grid:{left:56,right:25,top:30,bottom:48},tooltip:{formatter:(p:any)=>`${p.name}<br/>销售额 ${money(p.value[0])}<br/>缺货损失率 ${p.value[1].toFixed(2)}%<br/>缺货 ${formatInt(p.value[2])} 次`},xAxis:{name:'销售额',axisLabel:{formatter:(v:number)=>v>=10000?`${(v/10000).toFixed(0)}万`:v},splitLine:{lineStyle:{color:'#edf2f7'}}},yAxis:{name:'损失率',axisLabel:{formatter:'{value}%'},splitLine:{lineStyle:{color:'#edf2f7'}}},series:[{type:'scatter',data:rows.map(x=>{const rate=x.sales?x.stockoutLoss/x.sales*100:0;return{name:x.shortName,value:[x.sales,rate,x.stockoutTimes],itemStyle:{color:rate>=1?'#EF5B5B':rate>=.3?'#F59E0B':'#14B8A6'}}}),symbolSize:(v:number[])=>Math.max(10,Math.min(32,Math.sqrt(v[2]||0)*1.5))}]}})
 useChart(categoryEl,categoryOpt as any);useChart(lossEl,lossOpt as any);useChart(storeEl,storeOpt as any)
 </script>

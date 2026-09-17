@@ -15,7 +15,7 @@
         <section class="top-stage" data-layout="stack">
           <TopBar data-role="nav" data-height-px="64" data-single-line="true">
             <template #filters>
-              <DateFilter variant="dark" scope="cockpit" :show-location="false" />
+              <DateFilter variant="dark" scope="cockpit" :show-location="true" />
             </template>
             <template #nav>
               <div class="view-switch view-switch--in-header">
@@ -290,11 +290,12 @@ watch(activeView, (view) => {
   display: grid;
   /* 左5 : 地图9 : 右6 —— 右侧略收，避免风险/渠道表被拉得过散 */
   grid-template-columns: repeat(20, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 316fr) minmax(0, 306fr) minmax(0, 292fr);
+  /* 底行加高约 0.5cm（设计稿 +19px）；宽比 3.1:3.1:3.8 → 6:6:8 */
+  grid-template-rows: minmax(0, 306fr) minmax(0, 297fr) minmax(0, 311fr);
   grid-template-areas:
     'trend trend trend trend trend map map map map map map map map map risk risk risk risk risk risk'
     'launch launch launch launch launch map map map map map map map map map channel channel channel channel channel channel'
-    'matrix matrix matrix matrix matrix matrix matrix category category category category category category category stores stores stores stores stores stores';
+    'matrix matrix matrix matrix matrix matrix category category category category category category stores stores stores stores stores stores stores stores';
   gap: 8px;
   z-index: 1;
 }

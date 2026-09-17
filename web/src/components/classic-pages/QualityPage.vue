@@ -43,7 +43,7 @@
               <ul>
                 <li v-for="g in gradeDistView" :key="g.grade">
                   <i :style="{ background: g.color }" />
-                  <span>{{ g.grade }} {{ g.label }}</span>
+                  <span>{{ g.grade === 'N' ? g.label : `${g.grade} ${g.label}` }}</span>
                   <b>{{ g.count }}</b>
                   <em>{{ g.share }}</em>
                 </li>
@@ -291,9 +291,13 @@ const gradeDistView = computed(() => {
   const total = Math.max(1, assessRows.value.length)
   return gradeDist.value.map((g) => ({
     ...g,
-    share: `${((g.count / total) * 100).toFixed(1)}%`,
+    share: `${((g.count / total) * 100).toFixed(2)}%`,
   }))
 })
+
+function isMissingAssessRow(row: (typeof assessRows.value)[number]) {
+  return !!row.empty || (row.parts.length > 0 && row.parts.every((p) => p.missing))
+}
 
 const metricPassRates = computed(() =>
   ASSESS_DEFS.map((d) => {
@@ -316,13 +320,12 @@ const metricPassRates = computed(() =>
 
 const heatRows = computed(() => {
   let rows = [...assessRows.value]
-  // 与左侧等级图一致：按综合等级筛，而不是「任一指标踩线」
   if (heatFilter.value === 'pass') {
-    rows = rows.filter((r) => r.grade.grade === 'S' || r.grade.grade === 'A')
+    rows = rows.filter((r) => !isMissingAssessRow(r) && (r.grade.grade === 'S' || r.grade.grade === 'A'))
   } else if (heatFilter.value === 'warn') {
-    rows = rows.filter((r) => r.grade.grade === 'B')
+    rows = rows.filter((r) => !isMissingAssessRow(r) && r.grade.grade === 'B')
   } else if (heatFilter.value === 'fail') {
-    rows = rows.filter((r) => r.grade.grade === 'C' || r.grade.grade === 'D')
+    rows = rows.filter((r) => !isMissingAssessRow(r) && (r.grade.grade === 'C' || r.grade.grade === 'D'))
   }
   return rows.slice(0, 24)
 })
@@ -333,7 +336,7 @@ const selectedRow = computed(() =>
 
 const problemRows = computed(() =>
   [...assessRows.value]
-    .filter((r) => failTags(r).length > 0 || r.composite < 60)
+    .filter((r) => !isMissingAssessRow(r) && (failTags(r).length > 0 || r.composite < 60))
     .sort((a, b) => failTags(b).length - failTags(a).length || a.composite - b.composite)
     .slice(0, 5),
 )
@@ -372,7 +375,7 @@ const adviceRows = computed(() => {
     })
   }
 
-  const dStores = rows.filter((r) => r.grade.grade === 'D')
+  const dStores = rows.filter((r) => !isMissingAssessRow(r) && r.grade.grade === 'D')
   if (dStores.length) {
     const actionHint =
       periodMode.value === 'day' ? '今日内' : periodMode.value === 'month' ? '本月内' : '本周内'
@@ -387,30 +390,36 @@ const adviceRows = computed(() => {
 
 const kpis = computed(() => {
   const rows = assessRows.value
-  const storeCnt = rows.length
-  const passCnt = rows.filter((r) => r.composite >= 80).length
+  const scored = rows.filter((r) => !isMissingAssessRow(r))
+  const storeCnt = scored.length
+  const passCnt = scored.filter((r) => r.composite >= 80).length
   const passRate = storeCnt ? passCnt / storeCnt : 0
-  const dCnt = rows.filter((r) => r.grade.grade === 'D').length
-  const failParts = rows.reduce((n, r) => n + r.parts.filter((p) => !p.missing && !p.pass).length, 0)
+  const dCnt = scored.filter((r) => r.grade.grade === 'D').length
+  const failParts = scored.reduce((n, r) => n + r.parts.filter((p) => !p.missing && !p.pass).length, 0)
   const prev = prevBoard.value
-  const prevAvailable = !!prev && prev.storeCnt > 0
-  const prevPassRate = prev && prev.storeCnt ? prev.passStoreCnt / prev.storeCnt : null
-  const prevD = prev ? prev.rows.filter((r) => r.grade.grade === 'D').length : null
-  const prevFail = prev
-    ? prev.rows.reduce((n, r) => n + r.parts.filter((p) => !p.missing && !p.pass).length, 0)
+  const prevScored = prev ? prev.rows.filter((r) => !isMissingAssessRow(r)) : []
+  const prevAvailable = !!prev && prevScored.length > 0
+  const prevPassRate = prevAvailable
+    ? prevScored.filter((r) => r.composite >= 80).length / prevScored.length
+    : null
+  const prevD = prevAvailable ? prevScored.filter((r) => r.grade.grade === 'D').length : null
+  const prevFail = prevAvailable
+    ? prevScored.reduce((n, r) => n + r.parts.filter((p) => !p.missing && !p.pass).length, 0)
     : null
   let improved = 0
   if (prev) {
-    const prevMap = new Map(prev.rows.map((r) => [r.shortName, r.composite]))
-    for (const r of rows) {
+    const prevMap = new Map(
+      prev.rows.filter((r) => !isMissingAssessRow(r)).map((r) => [r.shortName, r.composite]),
+    )
+    for (const r of scored) {
       const before = prevMap.get(r.shortName)
       if (before != null && r.composite > before + 0.5) improved += 1
     }
   }
   return {
     storeCnt,
-    storeDelta: prevAvailable ? storeCnt - prev!.storeCnt : null,
-    passRateText: `${(passRate * 100).toFixed(1)}%`,
+    storeDelta: prevAvailable ? storeCnt - prevScored.length : null,
+    passRateText: `${(passRate * 100).toFixed(2)}%`,
     passRateDelta: prevPassRate == null ? null : passRate - prevPassRate,
     dCnt,
     dDelta: prevD == null ? null : dCnt - prevD,
@@ -478,18 +487,19 @@ function onTrendMetric(v: string | string[]) {
 
 function buildDonut() {
   const data = gradeDistView.value.filter((g) => g.count > 0).map((g) => ({
-    name: `${g.grade} ${g.label}`,
+    name: g.grade === 'N' ? g.label : `${g.grade} ${g.label}`,
     value: g.count,
     itemStyle: { color: g.color },
   }))
   const total = data.reduce((n, d) => n + d.value, 0)
   const top = data.slice().sort((a, b) => b.value - a.value)[0]
+  const topLabel = top?.name === '缺数据' ? '缺' : (top?.name.split(' ')[0] || '')
   donutOpt.value = {
     animation: false,
     tooltip: {
       trigger: 'item',
       confine: true,
-      formatter: (p: any) => `${p.name}<br/>${p.value} 家（${Number(p.percent).toFixed(1)}%）`,
+      formatter: (p: any) => `${p.name}<br/>${p.value} 家（${Number(p.percent).toFixed(2)}%）`,
     },
     series: [{
       type: 'pie',
@@ -505,7 +515,6 @@ function buildDonut() {
       },
       data: data.length ? data : [{ name: '暂无', value: 1, itemStyle: { color: '#e2e8f0' } }],
     }],
-    // 中心摘要，避免外侧标签溢出裁切
     graphic: top && total
       ? [
           {
@@ -513,7 +522,7 @@ function buildDonut() {
             left: 'center',
             top: '42%',
             style: {
-              text: top.name.split(' ')[0],
+              text: topLabel,
               fill: '#0f172a',
               fontSize: 16,
               fontWeight: 800,
@@ -525,7 +534,7 @@ function buildDonut() {
             left: 'center',
             top: '56%',
             style: {
-              text: `${((top.value / total) * 100).toFixed(1)}%`,
+              text: `${((top.value / total) * 100).toFixed(2)}%`,
               fill: '#64748b',
               fontSize: 11,
               fontWeight: 700,
@@ -540,33 +549,84 @@ function buildDonut() {
 function buildTrend() {
   const def = ASSESS_DEFS.find((d) => d.key === trendMetric.value)!
   const cats = trendSeries.value.map((r) => r.date.slice(5))
+  const passLine = def.passLine
+  const nearBand = def.unit === 'min' ? 0.8 : 3
+  const finite = trendSeries.value
+    .map((r) => r.value)
+    .filter((v): v is number => v != null && Number.isFinite(v))
+  const spanVals = finite.length ? [...finite, passLine] : [passLine]
+  const lo = Math.min(...spanVals)
+  const hi = Math.max(...spanVals)
+  const pad = Math.max((hi - lo) * 0.55, def.unit === 'min' ? 0.8 : 4)
+  let yMin = Math.max(0, lo - pad)
+  let yMax = hi + pad
+  // 百分比轴略放开上限，给贴线标签留空，避免挤在 100% 顶边
+  if (def.unit === '%') yMax = Math.min(112, Math.max(yMax, passLine + pad))
+
+  const pointData = trendSeries.value.map((r) => {
+    if (r.value == null || !Number.isFinite(r.value)) return null
+    const v = r.value
+    // 贴线或压线：标到线另一侧；远离合格线则标上方
+    let position: 'top' | 'bottom' = 'top'
+    if (v >= passLine) position = 'top'
+    else if (passLine - v <= nearBand) position = 'bottom'
+    return {
+      value: v,
+      label: {
+        show: true,
+        position,
+        distance: 8,
+        formatter: def.unit === 'min' ? Number(v).toFixed(1) : `${Number(v).toFixed(1)}%`,
+        color: '#334155',
+        fontSize: 10,
+        backgroundColor: 'rgba(255,255,255,0.88)',
+        padding: [1, 3],
+        borderRadius: 2,
+      },
+    }
+  })
+
   trendOpt.value = {
     animationDuration: 200,
-    grid: { left: 36, right: 12, top: 18, bottom: 22 },
+    grid: { left: 40, right: 14, top: 36, bottom: 24 },
     tooltip: {
       trigger: 'axis',
+      confine: true,
       formatter: (params: any[]) => {
         const i = params[0]?.dataIndex ?? 0
         const row = trendSeries.value[i]
         if (!row) return ''
-        return `${row.date}<br/>${def.name} ${row.value == null ? '—' : formatAssessDisplay(row.value, def.unit)}`
+        const actual = row.value == null ? '—' : formatAssessDisplay(row.value, def.unit)
+        const line = `${def.lowerBetter ? '≤' : '≥'}${formatAssessDisplay(passLine, def.unit)}`
+        return `${row.date}<br/>实际值 ${actual}<br/>合格线 ${line}`
       },
     },
-    legend: { top: 0, right: 0, textStyle: { color: '#64748b', fontSize: 11 } },
+    legend: {
+      top: 2,
+      right: 0,
+      itemWidth: 14,
+      itemHeight: 8,
+      textStyle: { color: '#64748b', fontSize: 11 },
+    },
     xAxis: {
       type: 'category',
       data: cats,
+      boundaryGap: false,
       axisTick: { show: false },
       axisLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: { color: '#94a3b8', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
+      min: Number(yMin.toFixed(2)),
+      max: Number(yMax.toFixed(2)),
+      scale: false,
+      splitNumber: 4,
       splitLine: { lineStyle: { color: '#eef2f7' } },
       axisLabel: {
         color: '#94a3b8',
         fontSize: 11,
-        formatter: (v: number) => (def.unit === 'min' ? `${v}` : `${v}%`),
+        formatter: (v: number) => (def.unit === 'min' ? `${Number(v).toFixed(1)}` : `${Number(v).toFixed(0)}%`),
       },
     },
     series: [
@@ -575,21 +635,32 @@ function buildTrend() {
         type: 'line',
         smooth: 0.2,
         symbolSize: 7,
-        data: trendSeries.value.map((r) => r.value),
+        data: pointData,
         lineStyle: { width: 2.5, color: '#1d6bff' },
         itemStyle: { color: '#1d6bff' },
-        label: {
-          show: true,
-          formatter: (p: any) => (p.value == null ? '' : def.unit === 'min' ? Number(p.value).toFixed(1) : `${Number(p.value).toFixed(1)}%`),
-          color: '#334155',
-          fontSize: 10,
+        labelLayout: { hideOverlap: true, moveOverlap: 'shiftY' },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          label: {
+            show: true,
+            position: 'insideEndTop',
+            formatter: `合格 ${def.lowerBetter ? '≤' : '≥'}${def.unit === 'min' ? passLine : `${passLine}%`}`,
+            color: '#b45309',
+            fontSize: 10,
+            backgroundColor: 'rgba(255,255,255,0.9)',
+            padding: [1, 4],
+          },
+          lineStyle: { width: 1.5, type: 'dashed', color: '#d97706' },
+          data: [{ yAxis: passLine, name: '合格线' }],
         },
       },
       {
+        // 仅占图例，不画第二根线，避免与 markLine 双重叠
         name: '合格线',
         type: 'line',
+        data: [],
         symbol: 'none',
-        data: trendSeries.value.map((r) => r.passLine),
         lineStyle: { width: 1.5, type: 'dashed', color: '#d97706' },
         itemStyle: { color: '#d97706' },
       },

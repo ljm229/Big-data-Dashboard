@@ -5,7 +5,7 @@
       <b>分析筛选</b>
       <span>{{ periodLabel }}</span>
       <span>{{ cityName }}</span>
-      <span>{{ channel === '全部' ? '全部平台' : channel }}</span>
+      <span>{{ channel === '全部' ? '全部渠道' : channel }}</span>
       <span>{{ selectedStore === '全部' ? '全部门店' : selectedStore }}</span>
       <span>{{ catMeta ? `${catMeta.from}～${catMeta.to}` : '全部品类' }}</span>
     </div>

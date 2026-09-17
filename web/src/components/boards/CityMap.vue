@@ -31,51 +31,73 @@
         <small>点门店查看完整地址与经营指标</small>
       </div>
 
-      <aside v-if="storeRow" class="detail-card detail-card--right" aria-label="所选门店经营详情" @click.stop>
+      <aside v-if="storeRow" class="detail-card detail-card--right" aria-label="所选门店经营诊断" @click.stop>
         <header>
           <div>
-            <span>{{ storeRow.city || picked?.key || '门店' }}</span>
+            <span>门店经营诊断</span>
             <h4>{{ storeRow.short }}</h4>
           </div>
-          <button type="button" aria-label="关闭门店详情" @click="clearStoreFocus">×</button>
+          <button type="button" aria-label="关闭门店诊断" @click="clearStoreFocus">×</button>
         </header>
-        <section class="address-block" aria-label="门店地址信息">
-          <div>
-            <span>门店地址</span>
-            <b :title="storeRow.address || '暂无地址'">{{ storeRow.address || '暂无地址' }}</b>
+
+        <section class="diag-layer">
+          <h5>{{ storePeriodLabel }}</h5>
+          <div v-if="storePattern" class="pattern-card" :class="storePattern.tone">
+            <div class="pattern-card__head">
+              <em>门店态势</em>
+              <b>{{ storePattern.title }}</b>
+            </div>
+            <div class="pattern-card__formula">
+              <span>订单{{ storePattern.orderMark }}</span>
+              <span>毛利{{ storePattern.profitMark }}</span>
+            </div>
+            <p class="pattern-card__action">建议 {{ storePattern.action }}</p>
+          </div>
+          <div class="kpi-grid">
+            <div><em>实付金额</em><b>{{ formatMoney(storeRow.paid) }}</b></div>
+            <div><em>订单</em><b>{{ formatInt(storeRow.orders) }}</b></div>
+            <div><em>含后返毛利</em><b class="profit">{{ formatMoney(storeRow.profit) }}</b></div>
+            <div><em>毛利率</em><b>{{ formatPercent(storeRow.profitRate) }}</b></div>
           </div>
         </section>
-        <div class="kpi-grid">
-          <div><em>毛利</em><b class="profit">{{ formatMoney(storeRow.profit) }}</b></div>
-          <div><em>毛利率</em><b>{{ formatPercent(storeRow.profitRate) }}</b></div>
-          <div><em>实付金额</em><b>{{ formatMoney(storeRow.paid) }}</b></div>
-          <div><em>有效订单量</em><b>{{ formatInt(storeRow.orders) }}</b></div>
-          <div><em>客单价</em><b>{{ formatMoney(storeRow.arpu) }}</b></div>
-          <div><em>单均毛利</em><b>{{ formatMoney(storeRow.unitProfit) }}</b></div>
-          <div><em>退款率</em><b>{{ formatPercent(storeRow.refundRate) }}</b></div>
-          <div><em>上线状态</em><b>{{ storeRow.openStatus }}</b></div>
-          <div><em>缺货 SKU</em><b>{{ storeSupply?.stockout == null ? '—' : formatInt(storeSupply.stockout) }}</b></div>
-          <div><em>出勤率</em><b>{{ storeSupply?.attendance == null ? '—' : ((storeSupply.attendance * 100).toFixed(1) + '%') }}</b></div>
-        </div>
-        <section v-if="storeChannels.length" class="block">
-          <h5>渠道毛利构成</h5>
-          <ul class="rank">
-            <li v-for="row in storeChannels" :key="row.key">
-              <i :style="{ background: channelColor(row.key) }" />
-              <span>{{ row.key }}</span>
-              <b>{{ formatMoney(row.profit) }}</b>
-              <em>{{ shareText(row.share) }}</em>
-            </li>
-          </ul>
+
+        <section class="diag-layer">
+          <h5>经营质量</h5>
+          <div class="trend-grid">
+            <div>
+              <em>订单趋势</em>
+              <b :class="toneClass(storeTrends.orders)">{{ trendText(storeTrends.orders) }}</b>
+            </div>
+            <div>
+              <em>毛利趋势</em>
+              <b :class="toneClass(storeTrends.profit)">{{ trendText(storeTrends.profit) }}</b>
+            </div>
+            <div>
+              <em>退款率</em>
+              <b :class="storeRow.refundRate != null && storeRow.refundRate >= 0.05 ? 'bad' : ''">
+                {{ formatPercent(storeRow.refundRate) }}
+              </b>
+            </div>
+            <div>
+              <em>缺货影响</em>
+              <b :class="storeStockoutTone">{{ storeStockoutText }}</b>
+            </div>
+          </div>
         </section>
-        <div class="tags">
-          <span v-if="!storeRow.open" class="tag warn">待上线 · 暂无经营评价</span>
-          <span v-else-if="storeRow.profit == null" class="tag warn">当前筛选暂无经营数据</span>
-          <span v-else-if="storeRow.profit < 0" class="tag bad">负毛利</span>
-          <span v-else-if="storeRow.refundRate != null && storeRow.refundRate >= 0.05" class="tag warn">退款高</span>
-          <span v-else-if="storeSupply?.attendance != null && storeSupply.attendance < 0.85" class="tag warn">缺货高</span>
-          <span v-else class="tag good">正常</span>
-        </div>
+
+        <section class="diag-layer">
+          <h5>问题定位</h5>
+          <ol v-if="storeIssues.length" class="issue-list">
+            <li v-for="(item, i) in storeIssues" :key="item">
+              <i>{{ ['①', '②', '③'][i] || `${i + 1}.` }}</i>
+              <span>{{ item }}</span>
+            </li>
+          </ol>
+          <p v-else class="issue-ok">{{ storeIssueEmpty }}</p>
+        </section>
+
+        <p v-if="storeRow.address" class="store-addr" :title="storeRow.address">{{ storeRow.address }}</p>
+
         <footer>
           <button type="button" class="ghost" @click.stop="clearStoreFocus">关闭</button>
           <button
@@ -89,37 +111,57 @@
         </footer>
       </aside>
 
-      <!-- 全国层才出城市摘要；门店层收起，避免挡住点位 -->
-      <aside v-else-if="picked && mapLevel === 'nation'" class="detail-card" aria-label="所选城市经营摘要" @click.stop>
+      <!-- 全国层城市摘要：紧凑判断卡，不挡地图 -->
+      <aside v-else-if="picked && mapLevel === 'nation'" class="detail-card" aria-label="所选城市经营判断" @click.stop>
         <header>
           <div>
-            <span>城市经营摘要</span>
+            <span>城市经营判断</span>
             <h4>{{ picked.key }}</h4>
           </div>
           <button type="button" aria-label="关闭城市摘要并恢复全国" @click="resetSelection">×</button>
         </header>
+
+        <div v-if="cityPattern" class="pattern-card" :class="cityPattern.tone">
+          <div class="pattern-card__head">
+            <em>区域态势</em>
+            <b>{{ cityPattern.title }}</b>
+          </div>
+          <div class="pattern-card__formula">
+            <span>订单{{ cityPattern.orderMark }}</span>
+            <span>毛利{{ cityPattern.profitMark }}</span>
+          </div>
+          <p class="pattern-card__action">建议 {{ cityPattern.action }}</p>
+        </div>
+
+        <div class="trend-grid">
+          <div>
+            <em>订单趋势</em>
+            <b :class="toneClass(cityTrends.orders)">{{ trendText(cityTrends.orders) }}</b>
+          </div>
+          <div>
+            <em>实付趋势</em>
+            <b :class="toneClass(cityTrends.paid)">{{ trendText(cityTrends.paid) }}</b>
+          </div>
+          <div>
+            <em>毛利趋势</em>
+            <b :class="toneClass(cityTrends.profit)">{{ trendText(cityTrends.profit) }}</b>
+          </div>
+          <div>
+            <em>风险门店</em>
+            <b :class="cityRiskCount > 0 ? 'bad' : 'good'">{{ cityRiskCount }}家</b>
+          </div>
+        </div>
+
+        <p v-if="citySummary" class="city-summary" :class="cityPattern?.tone || cityHealth.tone">{{ citySummary }}</p>
+
         <div class="kpi-grid">
           <div><em>毛利</em><b class="profit">{{ formatMoney(picked.profit) }}</b></div>
           <div><em>毛利率</em><b>{{ formatPercent(picked.profitRate) }}</b></div>
           <div><em>有效订单金额（实付）</em><b>{{ formatMoney(picked.paid) }}</b></div>
           <div><em>有效订单量</em><b>{{ formatInt(picked.orders) }}</b></div>
           <div><em>客单价</em><b>{{ formatMoney(picked.arpu) }}</b></div>
-          <div><em>上线率</em><b>{{ picked.open == null || !picked.plan ? '—' : ((picked.open / picked.plan) * 100).toFixed(1) + '%' }}</b></div>
         </div>
-        <div class="launch-line">
-          <span>已上线 {{ picked.open ?? '—' }}</span>
-          <span>计划 {{ picked.plan ?? '—' }}</span>
-          <button
-            v-if="picked.plan"
-            type="button"
-            class="launch-bar"
-            title="查看该城市上线情况"
-            @click="launchCityDialog = picked.key"
-          >
-            <i :style="{ width: `${cityLaunchPct}%` }" />
-            <em>{{ cityLaunchPct.toFixed(0) }}%</em>
-          </button>
-        </div>
+
         <section class="block">
           <h5>平台毛利 TOP3</h5>
           <ul v-if="cityChannels.length" class="rank">
@@ -147,6 +189,24 @@
           </table>
           <p v-else class="void">暂无门店明细</p>
         </section>
+
+        <section class="cover-block">
+          <h5>门店覆盖</h5>
+          <div class="cover-line">
+            <span>计划 {{ picked.plan ?? '—' }}</span>
+            <span>上线 {{ picked.open ?? '—' }}</span>
+            <button
+              v-if="picked.plan"
+              type="button"
+              class="cover-link"
+              title="查看该城市上线情况"
+              @click="launchCityDialog = picked.key"
+            >
+              明细
+            </button>
+          </div>
+        </section>
+
         <footer>
           <button type="button" class="ghost" @click="openClassicCity">查看城市详情</button>
           <button type="button" class="primary" @click="enterCityMap">查看门店明细</button>
@@ -181,10 +241,13 @@ import { useFilterStore } from '../../stores/filter'
 import {
   SOURCE1_STORES,
   canonCity,
+  previousPeriodRange,
+  source1ByCategory,
   source1ByChannel,
   source1ByCity,
   source1ByStore,
   source1LaunchByCity,
+  source1RiskStores,
   source1StoreCity,
   source1StoreSupply,
 } from '../../api/source1'
@@ -212,8 +275,12 @@ const CHANNEL_COLORS: Record<string, string> = {
   POS: '#2AFF9A',
   京东: '#FF3D6E',
 }
+const LABEL_SIDES = ['right', 'left', 'top', 'bottom'] as const
 const filter = useFilterStore()
-const { periodRange, channel, cityName, selectedStore, selectedCities, selectedStores } = storeToRefs(filter)
+const { periodRange, channel, cityName, selectedStore, selectedCities, selectedStores, periodMode } = storeToRefs(filter)
+const storePeriodLabel = computed(() =>
+  periodMode.value === 'week' ? '本周经营' : periodMode.value === 'month' ? '本月经营' : '今日经营',
+)
 const openClassicCity = inject('openClassicCity', () => {})
 const el = ref<HTMLElement | null>(null)
 const mapBody = ref<HTMLElement | null>(null)
@@ -238,12 +305,11 @@ let pointerDown: { x: number; y: number } | null = null
 let syncFilterTimer = 0
 const registeredProvinces = new Set<string>()
 let cityRequest = 0
-const LABEL_SIDES = ['right', 'left', 'top', 'bottom'] as const
 const cities = computed(() => {
   const launches = source1LaunchByCity()
   const metrics = new Map(source1ByCity({ ...periodRange.value, channel: channel.value, store: '全部' }).map(row => [row.key, row]))
   return launches.map(row => ({
-    key: row.city, profit: null, paid: null, onlineRevenue: null, orders: null, refundOrders: null,
+    key: row.city, profit: null, paid: null, turnover: null, onlineRevenue: null, orders: null, refundOrders: null,
     profitRate: null, arpu: null, unitProfit: null, refundRate: null,
     ...metrics.get(row.city), open: row.open, plan: row.plan,
   }))
@@ -259,29 +325,115 @@ const addressLocatedCount = computed(
 const geoHint = computed(() => {
   return '彩色：已上线 · 灰色：待上线 · 黄色：当前门店 ｜ 所有概位待核验'
 })
-const cityLaunchPct = computed(() => {
-  if (!picked.value?.plan) return 0
-  return Math.min(100, Math.max(0, ((picked.value.open || 0) / picked.value.plan) * 100))
+
+function relDelta(cur: number | null | undefined, prev: number | null | undefined) {
+  if (cur == null || prev == null || !prev) return null
+  return (cur - prev) / Math.abs(prev)
+}
+
+const cityPrevMetrics = computed(() => {
+  if (!picked.value) return null
+  const { from, to } = periodRange.value
+  const prev = previousPeriodRange(from, to, periodMode.value)
+  if (!prev.from || !prev.to) return null
+  return (
+    source1ByCity({
+      from: prev.from,
+      to: prev.to,
+      city: picked.value.key,
+      channel: channel.value,
+      store: '全部',
+    }).find((r) => canonCity(r.key) === canonCity(picked.value!.key)) || null
+  )
 })
-const cityQuery = computed(() => {
-  if (!picked.value) return { from: periodRange.value.from, to: periodRange.value.to, city: '全国', channel: '全部', store: '全部' }
+
+const cityTrends = computed(() => {
+  const cur = picked.value
+  const prev = cityPrevMetrics.value
   return {
+    orders: relDelta(cur?.orders, prev?.orders),
+    paid: relDelta(cur?.paid, prev?.paid),
+    profit: relDelta(cur?.profit, prev?.profit),
+    profitRate:
+      cur?.profitRate != null && prev?.profitRate != null ? cur.profitRate - prev.profitRate : null,
+  }
+})
+
+const cityRiskCount = computed(() => {
+  if (!picked.value) return 0
+  const rows = source1RiskStores({
     from: periodRange.value.from,
     to: periodRange.value.to,
     city: picked.value.key,
-    channel: '全部',
+    channel: channel.value,
     store: '全部',
+  })
+  return new Set(rows.map((r) => r.key)).size
+})
+
+const cityHealth = computed(() => {
+  const t = cityTrends.value
+  const risk = cityRiskCount.value
+  const rate = picked.value?.profitRate
+  const profitDown = (t.profit ?? 0) < -0.05
+  const rateWeak = rate != null && rate < 0.12
+  const scaleUp = (t.orders ?? 0) > 0.03 || (t.paid ?? 0) > 0.03
+  if (risk >= 2 || (profitDown && rateWeak)) return { label: '承压', tone: 'bad' as const }
+  if (risk >= 1 || profitDown || (scaleUp && (t.profitRate ?? 0) < -0.01))
+    return { label: '关注', tone: 'warn' as const }
+  if (rate != null && rate >= 0.2 && risk === 0 && (t.profit ?? 0) >= -0.02)
+    return { label: '良好', tone: 'good' as const }
+  if (risk === 0 && !profitDown) return { label: '良好', tone: 'good' as const }
+  return { label: '平稳', tone: 'neutral' as const }
+})
+
+/** 订单×毛利：门店用趋势；城市与矩阵同口径（订单增长 × 毛利率 18%） */
+const CITY_MARGIN_MID = 0.18
+type PatternKey = 'uu' | 'ud' | 'du' | 'dd' | 'flat'
+type PatternTone = 'good' | 'warn' | 'bad' | 'neutral'
+type OrderProfitPattern = {
+  key: PatternKey
+  orderMark: '↑' | '↓' | '→'
+  profitMark: '↑' | '↓' | '→' | '高' | '低'
+  title: string
+  action: string
+  tone: PatternTone
+}
+
+function cityMatrixPattern(orderGrowth: number | null, margin: number | null): OrderProfitPattern {
+  const orderMark: '↑' | '↓' | '→' = orderGrowth == null ? '→' : orderGrowth >= 0 ? '↑' : '↓'
+  const profitMark: '高' | '低' | '→' = margin == null ? '→' : margin >= CITY_MARGIN_MID ? '高' : '低'
+  if (orderMark === '→' && profitMark === '→') {
+    return { key: 'flat', orderMark, profitMark, title: '规模与利润平稳', action: '维持观察', tone: 'neutral' }
   }
-})
-const cityChannels = computed(() => {
-  if (!picked.value) return []
-  const list = source1ByChannel(cityQuery.value).filter((r) => r.profit != null && r.profit > 0)
-  const total = list.reduce((s, r) => s + (r.profit || 0), 0)
-  return [...list]
-    .sort((a, b) => (b.profit || 0) - (a.profit || 0))
-    .slice(0, 3)
-    .map((r) => ({ ...r, share: total ? (r.profit || 0) / total : 0 }))
-})
+  if (orderMark !== '↓' && profitMark === '高') {
+    return { key: 'uu', orderMark, profitMark, title: '健康增长', action: '扩大投入', tone: 'good' }
+  }
+  if (orderMark !== '↓' && profitMark !== '高') {
+    return { key: 'ud', orderMark, profitMark, title: '规模亏损', action: '控制成本/活动', tone: 'warn' }
+  }
+  if (orderMark === '↓' && profitMark === '高') {
+    return { key: 'du', orderMark, profitMark, title: '流量不足', action: '提升流量', tone: 'warn' }
+  }
+  return { key: 'dd', orderMark, profitMark, title: '重点整改', action: '专项优化', tone: 'bad' }
+}
+
+const cityPattern = computed(() =>
+  picked.value ? cityMatrixPattern(cityTrends.value.orders, picked.value.profitRate) : null,
+)
+
+function trendText(v: number | null) {
+  if (v == null) return '—'
+  const pct = `${Math.abs(v * 100).toFixed(0)}%`
+  if (v > 0.005) return `↑${pct}`
+  if (v < -0.005) return `↓${pct}`
+  return '持平'
+}
+function toneClass(v: number | null) {
+  if (v == null || Math.abs(v) <= 0.005) return ''
+  return v > 0 ? 'good' : 'bad'
+}
+
 const cityStoreRows = computed(() => {
   if (!picked.value) return []
   const metrics = new Map(
@@ -312,12 +464,47 @@ const cityStoreRows = computed(() => {
       }
     })
 })
+const cityQuery = computed(() => {
+  if (!picked.value) return { from: periodRange.value.from, to: periodRange.value.to, city: '全国', channel: '全部', store: '全部' }
+  return {
+    from: periodRange.value.from,
+    to: periodRange.value.to,
+    city: picked.value.key,
+    channel: '全部',
+    store: '全部',
+  }
+})
+const cityChannels = computed(() => {
+  if (!picked.value) return []
+  const list = source1ByChannel(cityQuery.value).filter((r) => r.profit != null && r.profit > 0)
+  const total = list.reduce((s, r) => s + (r.profit || 0), 0)
+  return [...list]
+    .sort((a, b) => (b.profit || 0) - (a.profit || 0))
+    .slice(0, 3)
+    .map((r) => ({ ...r, share: total ? (r.profit || 0) / total : 0 }))
+})
 const cityStoresTop = computed(() =>
   [...cityStoreRows.value]
     .filter((r) => r.profit != null)
     .sort((a, b) => (b.profit || 0) - (a.profit || 0))
     .slice(0, 3),
 )
+const citySummary = computed(() => {
+  if (!picked.value || !cityPattern.value) return ''
+  const name = picked.value.key.replace(/市$/, '')
+  const rate = picked.value.profitRate
+  const rateText = rate == null ? '毛利率暂缺' : `毛利率${(rate * 100).toFixed(2)}%`
+  const risk = cityRiskCount.value
+  const p = cityPattern.value
+  const riskBit = risk > 0 ? `，风险店${risk}家` : ''
+
+  if (p.key === 'uu') return `${name}订单升、毛利高，${rateText}${riskBit}。`
+  if (p.key === 'ud') return `${name}订单升、毛利低，${rateText}${riskBit}；${p.action}。`
+  if (p.key === 'du') return `${name}订单降、毛利高，${rateText}${riskBit}；${p.action}。`
+  if (p.key === 'dd') return `${name}订单降、毛利低，${rateText}${riskBit}；${p.action}。`
+  return `${name}平稳，${rateText}${riskBit || '，暂无异常'}。`
+})
+
 const storeRow = computed(() => cityStoreRows.value.find((r) => r.key === storeFocus.value) || null)
 const streetPoints = computed(() => cityStoreRows.value.map(row => ({ ...row, color: row.open ? colorOf(row) : '#8295a8' })))
 const isStorePinned = computed(() => !!storeRow.value && selectedStores.value.includes(storeRow.value.key))
@@ -331,21 +518,92 @@ const storeSupply = computed(() => {
     store: storeRow.value.key,
   })
 })
-const storeChannels = computed(() => {
-  if (!storeRow.value) return []
-  const list = source1ByChannel({
+
+const storePrevMetrics = computed(() => {
+  if (!storeRow.value) return null
+  const { from, to } = periodRange.value
+  const prev = previousPeriodRange(from, to, periodMode.value)
+  if (!prev.from || !prev.to) return null
+  return (
+    source1ByStore({
+      from: prev.from,
+      to: prev.to,
+      city: storeRow.value.city,
+      channel: channel.value,
+      store: storeRow.value.key,
+    }).find((r) => r.key === storeRow.value!.key) || null
+  )
+})
+
+const storeTrends = computed(() => {
+  const cur = storeRow.value
+  const prev = storePrevMetrics.value
+  return {
+    orders: relDelta(cur?.orders, prev?.orders),
+    profit: relDelta(cur?.profit, prev?.profit),
+  }
+})
+
+const storePattern = computed(() =>
+  storeRow.value ? cityMatrixPattern(storeTrends.value.orders, storeRow.value.profitRate) : null,
+)
+
+/** 缺货影响订单：品类表 stockoutTimes；无品类数据时用出勤异常估为「有影响」不编造单数 */
+const storeStockoutOrders = computed(() => {
+  if (!storeRow.value) return 0
+  const cats = source1ByCategory({
     from: periodRange.value.from,
     to: periodRange.value.to,
     city: storeRow.value.city,
-    channel: '全部',
+    channel: channel.value,
     store: storeRow.value.key,
-  }).filter((r) => r.profit != null && r.profit > 0)
-  const total = list.reduce((s, r) => s + (r.profit || 0), 0)
-  return [...list]
-    .sort((a, b) => (b.profit || 0) - (a.profit || 0))
-    .slice(0, 3)
-    .map((r) => ({ ...r, share: total ? (r.profit || 0) / total : 0 }))
+  })
+  return cats.reduce((s, r) => s + (r.stockoutTimes || 0), 0)
 })
+
+const storeStockoutText = computed(() => {
+  if (storeStockoutOrders.value > 0) return `${formatInt(storeStockoutOrders.value)}单`
+  if (storeSupply.value?.attendance != null && storeSupply.value.attendance < 0.85) return '出勤偏低'
+  return '0单'
+})
+const storeStockoutTone = computed(() =>
+  storeStockoutOrders.value > 0 ||
+  (storeSupply.value?.attendance != null && storeSupply.value.attendance < 0.85)
+    ? 'bad'
+    : 'good',
+)
+
+const storeIssues = computed(() => {
+  const row = storeRow.value
+  if (!row) return [] as string[]
+  if (!row.open) return ['待上线，暂无经营评价']
+  if (row.profit == null && row.orders == null) return ['当前筛选暂无经营数据']
+
+  const issues: string[] = []
+  const p = storePattern.value
+  const supply = storeSupply.value
+  const stockoutOrders = storeStockoutOrders.value
+
+  if (p && p.key !== 'flat' && p.key !== 'uu') {
+    issues.push(`${p.title}，建议${p.action}`)
+  }
+  if (row.profit != null && row.profit < 0) issues.push('本期毛利为负')
+  if (stockoutOrders > 0 || (supply?.attendance != null && supply.attendance < 0.85)) {
+    issues.push('供给异常，影响订单')
+  }
+  if (row.refundRate != null && row.refundRate >= 0.05) issues.push('退款偏高')
+
+  return [...new Set(issues)].slice(0, 3)
+})
+
+const storeIssueEmpty = computed(() => {
+  if (!storeRow.value?.open) return '待上线，暂无经营评价'
+  if (storeRow.value.profit == null && storeRow.value.orders == null) return '当前筛选暂无经营数据'
+  return storePattern.value?.key === 'uu'
+    ? '订单与毛利同步向好，暂无明显问题'
+    : '规模与利润平稳，暂无明显问题'
+})
+
 const { chart } = useChart(el, option)
 
 function geoProvinceOf(city: string) { return resolveProvince(city)?.name.replace(/省|市$/, '') || '' }
@@ -361,7 +619,7 @@ function channelColor(name: string) {
   if (name.toUpperCase().includes('POS')) return CHANNEL_COLORS.POS
   return PALETTE.aux
 }
-function shareText(share: number) { return `${(share * 100).toFixed(1)}%` }
+function shareText(share: number) { return `${(share * 100).toFixed(2)}%` }
 async function locateStore() {
   mapStyle.value = 'street'
   await nextTick()
@@ -944,7 +1202,7 @@ onUnmounted(() => {
   left: auto;
   right: 8px;
   top: 42px;
-  width: 320px;
+  width: 280px;
   box-sizing: border-box;
   max-height: calc(100% - 170px);
   scrollbar-width: thin;
@@ -967,43 +1225,178 @@ onUnmounted(() => {
   b { color: #fff; font: 700 16px/1.25 var(--font-num); }
   .profit { color: var(--success); }
 }
-.launch-line {
+.pattern-card {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(7, 36, 64, 0.78);
+  border: 1px solid rgba(94, 180, 255, 0.25);
+  border-left-width: 3px;
+  &.good { border-color: rgba(0, 240, 168, 0.45); border-left-color: #00f0a8; }
+  &.warn { border-color: rgba(255, 225, 74, 0.5); border-left-color: #ffe14a; }
+  &.bad { border-color: rgba(255, 61, 90, 0.5); border-left-color: #ff3d5a; }
+  &.neutral { border-left-color: #5eb4ff; }
+}
+.pattern-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+  em { color: var(--muted); font-size: 11px; font-style: normal; }
+  b { color: #fff; font-size: 13px; font-weight: 800; }
+}
+.pattern-card__formula {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 2px;
+  span {
+    color: #ffe14a;
+    font: 800 16px/1.15 var(--font-num);
+    letter-spacing: 0.02em;
+  }
+}
+.pattern-card.bad .pattern-card__formula span { color: #ff6b82; }
+.pattern-card.good .pattern-card__formula span { color: #6ef0c8; }
+.pattern-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+  b { color: #fff; font-size: 13px; font-weight: 800; }
+  em { color: var(--muted); font-size: 11px; font-style: normal; }
+}
+.pattern-card__action {
+  margin: 0;
+  color: #a8c4dc;
+  font-size: 11px;
+}
+.trend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--muted);
+  b {
+    font: 700 12px/1 var(--font-num);
+    color: #fff;
+    &.good { color: #6ef0c8; }
+    &.bad { color: #ff6b82; }
+  }
+}
+.trend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+  div { min-width: 0; }
+  em { display: block; color: var(--muted); font-size: 12px; font-style: normal; margin-bottom: 2px; }
+  b { color: #fff; font: 750 15px/1.2 var(--font-num); }
+  .good { color: #6ef0c8; }
+  .bad { color: #ff6b82; }
+}
+.city-summary {
+  margin: 0 0 10px;
+  padding: 8px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d7e8f8;
+  background: rgba(7, 36, 64, 0.75);
+  border: 1px solid rgba(94, 180, 255, 0.22);
+  &.good { border-color: rgba(0, 240, 168, 0.3); color: #c8ffe6; }
+  &.warn { border-color: rgba(255, 225, 74, 0.4); color: #ffe8a0; }
+  &.bad { border-color: rgba(255, 61, 90, 0.35); color: #ffc0c8; }
+}
+.cover-line--inline {
+  margin: 2px 0 0;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(94, 180, 255, 0.18);
+  font-size: 11px;
+}
+.cover-block {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(94, 180, 255, 0.2);
+  h5 {
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+.cover-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 14px;
-  margin: 8px 0 4px;
-  color: var(--c-body);
-  font-size: 14px;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
 }
-.launch-bar {
-  position: relative;
-  flex: 1 1 120px;
-  min-width: 100px;
-  height: 14px;
+.cover-link {
+  margin-left: auto;
   border: 0;
-  border-radius: 999px;
-  background: #2a3038;
-  overflow: hidden;
+  background: transparent;
+  color: var(--primary-2);
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   padding: 0;
-  i {
-    display: block;
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #1e78e8 0%, #2ec8ea 46%, #5aed9a 100%);
+  &:hover { color: #9dd4ff; }
+}
+.diag-layer {
+  margin: 0 0 10px;
+  h5 {
+    margin: 0 0 6px;
+    color: var(--primary-2);
+    font-size: 13px;
+    font-weight: 700;
   }
-  em {
-    position: absolute;
-    inset: 0;
+}
+.issue-lead {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.issue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  li {
     display: grid;
-    place-items: center;
-    font: 700 10px/1 var(--font-num);
-    font-style: normal;
-    color: #fff;
-    text-shadow: 0 0 4px #032043;
+    grid-template-columns: 1.4em minmax(0, 1fr);
+    gap: 4px;
+    align-items: start;
+    color: #e8f2ff;
+    font-size: 13px;
+    line-height: 1.4;
   }
-  &:hover { outline: 1px solid rgba(94, 200, 255, 0.55); }
+  i {
+    font-style: normal;
+    color: #ffd666;
+    font-weight: 700;
+  }
+}
+.issue-ok {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #6ef0c8;
+  background: rgba(0, 240, 168, 0.08);
+  border: 1px solid rgba(0, 240, 168, 0.22);
+}
+.store-addr {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .block { margin-top: 10px; }
 .block h5 { margin: 0 0 6px; color: var(--primary-2); font-size: 14px; }

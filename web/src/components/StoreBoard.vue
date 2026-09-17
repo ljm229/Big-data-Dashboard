@@ -5,11 +5,7 @@
       <div class="ck-chrome__top">
         <div class="ck-chrome__lead">
           <div class="ck-brand" aria-label="数据看板">
-            <span class="ck-brand__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                <path d="M4 19V11h3v8H4Zm6.5 0V5h3v14h-3Zm6.5 0V8h3v11h-3Z" fill="currentColor" />
-              </svg>
-            </span>
+            <span class="ck-brand__icon" aria-hidden="true">淘便</span>
             <strong>数据看板</strong>
           </div>
 
@@ -89,7 +85,7 @@
               all-value="全部"
               :model-value="selectedStores"
               :options="storeOptions"
-              search-placeholder="搜索门店"
+              search-placeholder="搜索淘宝便利店"
               placeholder="全部门店"
               @update:model-value="onStores"
             />
@@ -124,6 +120,7 @@ import QualityRulesPop from './classic-pages/QualityRulesPop.vue'
 import WarningPage from './classic-pages/WarningPage.vue'
 import { useFilterStore, COCKPIT_CITIES } from '../stores/filter'
 import { SOURCE1_STORES, canonCity } from '../api/source1'
+import { storeFilterLabel } from '../utils/storeName'
 import { trafficDimension } from '../api/trafficSummary'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
@@ -165,7 +162,7 @@ const storeOptions = computed(() => {
     !cities.length
       ? SOURCE1_STORES
       : SOURCE1_STORES.filter((s) => cities.some((c) => canonCity(s.city) === canonCity(c)))
-  return [{ value: '全部', label: '全部门店' }, ...stores.map((s) => ({ value: s.name, label: s.name }))]
+  return [{ value: '全部', label: '全部门店' }, ...stores.map((s) => ({ value: s.name, label: storeFilterLabel(s.name) }))]
 })
 
 function onCities(value: string | string[]) {
@@ -197,7 +194,10 @@ function onNav(id: TabId) {
   max-width: 100vw;
   box-sizing: border-box;
   padding: 0;
-  background: #f3f4f6;
+  background:
+    radial-gradient(circle at 12% 0%, var(--ck-bg-glow-a, rgba(255, 185, 0, 0.07)), transparent 40%),
+    radial-gradient(circle at 92% 8%, var(--ck-bg-glow-b, rgba(56, 189, 248, 0.06)), transparent 38%),
+    var(--ck-bg, #f5f5f7);
   color: var(--ck-text);
   font-family: var(--ck-font);
   font-size: var(--ck-fs-sm);
@@ -212,11 +212,13 @@ function onNav(id: TabId) {
   flex-direction: column;
   gap: 10px;
   padding: 12px 20px 14px;
-  background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
+  background: rgba(255, 255, 255, 0.62);
   border: 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.75);
   border-radius: 0;
-  box-shadow: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.03);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   box-sizing: border-box;
 }
 .ck-chrome__top {
@@ -247,7 +249,7 @@ function onNav(id: TabId) {
   flex-shrink: 0;
   strong {
     margin: 0;
-    color: #111827;
+    color: #e8a200;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -262,11 +264,14 @@ function onNav(id: TabId) {
   height: 28px;
   border-radius: 8px;
   color: #fff;
-  background: linear-gradient(145deg, #4b5563 0%, #111827 100%);
-  border: 1px solid #111827;
-  box-shadow: 0 4px 10px rgba(17, 24, 39, 0.18);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 100%);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28);
   flex-shrink: 0;
-  :deep(svg), svg { width: 16px; height: 16px; }
 }
 .ck-nav {
   display: flex;
@@ -345,7 +350,7 @@ function onNav(id: TabId) {
 }
 .ck-page-title {
   margin: 0;
-  color: #111827;
+  color: #e8a200;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -437,8 +442,8 @@ function onNav(id: TabId) {
   }
 }
 .ghost {
-  border: 1px solid var(--ck-line);
-  background: var(--ck-btn);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.72);
   color: var(--ck-text-2);
   border-radius: 999px;
   height: 34px;
@@ -448,7 +453,9 @@ function onNav(id: TabId) {
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  &:hover { background: var(--ck-btn-hover); border-color: #d1d5db; }
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  &:hover { background: rgba(255, 255, 255, 0.9); border-color: #d1d5db; }
 }
 .ck-main {
   padding: 18px 20px 22px;
@@ -457,7 +464,7 @@ function onNav(id: TabId) {
   box-sizing: border-box;
   overflow-x: hidden;
   min-height: calc(100vh - 120px);
-  background: #f3f4f6;
+  background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;

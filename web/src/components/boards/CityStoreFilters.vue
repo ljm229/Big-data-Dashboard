@@ -22,7 +22,7 @@
         :model-value="selectedStores"
         :options="storeOptions"
         placeholder="全部门店"
-        search-placeholder="搜索门店"
+        search-placeholder="搜索淘宝便利店"
         @update:model-value="onStores"
       />
     </div>
@@ -35,6 +35,7 @@ import { storeToRefs } from 'pinia'
 import SelectMenu from '../SelectMenu.vue'
 import { useFilterStore, COCKPIT_CITIES, COCKPIT_STORE_OPTIONS } from '../../stores/filter'
 import { canonCity } from '../../api/source1'
+import { storeFilterLabel } from '../../utils/storeName'
 const emit = defineEmits<{ 'city-picked': [string[]]; 'store-picked': [string[]] }>()
 const filter = useFilterStore()
 const { selectedCities, selectedStores } = storeToRefs(filter)
@@ -47,7 +48,7 @@ const storeOptions = computed(() => [
       if (!selectedCities.value.length) return true
       return selectedCities.value.some((c) => canonCity(store.city) === canonCity(c))
     })
-    .map((store) => ({ value: store.name, label: store.name })),
+    .map((store) => ({ value: store.name, label: storeFilterLabel(store.name) })),
 ])
 function onCities(value: string | string[]) {
   const names = Array.isArray(value) ? value : value ? [value] : []

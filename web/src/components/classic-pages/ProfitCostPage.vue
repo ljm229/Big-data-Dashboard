@@ -7,25 +7,31 @@
         :value="fmtMoneyKpi(kpi.profit).value"
         :unit="fmtMoneyKpi(kpi.profit).unit"
         :hints="[
-          { label: '日比', value: ratioText(delta.profit), tone: toneOf(delta.profit) },
-          { label: '周比', value: ratioText(weekDelta.profit), tone: toneOf(weekDelta.profit) },
+          { label: primaryDeltaName, value: ratioText(delta.profit), tone: toneOf(delta.profit) },
+          ...(showWeekDelta
+            ? [{ label: '周比', value: ratioText(weekDelta.profit), tone: toneOf(weekDelta.profit) }]
+            : []),
         ]"
       />
       <ClassicKpi
         name="毛利率"
         :value="fmtPct(kpi.profitRate)"
         :hints="[
-          { label: '日比', value: ptsText(delta.profitRate), tone: toneOf(delta.profitRate) },
-          { label: '周比', value: ptsText(weekDelta.profitRate), tone: toneOf(weekDelta.profitRate) },
+          { label: primaryDeltaName, value: ptsText(delta.profitRate), tone: toneOf(delta.profitRate) },
+          ...(showWeekDelta
+            ? [{ label: '周比', value: ptsText(weekDelta.profitRate), tone: toneOf(weekDelta.profitRate) }]
+            : []),
         ]"
       />
       <ClassicKpi
         name="单均毛利"
-        :value="kpi.unitProfit != null ? kpi.unitProfit.toFixed(1) : '—'"
+        :value="kpi.unitProfit != null ? kpi.unitProfit.toFixed(2) : '—'"
         unit="元"
         :hints="[
-          { label: '日比', value: ratioText(delta.unitProfit), tone: toneOf(delta.unitProfit) },
-          { label: '周比', value: ratioText(weekDelta.unitProfit), tone: toneOf(weekDelta.unitProfit) },
+          { label: primaryDeltaName, value: ratioText(delta.unitProfit), tone: toneOf(delta.unitProfit) },
+          ...(showWeekDelta
+            ? [{ label: '周比', value: ratioText(weekDelta.unitProfit), tone: toneOf(weekDelta.unitProfit) }]
+            : []),
         ]"
       />
       <ClassicKpi
@@ -171,11 +177,11 @@
                   {{ row.shortName || row.store }}
                 </td>
                 <td class="num" :class="{ 'is-alert': (row.dailyOrdersWow || 0) < -0.1 }">
-                  <span>{{ row.dailyOrders.toFixed(1) }}</span>
+                  <span>{{ row.dailyOrders.toFixed(2) }}</span>
                   <span class="wow" :class="toneOf(row.dailyOrdersWow)">{{ wowParen(row.dailyOrdersWow) }}</span>
                 </td>
                 <td class="num">
-                  <span>{{ row.dailyProfit.toFixed(1) }}</span>
+                  <span>{{ row.dailyProfit.toFixed(2) }}</span>
                   <span class="wow" :class="toneOf(row.dailyProfitWow)">{{ wowParen(row.dailyProfitWow) }}</span>
                 </td>
               </tr>
@@ -196,7 +202,7 @@ import { useFilterStore } from '../../stores/filter'
 import {
   aggregateSource1Kpi,
   deltaOf,
-  previousDayRange,
+  previousPeriodRange,
   previousWeekRange,
 } from '../../api/source1'
 import { costSummary } from '../../api/costSummary'
@@ -207,7 +213,7 @@ import { useChart } from '../../composables/useChart'
 import { fmtPct, fmtMoneyKpi, fmtMoneyInUnit, moneyUnitOf, toneOf } from '../../utils/classicHints'
 
 const filter = useFilterStore()
-const { periodRange, channel, cityQuery, storeQuery } = storeToRefs(filter)
+const { periodRange, channel, cityQuery, storeQuery, periodMode, deltaLabel } = storeToRefs(filter)
 const structDim = ref<'reason' | 'channel'>('reason')
 const riskQuery = ref('')
 const effQuery = ref('')
@@ -228,11 +234,15 @@ const q = computed(() => ({
   store: storeQuery.value,
   city: cityQuery.value,
 }))
-const prevQ = computed(() => ({ ...q.value, ...previousDayRange(q.value.from, q.value.to) }))
+const prevQ = computed(() => ({ ...q.value, ...previousPeriodRange(q.value.from, q.value.to, periodMode.value) }))
 const weekQ = computed(() => ({ ...q.value, ...previousWeekRange(q.value.from, q.value.to) }))
 const kpi = computed(() => aggregateSource1Kpi(q.value))
 const delta = computed(() => deltaOf(kpi.value, aggregateSource1Kpi(prevQ.value)))
-const weekDelta = computed(() => deltaOf(kpi.value, aggregateSource1Kpi(weekQ.value)))
+const weekDelta = computed(() =>
+  periodMode.value === 'day' ? deltaOf(kpi.value, aggregateSource1Kpi(weekQ.value)) : deltaOf(kpi.value, null),
+)
+const primaryDeltaName = computed(() => deltaLabel.value)
+const showWeekDelta = computed(() => periodMode.value === 'day')
 
 const cost = computed(() =>
   costSummary({
@@ -460,7 +470,7 @@ watch(
           itemStyle: { borderColor: '#fff', borderWidth: 2 },
           label: {
             show: true,
-            formatter: (p: any) => `${Number(p.percent).toFixed(1)}%`,
+            formatter: (p: any) => `${Number(p.percent).toFixed(2)}%`,
             color: '#4b5563',
             fontSize: 12,
             fontWeight: 600,
@@ -486,17 +496,17 @@ watch(
 
 function ratioText(d: number | null | undefined) {
   if (d == null) return '—'
-  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
+  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(2)}%`
 }
 function ptsText(d: number | null | undefined) {
   if (d == null) return '—'
-  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
+  return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(2)}%`
 }
 function wowParen(d: number | null | undefined) {
   if (d == null || Number.isNaN(d)) return '(—)'
   if (d === 0) return '(0%)'
   const arrow = d > 0 ? '↑' : '↓'
-  return `(${arrow}${Math.abs(d * 100).toFixed(1)}%)`
+  return `(${arrow}${Math.abs(d * 100).toFixed(2)}%)`
 }
 </script>
 

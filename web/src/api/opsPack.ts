@@ -560,7 +560,7 @@ export function fetchTrafficBoard(
         store: st.shortName,
         city: st.city,
         tip: '曝光尚可但进店率偏低，优先查装修/入口曝光位',
-        value: `进店率 ${((st.enterRate ?? 0) * 100).toFixed(1)}%`,
+        value: `进店率 ${((st.enterRate ?? 0) * 100).toFixed(2)}%`,
       })
     } else if ((st.orderRate ?? 1) < medOrder * 0.7 && st.enter >= 80) {
       anomalies.push({
@@ -568,7 +568,7 @@ export function fetchTrafficBoard(
         store: st.shortName,
         city: st.city,
         tip: '进店后下单弱，查价格/库存/活动力度',
-        value: `下单率 ${((st.orderRate ?? 0) * 100).toFixed(1)}%`,
+        value: `下单率 ${((st.orderRate ?? 0) * 100).toFixed(2)}%`,
       })
     }
   }

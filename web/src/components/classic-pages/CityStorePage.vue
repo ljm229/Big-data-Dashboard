@@ -6,13 +6,13 @@
         :name="!selectedCities.length ? '城市贡献毛利' : selectedCities.length === 1 ? `${shortCity(selectedCities[0]!)}贡献毛利` : `已选${selectedCities.length}城贡献毛利`"
         :value="fmtMoneyKpi(kpi.profit).value"
         :unit="fmtMoneyKpi(kpi.profit).unit"
-        :hints="kpiRatioHint(delta.profit)"
+        :hints="kpiRatioHint(delta.profit, deltaLabel)"
       />
       <ClassicKpi
         name="有效订单实付"
         :value="fmtMoneyKpi(kpi.paid).value"
         :unit="fmtMoneyKpi(kpi.paid).unit"
-        :hints="kpiRatioHint(delta.paid)"
+        :hints="kpiRatioHint(delta.paid, deltaLabel)"
       />
       <ClassicKpi
         name="盈利门店率"
@@ -101,14 +101,18 @@
       <section class="ck-grid-city-bot">
       <article class="ck-card">
         <header class="ck-card__head">
-            <h3>城市经营质量矩阵</h3>
-            <p>横轴订单日比 · 纵轴毛利率</p>
+            <h3>城市经营健康矩阵</h3>
+            <p>滚轮缩放 · 拖拽平移 · 横轴订单{{ deltaLabel }} · 纵轴毛利率</p>
+            <div class="matrix-zoom-actions">
+              <button type="button" class="matrix-zoom-btn" @click="resetMatrixZoom">复位</button>
+              <button type="button" class="matrix-zoom-btn" @click="showAllMatrix">全部</button>
+            </div>
         </header>
           <div v-show="matrixRows.length" ref="matrixEl" class="ck-plot ck-plot--chart" />
           <div v-if="!matrixRows.length" class="ck-empty"><b>暂无矩阵数据</b><span>需要当期与上期订单对照</span></div>
         </article>
         <article class="ck-card">
-          <header class="ck-card__head"><h3>门店经营结构</h3><p>按毛利与订单日比</p></header>
+          <header class="ck-card__head"><h3>门店经营结构</h3><p>按毛利与订单{{ deltaLabel }}</p></header>
           <div v-if="segments.some((s) => s.count)" class="type-list">
             <div v-for="row in segments" :key="row.name" class="ck-hbar" :class="row.tone">
               <span>{{ row.name }}</span>
@@ -193,7 +197,7 @@ import {
   aggregateSource1Kpi,
   canonCity,
   deltaOf,
-  previousDayRange,
+  previousPeriodRange,
   source1ByCity,
   source1ByStore,
   source1LaunchByCity,
@@ -210,7 +214,7 @@ const CITY_MAP_NAME = 'classic-city-source1'
 echarts.registerMap(CITY_MAP_NAME, chinaGeo as never)
 
 const filter = useFilterStore()
-const { periodRange, channel, cityQuery, storeQuery, cityName, selectedCities, selectedStores } = storeToRefs(filter)
+const { periodRange, channel, cityQuery, storeQuery, cityName, selectedCities, selectedStores, periodMode, deltaLabel } = storeToRefs(filter)
 const tab = ref<'ops' | 'net' | 'launch'>('ops')
 const mapMode = ref<'ops' | 'net'>('ops')
 const launch = ref<StoreLaunchData | null>(null)
@@ -219,7 +223,7 @@ const mapOption = ref<any>(null)
 const matrixEl = ref<HTMLElement | null>(null)
 const matrixOption = ref<any>(null)
 const { chart: mapChart } = useChart(mapEl, mapOption)
-useChart(matrixEl, matrixOption)
+const { chart: matrixChart } = useChart(matrixEl, matrixOption)
 
 const q = computed(() => ({
   from: periodRange.value.from,
@@ -229,9 +233,9 @@ const q = computed(() => ({
   city: cityQuery.value,
 }))
 
-const prevQ = computed(() => ({ ...q.value, ...previousDayRange(q.value.from, q.value.to) }))
+const prevQ = computed(() => ({ ...q.value, ...previousPeriodRange(q.value.from, q.value.to, periodMode.value) }))
 const nationalQ = computed(() => ({ ...q.value, city: '全国', store: '全部' }))
-const nationalPrevQ = computed(() => ({ ...nationalQ.value, ...previousDayRange(q.value.from, q.value.to) }))
+const nationalPrevQ = computed(() => ({ ...nationalQ.value, ...previousPeriodRange(q.value.from, q.value.to, periodMode.value) }))
 const kpi = computed(() => aggregateSource1Kpi(q.value))
 const prevKpi = computed(() => aggregateSource1Kpi(prevQ.value))
 const delta = computed(() => deltaOf(kpi.value, prevKpi.value))
@@ -339,6 +343,85 @@ const segments = computed(() => {
   })
 })
 
+const MATRIX_X_MID = 0
+const MATRIX_Y_MID = 0.18
+const matrixViewBox = ref({
+  xMin: -0.12,
+  xMax: 0.2,
+  yMin: -0.05,
+  yMax: 0.3,
+  fullXMin: -0.12,
+  fullXMax: 0.2,
+  fullYMin: -0.05,
+  fullYMax: 0.3,
+})
+
+function matrixQuantile(vals: number[], q: number) {
+  if (!vals.length) return 0
+  const s = [...vals].sort((a, b) => a - b)
+  const i = (s.length - 1) * q
+  const lo = Math.floor(i)
+  const hi = Math.ceil(i)
+  if (lo === hi) return s[lo]!
+  return s[lo]! * (1 - (i - lo)) + s[hi]! * (i - lo)
+}
+
+function matrixFocusSpan(vals: number[], pad: number, softMin: number, softMax: number) {
+  if (!vals.length) return { min: softMin - pad, max: softMax + pad }
+  const q1 = matrixQuantile(vals, 0.25)
+  const q3 = matrixQuantile(vals, 0.75)
+  const iqr = Math.max(q3 - q1, 0.06)
+  const lo = Math.max(Math.min(...vals), q1 - 1.5 * iqr)
+  const hi = Math.min(Math.max(...vals), q3 + 1.5 * iqr)
+  return { min: Math.min(softMin, lo) - pad, max: Math.max(softMax, hi) + pad }
+}
+
+function matrixPlotCapX(vals: number[], focusMax: number) {
+  return Math.max(0.36, focusMax + 0.06, matrixQuantile(vals, 0.8) + 0.05)
+}
+
+function resetMatrixZoom() {
+  const c = matrixChart.value
+  const v = matrixViewBox.value
+  if (!c) return
+  c.dispatchAction({
+    type: 'dataZoom',
+    batch: [
+      { dataZoomIndex: 0, startValue: v.xMin, endValue: v.xMax },
+      { dataZoomIndex: 1, startValue: v.yMin, endValue: v.yMax },
+    ],
+  })
+}
+
+function showAllMatrix() {
+  const c = matrixChart.value
+  const v = matrixViewBox.value
+  if (!c) return
+  c.dispatchAction({
+    type: 'dataZoom',
+    batch: [
+      { dataZoomIndex: 0, startValue: v.fullXMin, endValue: v.fullXMax },
+      { dataZoomIndex: 1, startValue: v.fullYMin, endValue: v.fullYMax },
+    ],
+  })
+}
+
+const MATRIX_ZONE = {
+  healthy: { name: '健康增长城市', action: '扩大投入', color: '#10b981' },
+  scaleLoss: { name: '规模亏损城市', action: '控制成本/活动', color: '#f59e0b' },
+  profitThin: { name: '盈利不足城市', action: '提升流量', color: '#f59e0b' },
+  rectify: { name: '重点整改城市', action: '专项优化', color: '#ef4444' },
+} as const
+type MatrixZone = keyof typeof MATRIX_ZONE
+function matrixZoneOf(growth: number, margin: number): MatrixZone {
+  const up = growth >= MATRIX_X_MID
+  const rich = margin >= MATRIX_Y_MID
+  if (up && rich) return 'healthy'
+  if (up && !rich) return 'scaleLoss'
+  if (!up && rich) return 'profitThin'
+  return 'rectify'
+}
+
 const matrixRows = computed(() => {
   const prevCity = new Map(source1ByCity(nationalPrevQ.value).map((r) => [r.key, r]))
   return cityRows.value
@@ -348,13 +431,16 @@ const matrixRows = computed(() => {
         r.orders != null && prev?.orders != null && prev.orders !== 0
           ? (r.orders - prev.orders) / Math.abs(prev.orders)
           : null
-      if (growth == null || r.profitRate == null || r.onlineRevenue == null) return null
+      if (growth == null || r.profitRate == null || r.paid == null) return null
+      const zone = matrixZoneOf(growth, r.profitRate)
       return {
+        city: r.key,
         name: shortCity(r.key),
         growth,
         margin: r.profitRate,
-        revenue: r.onlineRevenue,
+        paid: r.paid,
         orders: r.orders || 0,
+        zone,
       }
     })
     .filter((x): x is NonNullable<typeof x> => !!x)
@@ -501,6 +587,18 @@ watch(mapChart, (chart) => {
   })
 })
 
+watch(matrixChart, (chart) => {
+  if (!chart) return
+  chart.off('click')
+  chart.on('click', (params: any) => {
+    const city = params.data?.city
+    if (city) {
+      filter.setCities([canonCity(city)])
+      filter.setStores([])
+    }
+  })
+})
+
 watch(
   matrixRows,
   (rows) => {
@@ -508,41 +606,119 @@ watch(
       matrixOption.value = null
       return
     }
-    const maxR = Math.max(...rows.map((r) => Math.abs(r.revenue)), 1)
+    const maxPaid = Math.max(...rows.map((r) => Math.abs(r.paid)), 1)
+    const xs = rows.map((r) => r.growth)
+    const ys = rows.map((r) => r.margin)
+    const xFocus = matrixFocusSpan(xs, 0.03, -0.12, 0.18)
+    const yFocus = matrixFocusSpan(ys, 0.02, 0, 0.28)
+    const xMin = Math.min(xFocus.min, -0.08)
+    const xMax = Math.max(xFocus.max, 0.15)
+    const yMin = Math.min(yFocus.min, -0.02)
+    const yMax = Math.max(yFocus.max, 0.26)
+    const xCap = matrixPlotCapX(xs, xMax)
+    const fullXMin = Math.min(-0.12, ...xs) - 0.02
+    const fullXMax = xCap + 0.02
+    const fullYMin = Math.min(-0.03, ...ys) - 0.02
+    const fullYMax = Math.max(0.28, ...ys) + 0.02
+    matrixViewBox.value = { xMin, xMax, yMin, yMax, fullXMin, fullXMax, fullYMin, fullYMax }
+    const zoneLabel = (key: MatrixZone, position: string) => ({
+      show: true,
+      position,
+      color: MATRIX_ZONE[key].color,
+      fontSize: 10,
+      fontWeight: 700,
+      lineHeight: 14,
+      formatter: `${MATRIX_ZONE[key].name}\n${MATRIX_ZONE[key].action}`,
+    })
     matrixOption.value = {
-      grid: { left: 52, right: 28, top: 28, bottom: 40 },
+      grid: { left: 56, right: 32, top: 36, bottom: 44 },
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: 0,
+          filterMode: 'none',
+          startValue: xMin,
+          endValue: xMax,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: false,
+        },
+        {
+          type: 'inside',
+          yAxisIndex: 0,
+          filterMode: 'none',
+          startValue: yMin,
+          endValue: yMax,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: false,
+        },
+      ],
       tooltip: {
-        formatter: (p: any) =>
-          `${p.data.name}<br/>订单增长率 ${(p.data.value[0] * 100).toFixed(1)}%<br/>毛利率(含后返) ${fmtPct(p.data.value[1])}<br/>预计线上收入 ${formatMoney(p.data.revenue)}`,
+        confine: true,
+        appendTo: 'body',
+        extraCssText: 'max-width:240px;white-space:normal;z-index:40;pointer-events:none;',
+        formatter: (p: any) => {
+          const z = MATRIX_ZONE[p.data.zone as MatrixZone]
+          const growth = p.data.growth ?? p.data.value[0]
+          const cap = p.data.capped
+            ? `<br/><span style="color:#d97706">增速离群，已钉在右缘</span>`
+            : ''
+          return [
+            `<b>${p.data.name}</b> · ${z.name}`,
+            `动作：${z.action}`,
+            `订单增长率 ${(growth * 100).toFixed(2)}%`,
+            `毛利率(含后返) ${fmtPct(p.data.value[1])}`,
+            `实付金额 ${formatMoney(p.data.paid)}`,
+            `<span style="color:#64748b">滚轮缩放 · 拖拽平移</span>`,
+          ].join('<br/>') + cap
+        },
       },
       xAxis: {
         name: '订单增长率',
         nameLocation: 'middle',
         nameGap: 24,
+        min: fullXMin,
+        max: fullXMax,
         axisLabel: { formatter: (v: number) => `${(v * 100).toFixed(0)}%`, color: '#64748b' },
         splitLine: { lineStyle: { color: '#eef2f7' } },
       },
       yAxis: {
         name: '毛利率(含后返)',
+        min: fullYMin,
+        max: fullYMax,
         axisLabel: { formatter: (v: number) => `${(v * 100).toFixed(0)}%`, color: '#64748b' },
         splitLine: { lineStyle: { color: '#eef2f7' } },
       },
       series: [
         {
           type: 'scatter',
-          data: rows.map((r) => ({
-            name: r.name,
-            value: [r.growth, r.margin],
-            revenue: r.revenue,
-            itemStyle: { color: 'rgba(29,107,255,0.78)', borderColor: '#fff', borderWidth: 1.5 },
-          })),
+          cursor: 'pointer',
+          data: rows.map((r) => {
+            const capped = r.growth > xCap
+            return {
+              name: r.name,
+              city: r.city,
+              growth: r.growth,
+              capped,
+              value: [Math.min(r.growth, xCap), r.margin],
+              paid: r.paid,
+              zone: r.zone,
+              itemStyle: {
+                color: MATRIX_ZONE[r.zone].color,
+                borderColor: capped ? '#f59e0b' : '#fff',
+                borderWidth: capped ? 2.2 : 1.5,
+                opacity: 0.88,
+              },
+            }
+          }),
           symbolSize: (_: number[], p: any) => {
             const row = rows.find((x) => x.name === p.data.name)
-            return 12 + Math.sqrt(Math.abs(row?.revenue || 0) / maxR) * 16
+            return 12 + Math.sqrt(Math.abs(row?.paid || 0) / maxPaid) * 16
           },
           label: {
             show: true,
-            formatter: '{b}',
+            formatter: (p: any) => (p.data?.capped ? `${p.name}·离群` : p.name),
             position: 'top',
             distance: 8,
             fontSize: 10,
@@ -559,7 +735,29 @@ watch(
             silent: true,
             symbol: 'none',
             lineStyle: { type: 'dashed', color: '#cbd5e1' },
-            data: [{ xAxis: 0 }, { yAxis: 0 }],
+            data: [{ xAxis: MATRIX_X_MID }, { yAxis: MATRIX_Y_MID }],
+          },
+          markArea: {
+            silent: true,
+            itemStyle: { color: 'transparent' },
+            data: [
+              [
+                { name: MATRIX_ZONE.profitThin.name, xAxis: fullXMin, yAxis: MATRIX_Y_MID, label: zoneLabel('profitThin', 'insideTopLeft') },
+                { xAxis: MATRIX_X_MID, yAxis: fullYMax },
+              ],
+              [
+                { name: MATRIX_ZONE.healthy.name, xAxis: MATRIX_X_MID, yAxis: MATRIX_Y_MID, label: zoneLabel('healthy', 'insideTopRight') },
+                { xAxis: fullXMax, yAxis: fullYMax },
+              ],
+              [
+                { name: MATRIX_ZONE.rectify.name, xAxis: fullXMin, yAxis: fullYMin, label: zoneLabel('rectify', 'insideBottomLeft') },
+                { xAxis: MATRIX_X_MID, yAxis: MATRIX_Y_MID },
+              ],
+              [
+                { name: MATRIX_ZONE.scaleLoss.name, xAxis: MATRIX_X_MID, yAxis: fullYMin, label: zoneLabel('scaleLoss', 'insideBottomRight') },
+                { xAxis: fullXMax, yAxis: MATRIX_Y_MID },
+              ],
+            ],
           },
         },
       ],
@@ -810,5 +1008,26 @@ function pickStore(name: string) {
   .profit-rank button > small { display: none; }
   .focus-list button { grid-template-columns: 20px minmax(86px, 1fr) 58px; }
   .focus-list .ck-tag { display: none; }
+}
+.matrix-zoom-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.matrix-zoom-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.matrix-zoom-btn:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 </style>

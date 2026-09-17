@@ -15,11 +15,11 @@
         </div>
         <div v-else-if="!card.available" class="kpi__pending">{{ card.note }}</div>
         <div v-else class="kpi__deltas">
-          <span class="kpi__delta" :class="toneClass(card.dod, card.invertDelta)">
-            <em>日比</em>{{ fmtDelta(card.dod, card.point) }}
+          <span v-if="showPrimaryDelta" class="kpi__delta" :class="toneClass(card.dod, card.invertDelta)">
+            <em>{{ primaryDeltaLabel }}</em>{{ fmtDelta(card.dod, card.point) }}
           </span>
-          <span class="kpi__delta" :class="toneClass(card.wow, card.invertDelta)">
-            <em>周比</em>{{ fmtDelta(card.wow, card.point) }}
+          <span v-if="showSecondaryDelta" class="kpi__delta" :class="toneClass(card.wow, card.invertDelta)">
+            <em>{{ secondaryDeltaLabel }}</em>{{ fmtDelta(card.wow, card.point) }}
           </span>
         </div>
       </div>
@@ -37,6 +37,7 @@ import {
   aggregateSource1Kpi,
   deltaOf,
   previousDayRange,
+  previousPeriodRange,
   previousWeekRange,
   type KpiDelta,
   type KpiTotals,
@@ -61,6 +62,13 @@ type Card = {
 
 const filter = useFilterStore()
 const { periodRange, cityQuery, channel, storeQuery, periodMode } = storeToRefs(filter)
+
+const primaryDeltaLabel = computed(() =>
+  periodMode.value === 'week' ? '周比' : periodMode.value === 'month' ? '月比' : '日比',
+)
+const secondaryDeltaLabel = computed(() => '周比')
+const showPrimaryDelta = computed(() => true)
+const showSecondaryDelta = computed(() => periodMode.value === 'day')
 
 function loadTotals(from: string, to: string): KpiTotals | null {
   if (!from || !to) return null
@@ -88,15 +96,18 @@ const snapshot = computed(() => {
     }
   }
   if (periodMode.value === 'week') {
-    const week = previousWeekRange(from, to)
-    return { current, dod: emptyDelta, wow: deltaOf(current, loadTotals(week.from, week.to)) }
+    const week = previousPeriodRange(from, to, 'week')
+    const wow = deltaOf(current, loadTotals(week.from, week.to))
+    return { current, dod: wow, wow: emptyDelta }
   }
-  return { current, dod: emptyDelta, wow: emptyDelta }
+  const month = previousPeriodRange(from, to, 'month')
+  const mom = deltaOf(current, loadTotals(month.from, month.to))
+  return { current, dod: mom, wow: emptyDelta }
 })
 
 function fmtDelta(v: number | null, point = false) {
   if (v == null) return '—'
-  const pct = (v * 100).toFixed(1)
+  const pct = (v * 100).toFixed(2)
   return `${Number(pct) >= 0 ? '+' : ''}${pct}%`
 }
 
@@ -130,11 +141,11 @@ const cards = computed<Card[]>(() => {
     makeCard({
       key: 'gmv',
       label: '总营业',
-      fullLabel: '总营业（预计线上收入；金额默认元，≥百万自动换算万）',
+      fullLabel: '总营业额（源表字段直接加总；默认元，≥百万自动换算万）',
       icon: 'gmv',
-      main: formatYuan(cur.onlineRevenue),
-      dod: dod.onlineRevenue,
-      wow: wow.onlineRevenue,
+      main: formatYuan(cur.turnover),
+      dod: dod.turnover,
+      wow: wow.turnover,
     }),
     makeCard({
       key: 'paid',
@@ -148,7 +159,7 @@ const cards = computed<Card[]>(() => {
     makeCard({
       key: 'profit',
       label: '预计毛利',
-      fullLabel: '预计毛利（含平台后返；默认元，≥百万为万）',
+      fullLabel: '预计毛利（含平台后返；源表字段直接加总；默认元，≥百万为万）',
       icon: 'profit',
       main: formatYuan(cur.profit),
       tone: cur.profit != null && cur.profit < 0 ? 'danger' : '',

@@ -27,7 +27,7 @@
               :options="storeSelectOptions"
               :disabled="!storeOptions.length"
               placeholder="全部门店"
-              search-placeholder="搜索门店"
+              search-placeholder="搜索淘宝便利店"
               @update:model-value="onStoresSelect"
             />
           </label>
@@ -217,7 +217,7 @@ const profileRows = computed(() => {
   return [
     { label: '实付营业额', value: formatMoney(p.paid_amount) },
     { label: '有效订单', value: `${formatInt(p.paid_orders)}单` },
-    { label: '客单价', value: `${(p.arpu || 0).toFixed(1)}元` },
+    { label: '客单价', value: `${(p.arpu || 0).toFixed(2)}元` },
     { label: '毛利(含后返)', value: formatMoney(p.est_profit) },
     { label: '毛利率', value: formatPercent(p.profit_rate) },
     { label: '退款率', value: formatPercent(p.refund_rate) },

@@ -81,21 +81,9 @@ export const DATE_TO_KEY: Record<string, string> = Object.fromEntries(COCKPIT_DA
 export const OPS_DATES = getOpsAvailableDates()
 export const UNIFIED_DATES = [...new Set([...COCKPIT_DATES, ...OPS_DATES])].sort()
 
-function lastDayOfMonth(ym: string) {
-  const [y, mo] = ym.split('-').map(Number)
-  const last = new Date(y, mo, 0, 12)
-  return `${y}-${String(mo).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
-}
-
 function isCompleteWeek(w: WeekMeta) {
   if (typeof w.complete === 'boolean') return w.complete
   return (w.days?.length || 0) === 7
-}
-
-function isCompleteMonth(m: MonthMeta) {
-  if (typeof m.complete === 'boolean') return m.complete
-  const days = m.days || []
-  return days[0] === `${m.id}-01` && days[days.length - 1] === lastDayOfMonth(m.id)
 }
 
 function weekIndex(id: string) {
@@ -209,7 +197,7 @@ export const useFilterStore = defineStore('filter', () => {
     bump()
   }
 
-  /** 日比对照键：日→昨天；周→上一完整周；月→上一完整月。残周/未结束月不比。 */
+  /** 日比对照键：日→昨天；周→上一完整周；月→上一可选月（残月也允许对比）。 */
   const compareKey = computed(() => {
     if (periodMode.value === 'week') {
       const i = weekIndex(selectedWeekId.value)
@@ -222,14 +210,37 @@ export const useFilterStore = defineStore('filter', () => {
     if (periodMode.value === 'month') {
       const i = monthIndex(selectedMonthId.value)
       if (i <= 0) return null
-      const cur = COCKPIT_MONTHS[i]
-      const prev = COCKPIT_MONTHS[i - 1]
-      if (!isCompleteMonth(cur) || !isCompleteMonth(prev)) return null
-      return `M:${prev.id}`
+      return `M:${COCKPIT_MONTHS[i - 1]!.id}`
     }
     const prev = shiftDay(selectedDate.value, -1)
     return COCKPIT_DAYS.includes(prev) ? prev : null
   })
+
+  /** 上期日期区间：优先 compareKey；否则按当前 periodRange 等长前移，保证周/月也能出比。 */
+  const compareRange = computed(() => {
+    const key = compareKey.value
+    if (key) {
+      if (key.startsWith('W:')) {
+        const w = COCKPIT_WEEKS.find((x) => x.id === key.slice(2))
+        return w ? { from: w.start, to: w.end } : null
+      }
+      if (key.startsWith('M:')) {
+        const m = COCKPIT_MONTHS.find((x) => x.id === key.slice(2))
+        return m ? { from: m.start, to: m.end } : null
+      }
+      return { from: key, to: key }
+    }
+    const { from, to } = periodRange.value
+    if (!from || !to) return null
+    const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1
+    if (!Number.isFinite(span) || span <= 0) return null
+    return { from: shiftDay(from, -span), to: shiftDay(to, -span) }
+  })
+
+  /** 主对比文案：日比 / 周比 / 月比 */
+  const deltaLabel = computed(() =>
+    periodMode.value === 'week' ? '周比' : periodMode.value === 'month' ? '月比' : '日比',
+  )
 
   /** 周比（按日）：上周同一天。周/月模式不再另给同比。 */
   const wowKey = computed(() => {
@@ -257,6 +268,32 @@ export const useFilterStore = defineStore('filter', () => {
 
   function setPeriodMode(mode: PeriodMode) {
     periodMode.value = mode
+    if (mode === 'week') {
+      const hit =
+        COCKPIT_WEEKS.find((w) => w.days.includes(selectedDate.value)) ||
+        [...COCKPIT_WEEKS].reverse().find((w) => w.end <= selectedDate.value) ||
+        COCKPIT_WEEKS[COCKPIT_WEEKS.length - 1]
+      if (hit) {
+        selectedWeekId.value = hit.id
+        selectedDate.value = hit.end
+      }
+    } else if (mode === 'month') {
+      const hit =
+        COCKPIT_MONTHS.find((m) => m.days.includes(selectedDate.value)) ||
+        COCKPIT_MONTHS[COCKPIT_MONTHS.length - 1]
+      if (hit) {
+        selectedMonthId.value = hit.id
+        selectedDate.value = hit.end
+        const w =
+          COCKPIT_WEEKS.find((x) => x.days.includes(hit.end)) ||
+          [...COCKPIT_WEEKS].reverse().find((x) => x.end <= hit.end)
+        if (w) selectedWeekId.value = w.id
+      }
+    } else if (mode === 'day') {
+      if (!COCKPIT_DAYS.includes(selectedDate.value)) {
+        selectedDate.value = COCKPIT_DAYS[COCKPIT_DAYS.length - 1] || selectedDate.value
+      }
+    }
     bump()
   }
 
@@ -382,6 +419,8 @@ export const useFilterStore = defineStore('filter', () => {
     hasCockpitData,
     compareDate,
     compareKey,
+    compareRange,
+    deltaLabel,
     wowKey,
     compareLabel,
     setPeriodMode,

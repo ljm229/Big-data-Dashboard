@@ -9,7 +9,7 @@
         <span class="spacer" />
         <span class="col-bar">毛利</span>
         <span class="col-rate">毛利率</span>
-        <span class="col-delta">日比</span>
+        <span class="col-delta">{{ deltaLabel }}</span>
       </div>
       <div class="body">
         <button
@@ -54,11 +54,14 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import Panel from '../Panel.vue'
 import { useFilterStore } from '../../stores/filter'
-import { previousDayRange, source1ByChannel } from '../../api/source1'
+import { previousPeriodRange, source1ByChannel } from '../../api/source1'
 import { formatMoney, formatPercent } from '../../utils/format'
 
 const filter = useFilterStore()
-const { periodRange, cityQuery, storeQuery, channel } = storeToRefs(filter)
+const { periodRange, cityQuery, storeQuery, channel, periodMode } = storeToRefs(filter)
+const deltaLabel = computed(() =>
+  periodMode.value === 'week' ? '周比' : periodMode.value === 'month' ? '月比' : '日比',
+)
 
 type Row = {
   key: string
@@ -75,7 +78,7 @@ const rows = computed<Row[]>(() => {
     store: storeQuery.value,
     channel: '全部',
   }
-  const prevRange = previousDayRange(query.from, query.to)
+  const prevRange = previousPeriodRange(query.from, query.to, periodMode.value)
   const previous = new Map(source1ByChannel({ ...query, ...prevRange }).map((r) => [r.key, r.profit]))
   const list = [...source1ByChannel(query)].sort((a, b) => {
     if (a.profit == null && b.profit == null) return 0
@@ -144,7 +147,7 @@ function compactMoney(n: number | null) {
 }
 function deltaText(d: number | null) {
   if (d == null) return '—'
-  return `${Math.abs(d * 100).toFixed(1)}%`
+  return `${Math.abs(d * 100).toFixed(2)}%`
 }
 function deltaArrow(d: number | null) {
   if (d == null || d === 0) return ''

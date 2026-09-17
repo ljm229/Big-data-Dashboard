@@ -1,6 +1,6 @@
-<!-- 中文名：经营异常 TOP5 —— 暂无正式告警台账，模块留空 -->
+<!-- 中文名：经营异常（实时门店预警）—— 未接正式台账，不编造数据 -->
 <template>
-  <Panel title="经营异常 TOP5" :empty="true" empty-text="暂无经营异常台账" />
+  <Panel title="经营异常" :empty="true" empty-text="暂无经营异常台账" />
 </template>
 
 <script setup lang="ts">

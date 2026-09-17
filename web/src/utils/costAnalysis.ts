@@ -11,9 +11,38 @@ export type CostData = { facts: CostFact[]; stores: { name: string; city: string
 export type CostFilter = { from: string; to: string; city?: string | string[]; store?: string | string[]; channel?: string }
 export const EXPENSE_KEYS: CostKey[] = ['goodsCost', 'platformDelivery', 'commission', 'selfDelivery', 'promotion', 'maintenance']
 export const INCOME_KEYS: CostKey[] = ['goodsOriginal', 'packaging', 'deliveryIncome', 'marketing']
+
+/** 盈亏明细表行：对齐平台「收入明细 / 支出明细」指标清单；无独立字段时 key 为 null，显示 — 不填 0 */
+export type CostDetailRow = { id: string; label: string; key: CostKey | null; note?: string; deduction?: boolean }
+export const INCOME_DETAIL_ROWS: CostDetailRow[] = [
+  { id: 'goodsOriginal', label: '商品原价', key: 'goodsOriginal' },
+  { id: 'deliveryFee', label: '应收配送费', key: 'deliveryIncome', note: '源表含地址变更费' },
+  { id: 'packaging', label: '包装费原价', key: 'packaging' },
+  { id: 'marketing', label: '营销活动费用', key: 'marketing', deduction: true, note: '收入端扣减' },
+  { id: 'addressChange', label: '地址变更费', key: null, note: '源表已并入应收配送费' },
+  { id: 'billingIncome', label: '销售开单收入', key: null, note: '源表未提供' },
+  { id: 'otherIncome', label: '其他收入', key: null, note: '源表未提供' },
+]
+export const EXPENSE_DETAIL_ROWS: CostDetailRow[] = [
+  { id: 'goodsCost', label: '商品成本', key: 'goodsCost' },
+  { id: 'offlineGoodsCost', label: '线下销售商品成本支出', key: null, note: '源表未提供' },
+  { id: 'selfDelivery', label: '自配送费用', key: 'selfDelivery' },
+  { id: 'platformDelivery', label: '平台配送服务费', key: 'platformDelivery' },
+  { id: 'commission', label: '佣金', key: 'commission', note: '源表含其他平台费用' },
+  { id: 'otherPlatform', label: '其他平台费用', key: null, note: '源表已并入佣金' },
+  { id: 'donation', label: '公益捐款', key: null, note: '源表未提供' },
+  { id: 'offlineLedger', label: '线下账本支出', key: null, note: '源表未提供' },
+  { id: 'promotion', label: '推广费用', key: 'promotion' },
+]
 export type Amount = { value: number | null; valid: number; total: number; complete: boolean }
 const norm = (s: string) => s.replace(/（/g, '(').replace(/）/g, ')').replace(/\s+/g, '')
-const city = (s: string) => s.includes('昆山') ? '苏州' : s.includes('姜堰') ? '泰州' : s.replace(/市/g, '').trim()
+const city = (s: string) => {
+  const t = String(s || '').trim()
+  if (!t || t === '全国' || t === '全部') return t
+  if (t.includes('昆山')) return '苏州'
+  if (t.includes('姜堰')) return '泰州'
+  return t.replace(/市/g, '').trim()
+}
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
 const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calculate = (values: (number | null)[], fn: (v: number[]) => number): number | null =>
@@ -65,15 +94,22 @@ export function summarizeCosts(rows: CostFact[]) {
 }
 export type CostSummary = ReturnType<typeof summarizeCosts>
 
-/** Compare only equal-length periods with identical store/channel/day-offset coverage. */
+/** 同筛选口径比较：两期均有数据即可出比（周/月残段天数可不一致，按合计比）。 */
 export function costComparison(current: CostSummary, previous: CostSummary, currentRange: CostFilter, previousRange: CostFilter | null) {
-  if (!previousRange) return { ready: false, reason: '暂无完整上期', growth: (_a: number | null, _b: number | null) => null }
-  const days = (f: CostFilter) => (Date.parse(f.to) - Date.parse(f.from)) / 86400000 + 1
-  const keys = (rows: CostFact[], from: string) => rows.map(r => `${norm(r.store)}|${r.channel}|${(Date.parse(r.date) - Date.parse(from)) / 86400000}`).sort().join('\n')
-  const ready = current.rows.length > 0 && days(currentRange) === days(previousRange)
-    && keys(current.rows, currentRange.from) === keys(previous.rows, previousRange.from)
-  return { ready, reason: ready ? '同范围日比' : '两期覆盖不同，暂不比较',
-    growth: (a: number | null, b: number | null) => ready && a !== null && b !== null && b > 0 ? (a - b) / b : null }
+  if (!previousRange?.from || !previousRange?.to) {
+    return { ready: false, reason: '暂无完整上期', growth: (_a: number | null, _b: number | null) => null }
+  }
+  if (!currentRange.from || !currentRange.to) {
+    return { ready: false, reason: '本期日期无效', growth: (_a: number | null, _b: number | null) => null }
+  }
+  if (!current.rows.length || !previous.rows.length) {
+    return { ready: false, reason: '本期或上期无数据', growth: (_a: number | null, _b: number | null) => null }
+  }
+  return {
+    ready: true,
+    reason: '同筛选口径对比（时间 / 城市 / 门店 / 渠道）',
+    growth: (a: number | null, b: number | null) => (a !== null && b !== null && b > 0 ? (a - b) / b : null),
+  }
 }
 
 export function costMoney(n: number | null, unit: 'yuan' | 'wan' = 'yuan') {

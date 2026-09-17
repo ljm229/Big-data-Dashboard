@@ -129,10 +129,12 @@ const tierText = computed(() => {
   flex-direction: column;
   gap: 6px;
   padding: 12px;
-  border-radius: var(--ops-radius-sm, 8px);
-  background: var(--ops-surface, #ffffff);
-  border: 1px solid var(--ops-border, #e2e8f4);
-  box-shadow: var(--ops-shadow, 0 1px 3px rgba(15, 23, 42, 0.04));
+  border-radius: var(--ops-radius-sm, 12px);
+  background: var(--ops-surface, rgba(255, 255, 255, 0.72));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: var(--ops-shadow, 0 12px 28px rgba(15, 23, 42, 0.05));
+  backdrop-filter: var(--ops-frost, blur(14px));
+  -webkit-backdrop-filter: var(--ops-frost, blur(14px));
   overflow: hidden;
   min-width: 0;
   min-height: 0;

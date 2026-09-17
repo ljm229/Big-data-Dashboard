@@ -1,7 +1,8 @@
-/** 中文名：重点门店排行同源数据 */
+/** 中文名：门店经营表现同源数据 */
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { previousDayRange, source1ByStore, source1StoreCity } from '../api/source1'
+import { costProfitByStore } from '../api/costSummary'
+import { previousPeriodRange, source1ByStore, source1StoreCity } from '../api/source1'
 import { useFilterStore } from '../stores/filter'
 
 import { STORE_TOP_COLORS } from '../styles/palette'
@@ -12,12 +13,36 @@ export function shortStore(name: string) {
 }
 
 export function deltaText(v: number | null) {
-  return v == null ? '—' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`
+  return v == null ? '—' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%`
+}
+
+function normStore(name: string) {
+  return String(name || '').replace(/（/g, '(').replace(/）/g, ')').replace(/\s+/g, '').trim()
+}
+
+function storeStatus(row: {
+  profit: number | null
+  profitRate: number | null
+  refundRate: number | null
+  delta: number | null
+}) {
+  const loss = row.profit != null && row.profit < 0
+  const dropHard = row.delta != null && row.delta < -0.08
+  const drop = row.delta != null && row.delta < -0.005
+  const weak = row.profitRate != null && row.profitRate < 0.12
+  const thin = row.profitRate != null && row.profitRate < 0.18
+  const highRefund = row.refundRate != null && row.refundRate >= 0.05
+  if (loss || (dropHard && weak)) return { status: '整改中', statusTone: 'bad' as const }
+  if (drop || highRefund || thin) return { status: '关注', statusTone: 'warn' as const }
+  return { status: '正常', statusTone: 'good' as const }
 }
 
 export function useStoreTop5(limit?: number, cityOverride?: { value: string | string[] }) {
   const filter = useFilterStore()
-  const { periodRange, cityQuery, channel, selectedStore, selectedStores } = storeToRefs(filter)
+  const { periodRange, cityQuery, channel, selectedStore, selectedStores, periodMode } = storeToRefs(filter)
+  const deltaLabel = computed(() =>
+    periodMode.value === 'week' ? '周比' : periodMode.value === 'month' ? '月比' : '日比',
+  )
   const rows = computed(() => {
     const query = {
       from: periodRange.value.from,
@@ -25,22 +50,35 @@ export function useStoreTop5(limit?: number, cityOverride?: { value: string | st
       city: cityOverride?.value ?? cityQuery.value,
       channel: channel.value,
     }
-    const prevRange = previousDayRange(query.from, query.to)
-    const previous = new Map(source1ByStore({ ...query, ...prevRange }).map((r) => [r.key, r.profit]))
+    const prevRange = previousPeriodRange(query.from, query.to, periodMode.value)
+    const previous = new Map(
+      source1ByStore({ ...query, ...prevRange }).map((r) => [r.key, { profit: r.profit, orders: r.orders }]),
+    )
+    const costMap = costProfitByStore({
+      from: query.from,
+      to: query.to,
+      city: query.city === '全国' ? undefined : query.city,
+      channel: query.channel === '全部' ? undefined : query.channel,
+    })
     const ranked = source1ByStore(query)
       .map((row) => {
         const prev = previous.get(row.key)
         const delta =
-          row.profit != null && prev != null && prev !== 0 ? (row.profit - prev) / Math.abs(prev) : null
-        const isLoss = row.profit != null && row.profit < 0
-        const highRefund = row.refundRate != null && row.refundRate >= 0.05
+          row.profit != null && prev?.profit != null && prev.profit !== 0
+            ? (row.profit - prev.profit) / Math.abs(prev.profit)
+            : null
+        const profitDeltaAbs =
+          row.profit != null && prev?.profit != null ? row.profit - prev.profit : null
+        const cost = costMap.get(normStore(row.key))
+        const tag = storeStatus({ ...row, delta })
         return {
           ...row,
           short: shortStore(row.key),
           city: source1StoreCity(row.key),
           delta,
-          status: isLoss ? '负毛利' : highRefund ? '退款偏高' : '正常',
-          statusTone: isLoss ? 'bad' : highRefund ? 'warn' : 'good',
+          profitDeltaAbs,
+          sourceProfit: cost?.sourceProfit ?? null,
+          ...tag,
         }
       })
       .sort((a, b) => {
@@ -60,5 +98,5 @@ export function useStoreTop5(limit?: number, cityOverride?: { value: string | st
   const profitSum = computed(() =>
     rows.value.reduce((s, r) => (r.profit == null ? s : s + Math.abs(r.profit)), 0),
   )
-  return { filter, selectedStore, selectedStores, rows, maxProfit, profitSum }
+  return { filter, selectedStore, selectedStores, rows, maxProfit, profitSum, deltaLabel }
 }

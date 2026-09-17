@@ -123,12 +123,12 @@ const cities = computed(() => data.value?.cities ?? [])
 
 const rateText = computed(() => {
   if (!summary.value.total) return '0%'
-  return `${((summary.value.launched / summary.value.total) * 100).toFixed(1)}%`
+  return `${((summary.value.launched / summary.value.total) * 100).toFixed(2)}%`
 })
 
 function pct(v: number, total: number) {
   if (!total) return '0%'
-  return `${((v / total) * 100).toFixed(1)}%`
+  return `${((v / total) * 100).toFixed(2)}%`
 }
 
 function startOfDay(d: Date) {

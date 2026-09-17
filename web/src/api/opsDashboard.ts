@@ -344,6 +344,7 @@ export type AssessBoard = {
       composite: number
       grade: ReturnType<typeof gradeOf>
       parts: ReturnType<typeof calcCompositeScore>['parts']
+      empty?: boolean
     }
   >
 }
@@ -406,11 +407,17 @@ export async function fetchAssessmentBoard(
   const rows = rawRows
     .map((r) => {
       const s = calcCompositeScore(r as AssessRaw)
-      return { ...r, composite: s.composite, grade: s.grade, parts: s.parts }
+      return {
+        ...r,
+        composite: s.composite,
+        grade: s.grade,
+        parts: s.parts,
+        empty: !!s.empty,
+      }
     })
-    .sort((a, b) => b.composite - a.composite)
+    .sort((a, b) => Number(!!a.empty) - Number(!!b.empty) || b.composite - a.composite)
 
-  const scoredForMedian = rows.filter((r) => !isEmptyAssessRaw(r as AssessRaw))
+  const scoredForMedian = rows.filter((r) => !r.empty)
   const composites = (scoredForMedian.length ? scoredForMedian : rows)
     .map((r) => r.composite)
     .sort((a, b) => a - b)
@@ -420,11 +427,11 @@ export async function fetchAssessmentBoard(
     : composites.length % 2
       ? composites[mid]
       : Math.round(((composites[mid - 1] + composites[mid]) / 2) * 10) / 10
-  const passStoreCnt = rows.filter((r) => r.composite >= 80).length
+  const passStoreCnt = scoredForMedian.filter((r) => r.composite >= 80).length
 
   return {
     weekId,
-    storeCnt: rawRows.length,
+    storeCnt: scoredForMedian.length || rawRows.length,
     composite: scored.composite,
     medianComposite,
     passStoreCnt,
@@ -1068,7 +1075,7 @@ export async function fetchStoreBusinessReport(
   const paidTxt =
     paidK.delta == null
       ? ''
-      : `实付 ${(paidK.delta >= 0 ? '+' : '') + (paidK.delta * 100).toFixed(1)}%`
+      : `实付 ${(paidK.delta >= 0 ? '+' : '') + (paidK.delta * 100).toFixed(2)}%`
   const prTxt =
     profitK.delta == null
       ? ''

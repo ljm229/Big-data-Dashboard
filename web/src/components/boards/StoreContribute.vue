@@ -28,7 +28,7 @@ const { chart } = useChart(el, option)
 
 function shareOf(row: { profit: number | null }) {
   if (row.profit == null || !profitSum.value) return '—'
-  return `${((Math.abs(row.profit) / profitSum.value) * 100).toFixed(1)}%`
+  return `${((Math.abs(row.profit) / profitSum.value) * 100).toFixed(2)}%`
 }
 
 watch(
@@ -42,7 +42,7 @@ watch(
         borderColor: 'rgba(120,210,255,0.5)',
         textStyle: { color: '#f4fbff', fontSize: 14, fontWeight: 700 },
         formatter: (p: { name: string; value: number; percent: number; data: { rate: string; orders: string } }) =>
-          `<div style="font-weight:800;margin-bottom:6px">${p.name}</div>毛利 ${formatMoney(p.value)}<br/>占比 ${p.percent.toFixed(1)}%<br/>毛利率 ${p.data.rate}<br/>订单 ${p.data.orders}`,
+          `<div style="font-weight:800;margin-bottom:6px">${p.name}</div>毛利 ${formatMoney(p.value)}<br/>占比 ${p.percent.toFixed(2)}%<br/>毛利率 ${p.data.rate}<br/>订单 ${p.data.orders}`,
       },
       legend: { show: false },
       series: [

@@ -82,7 +82,7 @@ const leadText = computed(() => `${breakPoint.value.title}；${board.value?.tips
 function deltaText(cur: number | null | undefined, prev: number | null | undefined) {
   if (cur == null || prev == null || !prev) return '上期无完整对照'
   const d = (cur - prev) / Math.abs(prev)
-  return `日比 ${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`
+  return `日比 ${d >= 0 ? '+' : ''}${(d * 100).toFixed(2)}%`
 }
 function tone(v: number | null | undefined, line: number) { return (v || 0) >= line ? 'ok' : 'bad' }
 
@@ -100,7 +100,7 @@ const sourceOpt = computed<any>(() => {
 const storeOpt = computed<any>(() => {
   const rows = board.value?.stores || []
   return {
-    grid: { left: 50, right: 24, top: 28, bottom: 46 }, tooltip: { formatter: (p: any) => { const d = p.data; return `${d.name}<br/>P1 ${d.value[0].toFixed(1)}%<br/>P2 ${d.value[1].toFixed(1)}%<br/>下单 ${formatInt(d.value[2])}` } },
+    grid: { left: 50, right: 24, top: 28, bottom: 46 }, tooltip: { formatter: (p: any) => { const d = p.data; return `${d.name}<br/>P1 ${d.value[0].toFixed(2)}%<br/>P2 ${d.value[1].toFixed(2)}%<br/>下单 ${formatInt(d.value[2])}` } },
     xAxis: { name: 'P1 进店率', min: 0, max: (v: any) => Math.max(12, Math.ceil(v.max * 1.15)), axisLabel: { formatter: '{value}%' }, splitLine: { lineStyle: { color: '#edf2f7' } } },
     yAxis: { name: 'P2 下单率', min: 0, max: (v: any) => Math.max(30, Math.ceil(v.max * 1.12)), axisLabel: { formatter: '{value}%' }, splitLine: { lineStyle: { color: '#edf2f7' } } },
     series: [{ type: 'scatter', data: rows.map(x => { const p1 = (x.enterRate || 0) * 100; const p2 = (x.orderRate || 0) * 100; return { name: x.shortName, value: [p1, p2, x.orderUsers], itemStyle: { color: p1 < 8 || p2 < 22 ? '#EF5B5B' : '#14B8A6' } } }), symbolSize: (v: number[]) => Math.max(10, Math.min(32, Math.sqrt(v[2] || 0) * 1.5)), markLine: { silent: true, symbol: 'none', label: { color: '#94A3B8', fontSize: 10 }, lineStyle: { type: 'dashed', color: '#CBD5E1' }, data: [{ xAxis: 8, name: 'P1健康线' }, { yAxis: 22, name: 'P2健康线' }] } }],

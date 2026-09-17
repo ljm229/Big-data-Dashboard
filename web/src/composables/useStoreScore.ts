@@ -91,12 +91,21 @@ export function useStoreScore() {
   const scoreLabel = computed(() => (isSingleStore.value ? '综合分' : '门店中位分'))
   const health = computed(() => healthFromMetrics(metrics.value, headerScore.value))
 
-  const gradeDist = computed(() =>
-    GRADE_RULES.map((g) => ({
+  const isMissingRow = (row: AssessBoard['rows'][number]) =>
+    row.parts.length > 0 && row.parts.every((p) => p.missing)
+
+  const gradeDist = computed(() => {
+    const rows = assessRows.value
+    const graded = GRADE_RULES.map((g) => ({
       ...g,
-      count: assessRows.value.filter((r) => r.grade.grade === g.grade).length,
-    })),
-  )
+      count: rows.filter((r) => !isMissingRow(r) && r.grade.grade === g.grade).length,
+    }))
+    const missingCnt = rows.filter(isMissingRow).length
+    return [
+      ...graded,
+      { grade: 'N' as const, label: '缺数据', min: 0, max: 0, color: '#94a3b8', count: missingCnt },
+    ]
+  })
 
   const watchStores = computed(() => assessRows.value.filter((r) => r.composite < 60 && r.parts.some((p) => !p.missing)).slice(0, 12))
 

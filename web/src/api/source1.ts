@@ -10,6 +10,9 @@ type Fact = {
   date: string
   channel: string
   store: string
+  /** 总营业额（源表字段直接加总，不重算） */
+  turnover: number | null
+  /** 预计线上收入（源表字段；勿当作总营业额） */
   onlineRevenue: number | null
   profit: number | null
   marginRate: number | null
@@ -185,6 +188,7 @@ export type KpiFilter = {
 export type KpiTotals = {
   profit: number | null
   paid: number | null
+  turnover: number | null
   onlineRevenue: number | null
   orders: number | null
   arpu: number | null
@@ -200,6 +204,7 @@ function emptyTotals(): KpiTotals {
   return {
     profit: null,
     paid: null,
+    turnover: null,
     onlineRevenue: null,
     orders: null,
     arpu: null,
@@ -212,7 +217,7 @@ function emptyTotals(): KpiTotals {
   }
 }
 
-function sumNum(rows: Fact[], field: 'profit' | 'paid' | 'orders' | 'refundOrders' | 'onlineRevenue') {
+function sumNum(rows: Fact[], field: 'profit' | 'paid' | 'orders' | 'refundOrders' | 'onlineRevenue' | 'turnover') {
   let total = 0
   let n = 0
   for (const r of rows) {
@@ -251,6 +256,7 @@ function weightedAvg(
 }
 
 function rateWeight(r: Fact) {
+  if (r.turnover != null && r.turnover !== 0) return Math.abs(r.turnover)
   if (r.onlineRevenue != null && r.onlineRevenue !== 0) return Math.abs(r.onlineRevenue)
   if (r.paid != null && r.paid !== 0) return Math.abs(r.paid)
   return null
@@ -269,6 +275,7 @@ function sumFacts(from: string, to: string, city: LocSel, channel: string, store
   const hit =
     totals.profit != null ||
     totals.paid != null ||
+    totals.turnover != null ||
     totals.onlineRevenue != null ||
     totals.orders != null ||
     totals.profitRate != null ||
@@ -306,6 +313,7 @@ export function aggregateSource1Kpi(filter: KpiFilter): KpiTotals {
   return {
     profit: totals.profit,
     paid: totals.paid,
+    turnover: totals.turnover,
     onlineRevenue: totals.onlineRevenue,
     orders: totals.orders,
     arpu: totals.arpu,
@@ -319,6 +327,7 @@ export function aggregateSource1Kpi(filter: KpiFilter): KpiTotals {
 export type KpiDelta = {
   profit: number | null
   paid: number | null
+  turnover: number | null
   onlineRevenue: number | null
   orders: number | null
   arpu: number | null
@@ -342,6 +351,7 @@ export function deltaOf(cur: KpiTotals, prev: KpiTotals | null): KpiDelta {
     return {
       profit: null,
       paid: null,
+      turnover: null,
       onlineRevenue: null,
       orders: null,
       arpu: null,
@@ -353,6 +363,7 @@ export function deltaOf(cur: KpiTotals, prev: KpiTotals | null): KpiDelta {
   return {
     profit: rel(cur.profit, prev.profit),
     paid: rel(cur.paid, prev.paid),
+    turnover: rel(cur.turnover, prev.turnover),
     onlineRevenue: rel(cur.onlineRevenue, prev.onlineRevenue),
     orders: rel(cur.orders, prev.orders),
     arpu: rel(cur.arpu, prev.arpu),
@@ -371,6 +382,17 @@ export function previousWeekRange(from: string, to: string) {
   return { from: shiftDay(from, -7), to: shiftDay(to, -7) }
 }
 
+/** 按口径取上期区间：日=等长前移；周=整体 -7 天；月=等长前移（残月也能出月比） */
+export function previousPeriodRange(from: string, to: string, mode: 'day' | 'week' | 'month' = 'day') {
+  if (!from || !to) return { from: '', to: '' }
+  if (mode === 'week') return previousWeekRange(from, to)
+  return previousDayRange(from, to)
+}
+
+export function periodDeltaLabel(mode: 'day' | 'week' | 'month') {
+  return mode === 'week' ? '周比' : mode === 'month' ? '月比' : '日比'
+}
+
 export function hasSource1Day(iso: string) {
   return SOURCE1_DAYS.includes(iso)
 }
@@ -383,6 +405,7 @@ export type AggRow = {
   key: string
   profit: number | null
   paid: number | null
+  turnover: number | null
   onlineRevenue: number | null
   orders: number | null
   refundOrders: number | null
@@ -427,16 +450,18 @@ function fold(rows: Fact[], keyOf: (r: Fact) => string) {
 function sumRows(rows: Fact[]): Omit<AggRow, 'key'> {
   const profit = sumNum(rows, 'profit')
   const paid = sumNum(rows, 'paid')
+  const turnover = sumNum(rows, 'turnover')
   const onlineRevenue = sumNum(rows, 'onlineRevenue')
   const orders = sumNum(rows, 'orders')
   const refundOrders = sumNum(rows, 'refundOrders')
   return {
     profit,
     paid,
+    turnover,
     onlineRevenue,
     orders,
     refundOrders,
-    // 毛利率(含平台后返)用表内字段，不按 毛利/收入 重算
+    // 毛利率/退款率/单均：表内指标加权聚合；客单价=实付÷订单量
     profitRate: weightedAvg(rows, (r) => r.marginRate, rateWeight),
     arpu: paid != null && orders != null && orders !== 0 ? paid / orders : null,
     unitProfit: weightedAvg(rows, (r) => r.unitProfit, (r) => r.orders),
@@ -460,6 +485,7 @@ export function source1Trend(filter: Omit<KpiFilter, 'from' | 'to'>) {
 const EMPTY_AGG: Omit<AggRow, 'key'> = {
   profit: null,
   paid: null,
+  turnover: null,
   onlineRevenue: null,
   orders: null,
   refundOrders: null,

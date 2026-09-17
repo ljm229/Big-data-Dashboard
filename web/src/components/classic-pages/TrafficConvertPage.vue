@@ -261,7 +261,7 @@ watch(
 
 function fmtPeople(n: number | null | undefined) {
   if (n == null) return '—'
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+  if (n >= 10000) return (n / 10000).toFixed(2) + '万'
   return formatInt(n)
 }
 function rel(cur?: number | null, prev?: number | null) {

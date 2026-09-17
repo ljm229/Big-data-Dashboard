@@ -59,7 +59,7 @@ const stats = computed(() => {
   if (!props.city) return { plan: 0, open: 0, pending: 0, rate: 0 }
   return source1LaunchByCity(props.city, '全部')[0] || { plan: 0, open: 0, pending: 0, rate: 0 }
 })
-const rateText = computed(() => (stats.value.plan ? `${(stats.value.rate * 100).toFixed(1)}%` : '—'))
+const rateText = computed(() => (stats.value.plan ? `${(stats.value.rate * 100).toFixed(2)}%` : '—'))
 const barPct = computed(() => Math.min(Math.max(stats.value.rate, 0), 1) * 100)
 const openStores = computed(() => (props.city ? source1StoresByStatus('open', props.city, '全部') : []))
 const pendingStores = computed(() => (props.city ? source1StoresByStatus('pending', props.city, '全部') : []))

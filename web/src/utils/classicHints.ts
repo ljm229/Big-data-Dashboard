@@ -55,7 +55,7 @@ export function fmtMoneyInUnit(
   })}`
 }
 
-export function fmtPct(n: number | null | undefined, digits = 1): string {
+export function fmtPct(n: number | null | undefined, digits = 2): string {
   if (n == null || Number.isNaN(n)) return '—'
   const v = Number(n)
   const p = Math.abs(v) <= 1 ? v * 100 : v
@@ -66,7 +66,7 @@ export function fmtPct(n: number | null | undefined, digits = 1): string {
 export function ratioValue(delta: number | null | undefined): string {
   if (delta == null || Number.isNaN(delta)) return '—'
   const sign = delta >= 0 ? '+' : ''
-  return `${sign}${(delta * 100).toFixed(1)}%`
+  return `${sign}${(delta * 100).toFixed(2)}%`
 }
 
 /** @deprecated 与 ratioValue 同形，保留别名避免旧调用断裂 */

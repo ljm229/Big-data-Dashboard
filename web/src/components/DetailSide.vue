@@ -76,7 +76,7 @@ const items = computed(() => {
       { label: '覆盖门店数', value: formatInt(Number(p.store_cnt)) },
       { label: '实付金额', value: formatMoney(Number(p.paid_amount)) },
       { label: '有效订单量', value: formatInt(Number(p.orders)) },
-      { label: '客单价', value: p.aov != null ? `${Number(p.aov).toFixed(1)}元` : '--' },
+      { label: '客单价', value: p.aov != null ? `${Number(p.aov).toFixed(2)}元` : '--' },
       { label: '毛利率(含后返)', value: formatPercent(Number(p.profit_rate)) },
       { label: '退款率', value: p.refund_rate != null ? formatPercent(Number(p.refund_rate)) : '--' },
       { label: '预计毛利(含后返)', value: formatMoney(Number(p.profit)) },

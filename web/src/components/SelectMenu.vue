@@ -144,7 +144,10 @@ function fuzzyMatch(q: string, text: string) {
 const filtered = computed(() => {
   const list = props.options || []
   if (!props.searchable || !query.value.trim()) return list
-  return list.filter((o) => fuzzyMatch(query.value, o.label) || fuzzyMatch(query.value, String(o.value)))
+  return list.filter((o) => {
+    const hay = `${o.label} ${o.value} 淘宝便利店${o.label}`
+    return fuzzyMatch(query.value, hay)
+  })
 })
 
 function toggle() {

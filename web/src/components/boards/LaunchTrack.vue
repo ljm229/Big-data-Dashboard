@@ -2,6 +2,7 @@
 <template>
   <div class="launch-shell">
     <Panel title="门店上线进度跟踪" :empty="!summary.plan">
+      <template #extra><span class="launch-note">上线台账 · 随城市/门店筛选 · 非日切</span></template>
       <div class="launch">
         <div class="kpis">
           <span>计划门店 <b>{{ summary.plan }}</b></span>
@@ -100,7 +101,7 @@ const { cityQuery, storeQuery, periodRange, channel } = storeToRefs(filter)
 const dialog = ref<'open' | 'pending' | null>(null)
 const cityDialog = ref<string | null>(null)
 const rows = computed(() =>
-  source1LaunchByCity('全国', '全部').filter((r) => r.city && r.city !== '未标注'),
+  source1LaunchByCity(cityQuery.value, storeQuery.value).filter((r) => r.city && r.city !== '未标注'),
 )
 const summary = computed(() =>
   rows.value.reduce(
@@ -108,7 +109,7 @@ const summary = computed(() =>
     { plan: 0, open: 0, pending: 0 },
   ),
 )
-const pct = computed(() => (summary.value.plan ? `${((summary.value.open / summary.value.plan) * 100).toFixed(1)}%` : '—'))
+const pct = computed(() => (summary.value.plan ? `${((summary.value.open / summary.value.plan) * 100).toFixed(2)}%` : '—'))
 
 const dialogRows = computed(() => {
   if (!dialog.value) return []
@@ -146,6 +147,11 @@ function pickStore(name: string) {
   height: 100%;
   min-width: 0;
   min-height: 0;
+}
+.launch-note {
+  font-size: 11px;
+  color: var(--muted, #8aa4c0);
+  white-space: nowrap;
 }
 .launch {
   height: 100%;

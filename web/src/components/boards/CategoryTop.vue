@@ -56,7 +56,7 @@ const rows = computed(() => {
   return list.slice(0, 5).map((r) => ({ ...r, share: total ? r.sales / total : 0 }))
 })
 function shareText(share: number) {
-  return `${(share * 100).toFixed(1)}%`
+  return `${(share * 100).toFixed(2)}%`
 }
 function colorOf(i: number) {
   return COLORS[i % COLORS.length]

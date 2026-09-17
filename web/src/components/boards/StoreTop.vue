@@ -226,33 +226,37 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.tools { display: flex; align-items: center; gap: 6px; }
-.tool-select { width: 92px; }
-.tool-select.wide { width: 168px; }
+.tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+.tool-select { width: 84px; }
+.tool-select.wide { width: 140px; }
 .tool-select :deep(.dash-select__trigger) {
   height: 30px;
   background: var(--panel-deep);
-  font-size: 13px;
+  font-size: 12px;
   border-color: var(--border);
 }
-.top { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.top { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow: hidden; }
 .top__head, .row {
   display: grid;
-  grid-template-columns: minmax(72px, 1.3fr) 44px 52px 72px 72px 80px 56px 36px 52px;
-  gap: 4px;
+  /* 门店/城市定宽，多余宽度给金额列，避免店名与城市之间大块留白 */
+  grid-template-columns: 96px 44px 48px minmax(64px, 1fr) minmax(64px, 1fr) minmax(72px, 1.1fr) 56px 28px 48px;
+  gap: 6px;
   align-items: center;
+  min-width: 0;
+  width: 100%;
 }
 .top__head {
   flex-shrink: 0;
   height: 26px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   padding: 0 4px;
   > span:nth-child(n+3) { text-align: right; }
 }
 .top__viewport {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   mask-image: linear-gradient(180deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
   &:not(.is-loop) {
@@ -277,7 +281,7 @@ onUnmounted(() => {
 }
 .row:hover, .row.active { background: var(--panel-hover); }
 .name { color: #fff; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.city { font-size: 13px; color: #d4e4f4; }
+.city { font-size: 13px; color: #d4e4f4; white-space: nowrap; }
 .num {
   text-align: right;
   color: #fff;

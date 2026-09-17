@@ -74,10 +74,12 @@ const gradeRules = GRADE_RULES
   z-index: 60;
   width: 360px;
   padding: 12px;
-  border: 1px solid var(--ck-line);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--ck-shadow, 0 12px 32px rgba(15, 23, 42, 0.1));
+  backdrop-filter: var(--ck-frost, blur(14px));
+  -webkit-backdrop-filter: var(--ck-frost, blur(14px));
   display: grid;
   gap: 10px;
 }
@@ -85,7 +87,7 @@ const gradeRules = GRADE_RULES
   b {
     display: block;
     margin-bottom: 6px;
-    color: var(--ck-text);
+    color: var(--ck-title, #111827);
     font-size: var(--ck-fs-xs);
     font-weight: var(--ck-fw-title);
   }
