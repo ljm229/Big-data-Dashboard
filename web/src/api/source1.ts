@@ -198,6 +198,8 @@ export type KpiTotals = {
   onlineOpen: number | null
   onlinePlan: number | null
   onlineRate: number | null
+  /** 期内预计毛利（含后返）合计 < 0 的门店数 */
+  lossStores: number | null
 }
 
 function emptyTotals(): KpiTotals {
@@ -214,6 +216,7 @@ function emptyTotals(): KpiTotals {
     onlineOpen: null,
     onlinePlan: null,
     onlineRate: null,
+    lossStores: null,
   }
 }
 
@@ -307,8 +310,12 @@ export function aggregateSource1Kpi(filter: KpiFilter): KpiTotals {
   const store = filter.store || '全部'
   const totals = sumFacts(from, to, city, channel, store)
   const launch = launchTotals(city, store)
+  const storeRows = source1ByStore({ from, to, city, channel, store })
+  const lossStores = storeRows.length
+    ? storeRows.filter((r) => r.profit != null && r.profit < 0).length
+    : null
   if (!totals.hit) {
-    return { ...emptyTotals(), ...launch }
+    return { ...emptyTotals(), ...launch, lossStores }
   }
   return {
     profit: totals.profit,
@@ -320,6 +327,7 @@ export function aggregateSource1Kpi(filter: KpiFilter): KpiTotals {
     profitRate: totals.profitRate,
     unitProfit: totals.unitProfit,
     refundRate: totals.refundRate,
+    lossStores,
     ...launch,
   }
 }
@@ -334,6 +342,8 @@ export type KpiDelta = {
   profitRate: number | null
   unitProfit: number | null
   refundRate: number | null
+  onlineOpen: number | null
+  lossStores: number | null
 }
 
 function rel(cur: number | null, prev: number | null) {
@@ -358,6 +368,8 @@ export function deltaOf(cur: KpiTotals, prev: KpiTotals | null): KpiDelta {
       profitRate: null,
       unitProfit: null,
       refundRate: null,
+      onlineOpen: null,
+      lossStores: null,
     }
   }
   return {
@@ -370,6 +382,8 @@ export function deltaOf(cur: KpiTotals, prev: KpiTotals | null): KpiDelta {
     profitRate: pts(cur.profitRate, prev.profitRate),
     unitProfit: rel(cur.unitProfit, prev.unitProfit),
     refundRate: pts(cur.refundRate, prev.refundRate),
+    onlineOpen: rel(cur.onlineOpen, prev.onlineOpen),
+    lossStores: rel(cur.lossStores, prev.lossStores),
   }
 }
 

@@ -156,14 +156,14 @@ function pickStore(name: string) {
 .launch {
   height: 100%;
   width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 12px;
   min-height: 0;
-  padding: 4px 6px 2px;
+  padding: 4px 8px 2px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -228,10 +228,11 @@ function pickStore(name: string) {
 .bars__head,
 .bars__row {
   display: grid;
-  grid-template-columns: 64px 52px 60px 64px minmax(100px, 1.6fr);
-  gap: 8px;
+  /* 左侧文字区略加宽，进度条仍占剩余 */
+  grid-template-columns: 88px 56px 64px 68px minmax(90px, 1fr);
+  gap: 10px;
   align-items: center;
-  padding: 0 4px;
+  padding: 0 6px;
   justify-items: center;
 }
 .bars__head {

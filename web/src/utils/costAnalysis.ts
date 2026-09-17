@@ -15,27 +15,22 @@ export const INCOME_KEYS: CostKey[] = ['goodsOriginal', 'packaging', 'deliveryIn
 /** 平台确认：含后返相关字段自该日起生效；此前不填 0、不跨口径环比 */
 export const REBATE_EFFECTIVE_DATE = '2026-07-07'
 
-/** 盈亏明细表行：对齐平台「收入明细 / 支出明细」指标清单；无独立字段时 key 为 null，显示 — 不填 0 */
+/** 盈亏明细表行：与卡片总收入/总支出同口径；无独立字段不列假行、不填 0 */
 export type CostDetailRow = { id: string; label: string; key: CostKey | null; note?: string; deduction?: boolean }
 export const INCOME_DETAIL_ROWS: CostDetailRow[] = [
-  { id: 'goodsOriginal', label: '商品原价', key: 'goodsOriginal' },
-  { id: 'deliveryFee', label: '应收配送费', key: 'deliveryIncome', note: '源表含地址变更费' },
-  { id: 'packaging', label: '包装费原价', key: 'packaging' },
-  { id: 'marketing', label: '营销活动费用', key: 'marketing', deduction: true, note: '收入端扣减' },
-  { id: 'addressChange', label: '地址变更费', key: null, note: '源表已并入应收配送费' },
-  { id: 'billingIncome', label: '销售开单收入', key: null, note: '源表未提供' },
-  { id: 'otherIncome', label: '其他收入', key: null, note: '源表未提供' },
+  { id: 'turnover', label: '总营业额', key: 'turnover' },
+  { id: 'goodsOriginal', label: '商品原价', key: 'goodsOriginal', note: '收入组成' },
+  { id: 'packaging', label: '包装费原价', key: 'packaging', note: '收入组成' },
+  { id: 'deliveryIncome', label: '应收配送费及地址变更费', key: 'deliveryIncome', note: '源表合并列' },
+  { id: 'marketing', label: '营销活动费用', key: 'marketing', deduction: true, note: '收入端扣减，不计入支出' },
 ]
 export const EXPENSE_DETAIL_ROWS: CostDetailRow[] = [
   { id: 'goodsCost', label: '商品成本', key: 'goodsCost' },
-  { id: 'offlineGoodsCost', label: '线下销售商品成本支出', key: null, note: '源表未提供' },
-  { id: 'selfDelivery', label: '自配送费用', key: 'selfDelivery' },
   { id: 'platformDelivery', label: '平台配送服务费', key: 'platformDelivery' },
-  { id: 'commission', label: '佣金', key: 'commission', note: '源表含其他平台费用' },
-  { id: 'otherPlatform', label: '其他平台费用', key: null, note: '源表已并入佣金' },
-  { id: 'donation', label: '公益捐款', key: null, note: '源表未提供' },
-  { id: 'offlineLedger', label: '线下账本支出', key: null, note: '源表未提供' },
+  { id: 'commission', label: '佣金及其他平台费用', key: 'commission', note: '源表合并列' },
+  { id: 'selfDelivery', label: '自配送费用', key: 'selfDelivery' },
   { id: 'promotion', label: '推广费用', key: 'promotion' },
+  { id: 'maintenance', label: '订单线下维护费用', key: 'maintenance' },
 ]
 export type Amount = { value: number | null; valid: number; total: number; complete: boolean }
 const norm = (s: string) => s.replace(/（/g, '(').replace(/）/g, ')').replace(/\s+/g, '')
@@ -180,10 +175,29 @@ export function costMoney(n: number | null, unit: 'yuan' | 'wan' = 'yuan') {
   return (unit === 'wan' ? n / 10000 : n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 明细行取值：无字段 → null（展示 —）；有字段但不完整 → null */
+/** 明细行取值：无字段 → null（展示 —）；有字段但无有效行 → null；有部分有效行则出合计 */
 export function detailAmount(summary: CostSummary, row: CostDetailRow): number | null {
   if (!row.key) return null
   const amt = summary.amounts[row.key]
   if (!amt.valid) return null
   return amt.value
+}
+
+/**
+ * 明细占比：
+ * - 收入侧相对总营业额（组成与营销扣减同一基期，便于对照）
+ * - 支出侧相对总支出（六项合计应约 100%）
+ * 缺数或基期无效 → null（展示 —）
+ */
+export function detailShare(
+  summary: CostSummary,
+  row: CostDetailRow,
+  side: 'income' | 'expense',
+): number | null {
+  const value = detailAmount(summary, row)
+  if (value == null || !Number.isFinite(value)) return null
+  const base =
+    side === 'income' ? summary.amounts.turnover.value : summary.expense
+  if (base == null || base === 0) return null
+  return Math.abs(value) / Math.abs(base)
 }

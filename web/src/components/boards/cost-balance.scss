@@ -72,7 +72,9 @@
 .cost-detail-section table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; font-variant-numeric: tabular-nums; }
 .cost-detail-section caption { text-align: left; font-size: 14px; font-weight: 600; padding: 7px 0; color: var(--c-primary); }
 .cost-detail-section th, .cost-detail-section td { border-bottom: 1px solid var(--divider); padding: 10px 7px; text-align: right; }
-.cost-detail-section th:first-child { text-align: left; width: 48%; }
+.cost-detail-section th:first-child { text-align: left; width: 40%; }
+.cost-detail-section th:nth-child(3),
+.cost-detail-section td:nth-child(3) { width: 12%; white-space: nowrap; }
 .cost-detail-section tbody th { font-weight: 400; }
 .cost-detail-section thead { background: var(--panel-head); color: var(--c-muted); }
 .cost-detail-section td { white-space: nowrap; font-family: var(--font-num); }

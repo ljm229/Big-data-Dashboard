@@ -139,15 +139,6 @@ const cards = computed<Card[]>(() => {
   if (!cur) return []
   return [
     makeCard({
-      key: 'gmv',
-      label: '总营业',
-      fullLabel: '总营业额（源表字段直接加总；默认元，≥百万自动换算万）',
-      icon: 'gmv',
-      main: formatYuan(cur.turnover),
-      dod: dod.turnover,
-      wow: wow.turnover,
-    }),
-    makeCard({
       key: 'paid',
       label: '实付金额',
       fullLabel: '实付金额（有效订单实付；默认元，≥百万为万）',
@@ -209,10 +200,11 @@ const cards = computed<Card[]>(() => {
 
 <style scoped lang="scss">
 .kpi {
-  height: 120px;
+  height: 100%;
+  min-height: 96px;
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
 }
 .kpi__card {

@@ -156,30 +156,15 @@
     </section>
 
     <section class="ck-grid-quality-bot">
-      <article class="ck-card">
+      <article class="ck-card dist-card">
         <header class="ck-card__head">
-          <h3>问题门店排行</h3>
-          <span class="ck-tag">Top 5</span>
+          <h3>门店合格率分布 ({{ distMode === 'city' ? '按城市' : '按门店' }})</h3>
+          <div class="ck-pills" role="tablist" aria-label="分布维度">
+            <button type="button" :class="{ active: distMode === 'city' }" @click="distMode = 'city'">按城市</button>
+            <button type="button" :class="{ active: distMode === 'store' }" @click="distMode = 'store'">按门店</button>
+          </div>
         </header>
-        <table class="ck-table">
-          <thead>
-              <tr><th>#</th><th>门店</th><th>城市</th><th>未达标</th><th>综合</th><th>业务影响</th><th>整改</th></tr>
-          </thead>
-          <tbody>
-              <tr v-for="(row, i) in problemRows" :key="row.shortName" @click="selectStore(row.shortName)">
-                <td><span class="ck-rank" :class="'is-' + (i + 1)">{{ i + 1 }}</span></td>
-                <td class="name">{{ short(row.shortName) }}</td>
-                <td>{{ row.city || '—' }}</td>
-                <td>{{ failTags(row).length }}项</td>
-                <td><span class="ck-tag" :class="'g-' + row.grade.grade">{{ row.grade.grade }}</span></td>
-                <td>{{ impactLabel(row) }}</td>
-                <td><span class="ck-tag bad">待整改</span></td>
-              </tr>
-              <tr v-if="!problemRows.length">
-                <td colspan="7" class="void">暂无问题门店</td>
-            </tr>
-          </tbody>
-        </table>
+        <div ref="distEl" class="dist-chart" />
       </article>
 
       <article class="ck-card">
@@ -227,6 +212,7 @@ import { fetchAssessmentBoard } from '../../api/opsDashboard'
 import { getAssessmentAvailableDates, resolveAssessmentWeekId } from '../../api/dashboard'
 import {
   ASSESS_DEFS,
+  GRADE_RULES,
   formatAssessDisplay,
   type AssessKey,
 } from '../../utils/opsAssessment'
@@ -246,6 +232,7 @@ const {
 } = useStoreScore()
 
 const heatFilter = ref<'all' | 'pass' | 'warn' | 'fail'>('all')
+const distMode = ref<'city' | 'store'>('city')
 const selectedStoreId = ref('')
 const focusMetric = ref<AssessKey | ''>('')
 const trendMetric = ref<AssessKey>('sellout_rate')
@@ -254,10 +241,22 @@ const trendSeries = ref<Array<{ date: string; value: number | null; passLine: nu
 
 const donutEl = ref<HTMLElement | null>(null)
 const trendEl = ref<HTMLElement | null>(null)
+const distEl = ref<HTMLElement | null>(null)
 const donutOpt = ref<any>(null)
 const trendOpt = ref<any>(null)
+const distOpt = ref<any>(null)
 useChart(donutEl, donutOpt)
 useChart(trendEl, trendOpt)
+useChart(distEl, distOpt)
+
+/** 分布图色阶：与看板示意一致（S蓝 A绿 B黄 C橙 D红） */
+const DIST_COLORS: Record<string, string> = {
+  S: '#3B82F6',
+  A: '#22C55E',
+  B: '#EAB308',
+  C: '#F97316',
+  D: '#EF4444',
+}
 
 const assessDefs = ASSESS_DEFS
 
@@ -340,6 +339,148 @@ const problemRows = computed(() =>
     .sort((a, b) => failTags(b).length - failTags(a).length || a.composite - b.composite)
     .slice(0, 5),
 )
+
+/** 合格率分布：按城市 / 按门店汇总 S–D 占比（真实考核行） */
+const distCategories = computed(() => {
+  const scored = assessRows.value.filter((r) => !isMissingAssessRow(r))
+  if (!scored.length) return [] as Array<{ key: string; label: string; total: number; counts: Record<string, number> }>
+
+  if (distMode.value === 'city') {
+    const map = new Map<string, { label: string; total: number; counts: Record<string, number> }>()
+    for (const r of scored) {
+      const raw = String(r.city || '').trim() || '未归属'
+      const label = raw === '未归属' ? raw : /市$/.test(raw) ? raw : `${raw}市`
+      let bucket = map.get(label)
+      if (!bucket) {
+        bucket = { label, total: 0, counts: { S: 0, A: 0, B: 0, C: 0, D: 0 } }
+        map.set(label, bucket)
+      }
+      const g = r.grade.grade
+      if (g in bucket.counts) bucket.counts[g] += 1
+      bucket.total += 1
+    }
+    return [...map.values()]
+      .map((v) => ({ key: v.label, ...v }))
+      .sort((a, b) => b.total - a.total)
+  }
+
+  // 按门店：优先展示未达标较多 / 综合分较低的门店，最多 10 家
+  return [...scored]
+    .sort((a, b) => failTags(b).length - failTags(a).length || a.composite - b.composite)
+    .slice(0, 10)
+    .map((r) => ({
+      key: r.shortName,
+      label: short(r.shortName),
+      total: 1,
+      counts: {
+        S: r.grade.grade === 'S' ? 1 : 0,
+        A: r.grade.grade === 'A' ? 1 : 0,
+        B: r.grade.grade === 'B' ? 1 : 0,
+        C: r.grade.grade === 'C' ? 1 : 0,
+        D: r.grade.grade === 'D' ? 1 : 0,
+      },
+    }))
+})
+
+function buildDistChart() {
+  const cats = distCategories.value
+  const grades = GRADE_RULES.map((g) => g.grade)
+  if (!cats.length) {
+    distOpt.value = {
+      title: {
+        text: '暂无考核分布数据',
+        left: 'center',
+        top: 'middle',
+        textStyle: { color: '#94a3b8', fontSize: 13, fontWeight: 500 },
+      },
+    }
+    return
+  }
+
+  const labels = cats.map((c) => c.label)
+  distOpt.value = {
+    animationDuration: 280,
+    color: grades.map((g) => DIST_COLORS[g]),
+    legend: {
+      top: 0,
+      left: 'center',
+      itemWidth: 10,
+      itemHeight: 10,
+      itemGap: 14,
+      textStyle: { color: '#64748b', fontSize: 11 },
+      data: grades.map((g) => `${g}级`),
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      confine: true,
+      formatter: (params: any[]) => {
+        const idx = params[0]?.dataIndex ?? 0
+        const row = cats[idx]
+        if (!row) return ''
+        const lines = params
+          .filter((p) => p.value > 0)
+          .map((p) => {
+            const g = String(p.seriesName).replace('级', '')
+            const counts = row.counts as Record<string, number>
+            const cnt = counts[g] || 0
+            return `${p.marker}${p.seriesName} ${Number(p.value).toFixed(0)}%（${cnt}家）`
+          })
+        return `<b>${row.label}</b> · ${row.total}家<br/>${lines.join('<br/>')}`
+      },
+    },
+    grid: { left: 36, right: 12, top: 32, bottom: 28, containLabel: false },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 11,
+        interval: 0,
+        hideOverlap: true,
+        formatter: (v: string) => (v.length > 5 ? `${v.slice(0, 4)}…` : v),
+      },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      interval: 25,
+      axisLabel: {
+        color: '#94a3b8',
+        fontSize: 11,
+        formatter: (v: number) => `${v}%`,
+      },
+      splitLine: { lineStyle: { color: '#eef2f7' } },
+    },
+    series: grades.map((g) => ({
+      name: `${g}级`,
+      type: 'bar',
+      stack: 'grade',
+      barMaxWidth: distMode.value === 'city' ? 48 : 28,
+      emphasis: { focus: 'series' },
+      label: {
+        show: true,
+        position: 'inside',
+        formatter: (p: { value: number }) => (p.value >= 8 ? `${Math.round(p.value)}%` : ''),
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 700,
+        textBorderColor: 'rgba(15,23,42,0.25)',
+        textBorderWidth: 1,
+      },
+      itemStyle: {
+        color: DIST_COLORS[g],
+      },
+      data: cats.map((c) => {
+        const pct = c.total ? (c.counts[g] / c.total) * 100 : 0
+        return Number(pct.toFixed(2))
+      }),
+    })),
+  }
+}
 
 const adviceRows = computed(() => {
   const rows = assessRows.value
@@ -468,11 +609,6 @@ function cellTitle(row: (typeof assessRows.value)[number], key: AssessKey) {
   const p = row.parts.find((x) => x.key === key)
   if (!p) return ''
   return `${p.name} ${formatAssessDisplay(p.missing ? null : p.value, p.unit)} · ${p.tierLabel}`
-}
-function impactLabel(row: (typeof assessRows.value)[number]) {
-  if (row.grade.grade === 'D' || failTags(row).length >= 3) return '较大'
-  if (failTags(row).length >= 2 || row.grade.grade === 'C') return '中等'
-  return '一般'
 }
 function selectStore(id: string | string[], metric: AssessKey | '' = '') {
   const next = Array.isArray(id) ? id[0] || '' : id
@@ -748,6 +884,7 @@ watch(assessRows, (rows) => {
     selectedStoreId.value = rows[0].shortName
   }
   buildDonut()
+  buildDistChart()
 })
 
 watch([assessKey, city, storeId, hasAssessData, periodMode, resolvedAssessKey], async () => {
@@ -756,10 +893,12 @@ watch([assessKey, city, storeId, hasAssessData, periodMode, resolvedAssessKey], 
   await loadTrend()
   await nextTick()
   buildDonut()
+  buildDistChart()
 })
 
 watch(trendMetric, () => { void loadTrend() })
 watch(gradeDistView, () => buildDonut(), { deep: true })
+watch([distMode, distCategories], () => buildDistChart(), { deep: true })
 </script>
 
 <style scoped lang="scss">
@@ -824,7 +963,8 @@ watch(gradeDistView, () => buildDonut(), { deep: true })
   }
 }
 .donut-chart,
-.trend-chart {
+.trend-chart,
+.dist-chart {
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -833,6 +973,12 @@ watch(gradeDistView, () => buildDonut(), { deep: true })
 }
 .donut-chart { min-height: 120px; }
 .trend-chart { min-height: 160px; }
+.dist-chart { min-height: 180px; }
+.dist-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .bars {
   display: grid;
   gap: 8px;

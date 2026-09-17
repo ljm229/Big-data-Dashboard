@@ -79,7 +79,7 @@ import { COCKPIT_CITIES } from '../../stores/filter'
 import { useStoreTop5 } from '../../composables/useStoreTop5'
 import { formatInt, formatMoney, formatPercent } from '../../utils/format'
 
-type ViewFilter = 'all' | 'excellent' | 'drop' | 'loss' | 'rectify'
+type ViewFilter = 'all' | 'excellent' | 'drop' | 'loss' | 'weak'
 type SortKey = 'improve' | 'risk' | 'scale'
 
 const ROW_H = 42
@@ -93,7 +93,7 @@ const filterOptions = [
   { value: 'excellent', label: '经营优秀' },
   { value: 'drop', label: '毛利下降' },
   { value: 'loss', label: '负毛利门店' },
-  { value: 'rectify', label: '整改门店' },
+  { value: 'weak', label: '双弱门店' },
 ]
 const sortOptions = [
   { value: 'improve', label: '经营改善 · 毛利提升最大' },
@@ -124,7 +124,7 @@ const viewRows = computed(() => {
     }
     if (viewFilter.value === 'drop') return row.delta != null && row.delta < -0.005
     if (viewFilter.value === 'loss') return row.profit != null && row.profit < 0
-    if (viewFilter.value === 'rectify') return row.status === '整改中'
+    if (viewFilter.value === 'weak') return row.status === '双弱'
     return true
   })
   const list = [...filtered]
@@ -238,9 +238,9 @@ onUnmounted(() => {
 .top { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow: hidden; }
 .top__head, .row {
   display: grid;
-  /* 门店/城市定宽，多余宽度给金额列，避免店名与城市之间大块留白 */
-  grid-template-columns: 96px 44px 48px minmax(64px, 1fr) minmax(64px, 1fr) minmax(72px, 1.1fr) 56px 28px 48px;
-  gap: 6px;
+  /* 金额列加宽，避免实付/预计毛利贴在一起 */
+  grid-template-columns: minmax(72px, 1.1fr) 40px 44px minmax(78px, 1.15fr) minmax(78px, 1.15fr) minmax(84px, 1.25fr) 52px 26px 44px;
+  gap: 8px;
   align-items: center;
   min-width: 0;
   width: 100%;

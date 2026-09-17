@@ -1,86 +1,235 @@
-<!-- 中文名：含后返毛利分析（替换原成本收支）—— KPI + 瀑布 + 影响因素，仅用 cost 源表 -->
+<!-- 中文名：收支盈亏 —— 含后返毛利 / 收支盈亏双页签；同筛选；缺失不填 0 -->
 <template>
-  <Panel v-bind="$attrs" title="含后返毛利分析" class="margin-panel" :empty="empty">
-    <div class="margin">
-      <div class="margin__kpis">
-        <div class="kpi">
-          <em>预计毛利</em>
-          <b>{{ wan(sourceProfit) }}</b>
+  <Panel
+    v-bind="$attrs"
+    title="收支盈亏"
+    class="margin-panel cost-panel"
+    :empty="empty"
+    :empty-text="emptyText"
+    clickable
+    @title-click="openDetail = true"
+  >
+    <template #extra>
+      <button type="button" class="cost-detail-button" @click.stop="openDetail = true">
+        详情<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 2h6v6M4.5 7.5L9 3" /></svg>
+      </button>
+    </template>
+
+    <div class="cost-content">
+      <div class="cost-tabs" role="tablist" aria-label="收支盈亏视图">
+        <div>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="tab === 'margin'"
+            :aria-pressed="tab === 'margin'"
+            @click="setTab('margin')"
+          >含后返毛利</button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="tab === 'pl'"
+            :aria-pressed="tab === 'pl'"
+            @click="setTab('pl')"
+          >收支盈亏</button>
         </div>
-        <div class="kpi rebate">
-          <em>平台后返</em>
-          <b>{{ wan(rebate) }}</b>
-        </div>
-        <div class="kpi final">
-          <em>含后返毛利</em>
-          <b>{{ wan(finalProfit) }}</b>
-        </div>
-        <div class="kpi rate">
-          <em>毛利率</em>
-          <b>{{ pct(marginRate) }}</b>
-        </div>
+        <span>单位：元</span>
       </div>
 
-      <div class="margin__mid">
-        <div class="water" aria-label="毛利瀑布">
-          <div
-            v-for="(step, i) in waterfall"
-            :key="step.id"
-            class="water__step"
-            :class="step.kind"
-          >
-            <span>{{ step.label }}</span>
-            <b>{{ money(step.value) }}</b>
-            <i v-if="i < waterfall.length - 1" aria-hidden="true">↓</i>
+      <!-- 默认：含后返毛利（非「毛利形成」） -->
+      <template v-if="tab === 'margin'">
+        <div class="margin__kpis">
+          <div class="kpi">
+            <em>预计毛利</em>
+            <b>{{ yuan(sourceProfit) }}</b>
+          </div>
+          <div class="kpi rebate">
+            <em>平台后返</em>
+            <b>{{ yuan(rebate) }}</b>
+          </div>
+          <div class="kpi final">
+            <em>含后返毛利</em>
+            <b>{{ yuan(finalProfit) }}</b>
+          </div>
+          <div class="kpi rate">
+            <em>毛利率（含后返）</em>
+            <b>{{ pct(marginRate) }}</b>
           </div>
         </div>
+        <p v-if="!summary.rebateActive" class="tab-hint">后返字段自 {{ rebateEffective }} 生效；当前区间未生效，后返相关不展示、不填 0。</p>
+      </template>
 
-        <div class="factors">
-          <header>
-            <h4>影响因素 TOP</h4>
-            <small>{{ deltaLabel }}成本率变化</small>
-          </header>
-          <template v-if="factorRows.length">
-            <p class="factors__title">毛利变动原因</p>
-            <ol>
-              <li v-for="(f, i) in factorRows" :key="f.id">
-                <em>{{ i + 1 }}.</em>
-                <span>{{ f.label }}</span>
-                <b :class="f.tone">{{ f.text }}</b>
-              </li>
-            </ol>
-          </template>
-          <p v-else class="factors__empty">{{ factorEmpty }}</p>
-
-          <p class="factors__title">影响门店</p>
-          <ul v-if="impactStores.length" class="stores">
-            <li v-for="s in impactStores" :key="s.name">
-              <span>{{ shortStore(s.name) }}</span>
-              <b class="bad">{{ s.text }}</b>
-            </li>
-          </ul>
-          <p v-else class="factors__empty">{{ storeEmpty }}</p>
+      <!-- 收支盈亏：总收入 − 总支出 = 净利润 -->
+      <template v-else>
+        <div class="margin__kpis pl-kpis">
+          <div class="kpi">
+            <em>总收入</em>
+            <b>{{ yuan(totalIncome) }}</b>
+          </div>
+          <div class="kpi">
+            <em>总支出</em>
+            <b>{{ yuan(totalExpense) }}</b>
+          </div>
+          <div class="kpi" :class="{ neg: (netProfit ?? 0) < 0 }">
+            <em>净利润</em>
+            <b>{{ yuan(netProfit) }}</b>
+          </div>
+          <div class="kpi rate" :class="{ neg: (netRate ?? 0) < 0 }">
+            <em>净利率</em>
+            <b>{{ pct(netRate) }}</b>
+          </div>
         </div>
-      </div>
+        <p class="formula">总收入 − 总支出 = 净利润</p>
+      </template>
+
+      <div ref="chartEl" class="wf-chart" role="img" :aria-label="tab === 'margin' ? '含后返毛利瀑布柱状图' : '收支盈亏瀑布柱状图'" />
+      <p class="pl-conclusion">{{ tab === 'margin' ? marginConclusion : plConclusion }}</p>
 
       <footer class="margin__foot">
-        <span>{{ shortRange }} · {{ summary.storeCount }} 家有数门店</span>
-        <span>数据源1 · 翱象收支</span>
+        <span>{{ shortRange }} · {{ summary.storeCount }} 家有数门店 · {{ filter.cityName }} · {{ filter.channel }}</span>
+        <span title="翱象渠道门店周期收支；结余非财务净利润">翱象 · 口径 ⓘ</span>
       </footer>
     </div>
+
+    <Teleport to="body">
+      <div v-if="openDetail" class="cost-popup-mask" @click.self="openDetail = false">
+        <dialog class="cost-dialog" open @keydown.esc.prevent="openDetail = false">
+          <header class="cost-dialog-head">
+            <div>
+              <small>同源筛选 · 不下钻改范围</small>
+              <h2>{{ tab === 'pl' ? '收支盈亏明细' : '含后返毛利明细' }}</h2>
+              <p>{{ filterHint }}</p>
+            </div>
+            <button type="button" aria-label="关闭" @click="openDetail = false">×</button>
+          </header>
+          <div class="cost-dialog-scroll">
+            <p v-if="empty" class="cost-notice">{{ emptyText }}</p>
+            <template v-else>
+              <div class="cost-dialog-kpis">
+                <div>
+                  <span>{{ tab === 'pl' ? '总收入' : '预计毛利' }}</span>
+                  <strong>{{ yuan(tab === 'pl' ? totalIncome : sourceProfit) }}</strong>
+                </div>
+                <div>
+                  <span>{{ tab === 'pl' ? '总支出' : '平台后返' }}</span>
+                  <strong>{{ yuan(tab === 'pl' ? totalExpense : rebate) }}</strong>
+                </div>
+                <div>
+                  <span>{{ tab === 'pl' ? '净利润' : '含后返毛利' }}</span>
+                  <strong :class="{ negative: tab === 'pl' ? (netProfit ?? 0) < 0 : (finalProfit ?? 0) < 0 }">
+                    {{ yuan(tab === 'pl' ? netProfit : finalProfit) }}
+                  </strong>
+                </div>
+              </div>
+
+              <div class="cost-detail-columns">
+                <section class="cost-detail-section">
+                  <h3><i /><span>收入明细</span><small>总收入 = 总营业额 − 营销；缺项不填 0</small></h3>
+                  <table>
+                    <thead>
+                      <tr><th>指标</th><th>指标值</th><th>占比</th><th>{{ deltaLabel }}</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in incomeRows" :key="row.id" :class="{ deduction: row.deduction }">
+                        <th>
+                          {{ row.label }}
+                          <small v-if="row.note">{{ row.note }}</small>
+                        </th>
+                        <td>{{ yuan(row.value) }}</td>
+                        <td>{{ pctShare(row.share) }}</td>
+                        <td :class="growthClass(row.growth)">{{ growthText(row.growth) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </section>
+                <section class="cost-detail-section">
+                  <h3><i /><span>支出明细</span><small>与卡片总支出同口径合计</small></h3>
+                  <table>
+                    <thead>
+                      <tr><th>指标</th><th>指标值</th><th>占比</th><th>{{ deltaLabel }}</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in expenseRows" :key="row.id">
+                        <th>
+                          {{ row.label }}
+                          <small v-if="row.note">{{ row.note }}</small>
+                        </th>
+                        <td>{{ yuan(row.value) }}</td>
+                        <td>{{ pctShare(row.share) }}</td>
+                        <td :class="growthClass(row.growth, true)">{{ growthText(row.growth) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </section>
+              </div>
+              <p class="cost-section-note">
+                验算（未舍入）：收入 {{ rawText(summary.rawIncome) }} − 支出 {{ rawText(summary.rawExpense) }}
+                = 结余 {{ rawText(summary.rawBalance) }}
+                <template v-if="summary.identityOk"> · 恒等式通过</template>
+                <template v-else> · 字段不完整，无法验算</template>
+                。收入占比相对总营业额，支出占比相对总支出；源表未拆的合并列不再拆成空行。
+              </p>
+            </template>
+          </div>
+          <footer class="cost-dialog-foot">
+            <span>源样本：翱象渠道门店周期 · 后返生效 {{ rebateEffective }}</span>
+            <button type="button" @click="openDetail = false">关闭</button>
+          </footer>
+        </dialog>
+      </div>
+    </Teleport>
   </Panel>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Panel from '../Panel.vue'
 import { useFilterStore } from '../../stores/filter'
+import { useChart } from '../../composables/useChart'
 import { costSummary } from '../../api/costSummary'
-import { costMoney, type CostKey, type CostSummary } from '../../utils/costAnalysis'
+import {
+  REBATE_EFFECTIVE_DATE,
+  costComparison,
+  costMoney,
+  detailAmount,
+  detailShare,
+  INCOME_DETAIL_ROWS,
+  EXPENSE_DETAIL_ROWS,
+  rebateComparable,
+  type CostKey,
+  type CostSummary,
+} from '../../utils/costAnalysis'
+import './cost-balance.scss'
 
 defineOptions({ inheritAttrs: false })
 
+const TAB_KEY = 'ck-cost-balance-tab'
+type TabId = 'margin' | 'pl'
+
 const filter = useFilterStore()
+const openDetail = ref(false)
+const tab = ref<TabId>(readTab())
+const chartEl = ref<HTMLElement | null>(null)
+const chartOpt = ref<any>(null)
+useChart(chartEl, chartOpt)
+
+function readTab(): TabId {
+  try {
+    const v = sessionStorage.getItem(TAB_KEY)
+    return v === 'pl' || v === 'margin' ? v : 'margin'
+  } catch {
+    return 'margin'
+  }
+}
+function setTab(next: TabId) {
+  tab.value = next
+  try {
+    sessionStorage.setItem(TAB_KEY, next)
+  } catch {
+    /* ignore */
+  }
+}
+
 const currentFilter = computed(() => ({
   ...filter.periodRange,
   city: filter.cityQuery,
@@ -97,155 +246,273 @@ const summary = computed(() => costSummary(currentFilter.value))
 const previous = computed(() =>
   previousFilter.value ? costSummary(previousFilter.value) : null,
 )
+const compare = computed(() => {
+  if (!previous.value || !previousFilter.value) {
+    return costComparison(summary.value, summary.value, currentFilter.value, null)
+  }
+  return costComparison(summary.value, previous.value, currentFilter.value, previousFilter.value)
+})
+
 const deltaLabel = computed(() => filter.deltaLabel)
+const rebateEffective = REBATE_EFFECTIVE_DATE
 const empty = computed(() => !summary.value.rows.length)
+const emptyText = computed(() => {
+  const { from, to } = filter.periodRange
+  return `当前筛选（${from === to ? from : `${from}~${to}`} · ${filter.cityName} · ${filter.channel}${
+    filter.selectedStore !== '全部' ? ` · ${filter.selectedStore}` : ''
+  }）暂无翱象收支事实，不回退旧范围、不填 0。`
+})
 
-const amt = (s: CostSummary, key: CostKey) => s.amounts[key].value
+const filterHint = computed(
+  () =>
+    `${shortRange.value} · ${filter.cityName} · ${filter.channel}${
+      filter.selectedStore !== '全部' ? ` · ${filter.selectedStore}` : ''
+    } · 与卡片/图形同一条件`,
+)
 
-const onlineIncome = computed(() => amt(summary.value, 'onlineIncome'))
+const amt = (s: CostSummary, key: CostKey) =>
+  s.amounts[key].complete ? s.amounts[key].value : s.amounts[key].valid ? s.amounts[key].value : null
+
 const sourceProfit = computed(() => amt(summary.value, 'sourceProfit'))
-const rebate = computed(() => amt(summary.value, 'rebate'))
-const finalProfit = computed(() => amt(summary.value, 'sourceProfitWithRebate'))
-const delivery = computed(() => {
-  const a = amt(summary.value, 'platformDelivery')
-  const b = amt(summary.value, 'selfDelivery')
-  if (a == null && b == null) return null
-  return (a || 0) + (b || 0)
-})
-const marginRate = computed(() => {
-  const profit = finalProfit.value
-  const base = onlineIncome.value
-  if (profit == null || base == null || base <= 0) return null
-  return profit / base
-})
+const rebate = computed(() => (summary.value.rebateActive ? amt(summary.value, 'rebate') : null))
+const finalProfit = computed(() =>
+  summary.value.rebateActive ? amt(summary.value, 'sourceProfitWithRebate') : null,
+)
+const marginRate = computed(() => summary.value.marginRateWithRebate)
 
-type WaterStep = { id: string; label: string; value: number | null; kind: 'base' | 'down' | 'mid' | 'up' | 'final' }
-const waterfall = computed<WaterStep[]>(() => [
-  { id: 'online', label: '线上收入', value: onlineIncome.value, kind: 'base' },
-  { id: 'goods', label: '商品成本', value: amt(summary.value, 'goodsCost'), kind: 'down' },
-  { id: 'delivery', label: '配送费用', value: delivery.value, kind: 'down' },
-  { id: 'commission', label: '佣金', value: amt(summary.value, 'commission'), kind: 'down' },
-  { id: 'promo', label: '推广费用', value: amt(summary.value, 'promotion'), kind: 'down' },
-  { id: 'profit', label: '预计毛利', value: sourceProfit.value, kind: 'mid' },
-  { id: 'rebate', label: '平台后返', value: rebate.value, kind: 'up' },
-  { id: 'final', label: '最终毛利', value: finalProfit.value, kind: 'final' },
-])
+const totalIncome = computed(() => summary.value.income)
+const totalExpense = computed(() => summary.value.expense)
+/** 净利润 = 经营收入 − 成本支出；不是含后返毛利，也不是负毛利订单金额 */
+const netProfit = computed(() => summary.value.balance)
+const netRate = computed(() => summary.value.netRate)
 
-function rateOf(s: CostSummary, num: number | null, denKey: 'onlineIncome' = 'onlineIncome') {
-  const den = amt(s, denKey)
-  if (num == null || den == null || den <= 0) return null
-  return num / den
+type WfBar = {
+  help: number
+  value: number
+  color: string
+  label: string
+  labelPos?: 'top' | 'bottom'
+  labelColor?: string
+  hidden?: boolean
 }
 
-function deliveryOf(s: CostSummary) {
-  const a = amt(s, 'platformDelivery')
-  const b = amt(s, 'selfDelivery')
-  if (a == null && b == null) return null
-  return (a || 0) + (b || 0)
+function buildWaterfallOption(cats: string[], bars: WfBar[], bridges: Array<[number, number, number]>) {
+  const markData: any[] = [{ yAxis: 0 }]
+  for (const [fromIdx, toIdx, y] of bridges) {
+    markData.push([
+      { coord: [cats[fromIdx], y], symbol: 'none' },
+      { coord: [cats[toIdx], y], symbol: 'none' },
+    ])
+  }
+  return {
+    animation: false,
+    grid: { left: 4, right: 4, top: 26, bottom: 24 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params: any[]) => {
+        const p = params?.find((x) => x.seriesName === '值')
+        if (!p) return ''
+        const i = p.dataIndex as number
+        if (bars[i]?.hidden) return `${cats[i]}<br/>—`
+        return `${cats[i]}<br/>${bars[i]?.label ?? '—'}`
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: cats,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: 'rgba(148,190,230,0.35)' } },
+      axisLabel: { color: '#9bb4cc', fontSize: 11 },
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      splitNumber: 3,
+      axisLabel: { show: false },
+      splitLine: { lineStyle: { color: 'rgba(148,190,230,0.12)' } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    series: [
+      {
+        name: '占位',
+        type: 'bar',
+        stack: 'wf',
+        silent: true,
+        barWidth: '34%',
+        data: bars.map((b) => b.help),
+        itemStyle: { color: 'transparent', borderColor: 'transparent' },
+        emphasis: { disabled: true },
+      },
+      {
+        name: '值',
+        type: 'bar',
+        stack: 'wf',
+        barWidth: '34%',
+        data: bars.map((b) => ({
+          value: b.hidden ? 0 : b.value,
+          itemStyle: {
+            color: b.hidden ? 'transparent' : b.color,
+            borderRadius: b.value >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3],
+          },
+          label: {
+            show: true,
+            position: b.labelPos ?? 'top',
+            formatter: b.label,
+            color: b.labelColor ?? '#e8f3ff',
+            fontSize: 11,
+            fontWeight: 700,
+          },
+        })),
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { type: 'dashed', color: 'rgba(180,210,240,0.5)', width: 1 },
+          data: markData,
+          label: { show: false },
+        },
+      },
+    ],
+  }
 }
 
-const factorRows = computed(() => {
-  const cur = summary.value
-  const prev = previous.value
-  if (!prev || !prev.rows.length || !cur.rows.length) return []
+function buildChart() {
+  if (empty.value) {
+    chartOpt.value = {
+      animation: false,
+      title: {
+        text: '暂无数据',
+        left: 'center',
+        top: 'middle',
+        textStyle: { color: '#6f8aa8', fontSize: 13, fontWeight: 500 },
+      },
+      xAxis: { show: false },
+      yAxis: { show: false },
+      series: [],
+    }
+    return
+  }
 
-  const defs: Array<{ id: string; label: string; cur: number | null; prev: number | null }> = [
+  if (tab.value === 'margin') {
+    const p = sourceProfit.value
+    if (p == null) {
+      chartOpt.value = null
+      return
+    }
+    const r = rebate.value
+    const rebateOk = summary.value.rebateActive && r != null
+    const f = finalProfit.value ?? (rebateOk ? p + (r as number) : p)
+    const helpRebate = Math.min(p, f)
+    const cats = ['预计毛利', '平台后返', '含后返毛利']
+    const bars: WfBar[] = [
+      {
+        help: Math.min(p, 0),
+        value: Math.abs(p),
+        color: '#2f8cff',
+        label: yuan(p),
+        labelPos: p < 0 ? 'bottom' : 'top',
+        labelColor: p < 0 ? '#ff6b82' : '#e8f3ff',
+      },
+      {
+        help: helpRebate,
+        value: rebateOk ? Math.abs(r as number) : 0,
+        color: '#ffe14a',
+        label: rebateOk ? yuan(r) : '—',
+        labelColor: rebateOk ? '#ffe14a' : '#6f8aa8',
+        hidden: !rebateOk,
+      },
+      {
+        help: Math.min(f, 0),
+        value: Math.abs(f),
+        color: f < 0 ? '#ff6b82' : '#00f0a8',
+        label: yuan(summary.value.rebateActive ? finalProfit.value : p),
+        labelPos: f < 0 ? 'bottom' : 'top',
+        labelColor: f < 0 ? '#ff6b82' : '#00f0a8',
+      },
+    ]
+    const bridges: Array<[number, number, number]> = rebateOk
+      ? [
+          [0, 1, Math.max(p, 0)],
+          [1, 2, Math.max(f, 0)],
+        ]
+      : [[0, 2, Math.max(p, 0)]]
+    chartOpt.value = buildWaterfallOption(cats, bars, bridges)
+    return
+  }
+
+  const I = totalIncome.value
+  const E = totalExpense.value
+  const N = netProfit.value
+  if (I == null || E == null || N == null) {
+    chartOpt.value = null
+    return
+  }
+  // 瀑布：收入 0→I；支出从 N 叠到 I（N+E=I）；净利润 min(N,0)→max(N,0)
+  const cats = ['总收入', '总支出', '净利润']
+  const bars: WfBar[] = [
     {
-      id: 'goods',
-      label: '商品成本率',
-      cur: rateOf(cur, amt(cur, 'goodsCost')),
-      prev: rateOf(prev, amt(prev, 'goodsCost')),
+      help: 0,
+      value: I,
+      color: '#2f8cff',
+      label: yuan(I),
     },
     {
-      id: 'delivery',
-      label: '配送费用',
-      cur: rateOf(cur, deliveryOf(cur)),
-      prev: rateOf(prev, deliveryOf(prev)),
+      help: N,
+      value: E,
+      color: '#94a3b8',
+      label: yuan(-Math.abs(E)),
+      labelColor: '#cbd5e1',
     },
     {
-      id: 'commission',
-      label: '佣金',
-      cur: rateOf(cur, amt(cur, 'commission')),
-      prev: rateOf(prev, amt(prev, 'commission')),
-    },
-    {
-      id: 'promo',
-      label: '推广费用',
-      cur: rateOf(cur, amt(cur, 'promotion')),
-      prev: rateOf(prev, amt(prev, 'promotion')),
-    },
-    {
-      id: 'marketing',
-      label: '活动费用',
-      cur: rateOf(cur, amt(cur, 'marketing')),
-      prev: rateOf(prev, amt(prev, 'marketing')),
+      help: Math.min(N, 0),
+      value: Math.abs(N),
+      color: N < 0 ? '#ff7a45' : '#00f0a8',
+      label: yuan(N),
+      labelPos: N < 0 ? 'bottom' : 'top',
+      labelColor: N < 0 ? '#ff7a45' : '#00f0a8',
     },
   ]
+  const bridges: Array<[number, number, number]> = [
+    [0, 1, I],
+    [1, 2, N < 0 ? 0 : N],
+  ]
+  chartOpt.value = buildWaterfallOption(cats, bars, bridges)
+}
 
-  return defs
-    .map((d) => {
-      if (d.cur == null || d.prev == null) return null
-      const delta = d.cur - d.prev
-      if (Math.abs(delta) < 0.0005) return null
-      const pts = delta * 100
-      const up = pts > 0
-      return {
-        id: d.id,
-        label: d.label,
-        delta: pts,
-        text: `${up ? '↑' : '↓'}${Math.abs(pts).toFixed(2)}%`,
-        tone: up ? 'bad' : 'good',
-      }
-    })
-    .filter((x): x is NonNullable<typeof x> => !!x)
-    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
-    .slice(0, 5)
-})
-
-const factorEmpty = computed(() =>
-  !previous.value || !previous.value.rows.length
-    ? `暂无${deltaLabel.value}对照，无法计算影响因素`
-    : '本期成本率相对上期无明显变化',
+watch(
+  [tab, summary, sourceProfit, rebate, finalProfit, totalIncome, totalExpense, netProfit, empty],
+  async () => {
+    await nextTick()
+    buildChart()
+  },
+  { immediate: true },
 )
 
-const impactStores = computed(() => {
-  const cur = summary.value
-  const prev = previous.value
-  if (!prev || !prev.rows.length || !cur.rows.length) return []
-
-  const sumByStore = (rows: typeof cur.rows) => {
-    const map = new Map<string, number>()
-    for (const r of rows) {
-      const v = r.sourceProfitWithRebate
-      if (v == null || !Number.isFinite(v)) continue
-      map.set(r.store, (map.get(r.store) || 0) + v)
-    }
-    return map
+const marginConclusion = computed(() => {
+  if (empty.value) return ''
+  if (!summary.value.rebateActive) {
+    return `当前区间后返未生效（需 ≥ ${rebateEffective}）；仅展示预计毛利，不含后返推算。`
   }
-  const curMap = sumByStore(cur.rows)
-  const prevMap = sumByStore(prev.rows)
-  const names = new Set([...curMap.keys(), ...prevMap.keys()])
-  const list: Array<{ name: string; delta: number; text: string }> = []
-  for (const name of names) {
-    const a = curMap.get(name)
-    const b = prevMap.get(name)
-    if (a == null || b == null || !b) continue
-    const delta = (a - b) / Math.abs(b)
-    if (delta >= -0.01) continue
-    list.push({
-      name,
-      delta,
-      text: `${(delta * 100).toFixed(2)}%`,
-    })
-  }
-  return list.sort((a, b) => a.delta - b.delta).slice(0, 5)
+  const a = sourceProfit.value
+  const b = rebate.value
+  const c = finalProfit.value
+  if (a == null || c == null) return '含后返毛利字段不完整，缺项不填 0。'
+  if (b == null) return `预计毛利 ${yuan(a)}；平台后返缺数，含后返毛利暂不可用。`
+  return `预计毛利 ${yuan(a)} + 平台后返 ${yuan(b)} → 含后返毛利 ${yuan(c)}。`
 })
 
-const storeEmpty = computed(() =>
-  !previous.value || !previous.value.rows.length
-    ? `暂无${deltaLabel.value}对照`
-    : '未发现含后返毛利明显下滑门店',
-)
+const plConclusion = computed(() => {
+  if (empty.value) return ''
+  const inc = totalIncome.value
+  const exp = totalExpense.value
+  const bal = netProfit.value
+  if (inc == null || exp == null || bal == null) return '收支字段不完整，无法生成结论；缺项不填 0。'
+  const gap = Math.abs(inc - exp)
+  if (bal < 0) return `结果 本期总支出比总收入多 ${costMoney(gap, 'yuan')} 元。`
+  if (bal > 0) return `结果 本期总收入比总支出多 ${costMoney(gap, 'yuan')} 元。`
+  return '结果 本期总收入与总支出持平。'
+})
 
 const shortRange = computed(() =>
   filter.periodRange.from === filter.periodRange.to
@@ -253,34 +520,87 @@ const shortRange = computed(() =>
     : `${filter.periodRange.from.slice(5)}~${filter.periodRange.to.slice(5)}`,
 )
 
-function wan(n: number | null) {
-  return n == null ? '—' : costMoney(n, 'wan') + '万'
+function growthOf(key: CostKey | null): number | null {
+  if (!key || !compare.value.ready || !previous.value) return null
+  if ((key === 'rebate' || key === 'sourceProfitWithRebate') && previousFilter.value) {
+    if (
+      !rebateComparable(
+        currentFilter.value.from,
+        currentFilter.value.to,
+        previousFilter.value.from,
+        previousFilter.value.to,
+      )
+    ) {
+      return null
+    }
+  }
+  const cur = amt(summary.value, key)
+  const prev = amt(previous.value, key)
+  return compare.value.growth(cur, prev)
 }
-function money(n: number | null) {
+
+const incomeRows = computed(() =>
+  INCOME_DETAIL_ROWS.map((row) => ({
+    ...row,
+    value: detailAmount(summary.value, row),
+    share: detailShare(summary.value, row, 'income'),
+    growth: growthOf(row.key),
+  })),
+)
+const expenseRows = computed(() =>
+  EXPENSE_DETAIL_ROWS.map((row) => ({
+    ...row,
+    value: detailAmount(summary.value, row),
+    share: detailShare(summary.value, row, 'expense'),
+    growth: growthOf(row.key),
+  })),
+)
+
+function yuan(n: number | null) {
   return costMoney(n, 'yuan')
 }
 function pct(n: number | null) {
   return n == null ? '—' : `${(n * 100).toFixed(2)}%`
 }
-function shortStore(name: string) {
-  return name.replace(/^淘宝便利店/, '').replace(/[（()）]/g, '')
+function pctShare(n: number | null) {
+  return n == null ? '—' : `${(n * 100).toFixed(1)}%`
 }
+function rawText(n: number | null) {
+  return n == null ? '—' : n.toLocaleString('zh-CN', { maximumFractionDigits: 6 })
+}
+function growthText(g: number | null) {
+  if (g == null) return '—'
+  const sign = g > 0 ? '+' : ''
+  return `${sign}${(g * 100).toFixed(2)}%`
+}
+function growthClass(g: number | null, expense = false) {
+  if (g == null || g === 0) return ''
+  const up = g > 0
+  if (expense) return up ? 'cost-unfavorable' : 'cost-favorable'
+  return up ? 'cost-favorable' : 'cost-unfavorable'
+}
+
+watch(
+  () => [filter.periodRange.from, filter.periodRange.to, filter.cityQuery, filter.storeQuery, filter.channel],
+  () => {
+    openDetail.value = false
+  },
+)
 </script>
 
 <style scoped lang="scss">
 .margin-panel :deep(.panel__body) {
-  padding: 6px 10px 8px;
+  padding: 4px 10px 6px;
   min-width: 0;
   overflow: hidden;
 }
-.margin {
+.cost-content {
   height: 100%;
   min-height: 0;
-  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  overflow: hidden;
+  gap: 4px;
 }
 .margin__kpis {
   display: grid;
@@ -288,25 +608,28 @@ function shortStore(name: string) {
   gap: 0;
   flex-shrink: 0;
   border-bottom: 1px solid var(--divider);
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 .kpi {
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 6px;
   border-right: 1px solid var(--divider);
   &:first-child { padding-left: 0; }
   &:last-child { border-right: 0; padding-right: 0; }
   em {
     display: block;
     color: var(--c-muted);
-    font-size: 12px;
+    font-size: 11px;
     font-style: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   b {
     display: block;
-    margin-top: 3px;
+    margin-top: 2px;
     color: var(--c-primary);
-    font: 700 20px/1.1 var(--font-num);
+    font: 700 18px/1.1 var(--font-num);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
@@ -315,161 +638,58 @@ function shortStore(name: string) {
   &.rebate b { color: var(--accent, #ffe14a); }
   &.final b { color: var(--success, #00f0a8); }
   &.rate b { color: var(--primary-2, #3ddcff); }
+  &.neg b { color: var(--danger, #ff6b82); }
 }
-.margin__mid {
+.formula {
+  margin: 0;
+  font-size: 11px;
+  color: var(--c-muted);
+  flex-shrink: 0;
+}
+.tab-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--warn, #fbbf24);
+  flex-shrink: 0;
+}
+.wf-chart {
   flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 10px;
+  min-height: 96px;
+  width: 100%;
+  overflow: hidden;
 }
-.water {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-right: 4px;
-}
-.water__step {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(7, 40, 72, 0.55);
-  span {
-    color: var(--c-body);
-    font-size: 12px;
-  }
-  b {
-    color: #e8f3ff;
-    font: 700 13px/1 var(--font-num);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  i {
-    position: absolute;
-    left: 50%;
-    bottom: -9px;
-    transform: translateX(-50%);
-    color: rgba(148, 190, 230, 0.55);
-    font-style: normal;
-    font-size: 10px;
-    line-height: 1;
-    z-index: 1;
-  }
-  &.down {
-    span { color: #ffb0a0; }
-    b { color: #ff8a6a; }
-  }
-  &.up {
-    span { color: #ffe08a; }
-    b { color: #ffe14a; }
-  }
-  &.mid, &.final {
-    background: rgba(0, 120, 140, 0.22);
-    b { color: #6ef0c8; }
-  }
-  &.final {
-    border: 1px solid rgba(0, 240, 168, 0.35);
-  }
-}
-.factors {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding-left: 8px;
-  border-left: 1px solid var(--divider);
-  header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 6px;
-    margin-bottom: 4px;
-    h4 {
-      margin: 0;
-      color: var(--c-primary);
-      font-size: 13px;
-      font-weight: 750;
-    }
-    small {
-      color: var(--c-muted);
-      font-size: 10px;
-    }
-  }
-}
-.factors__title {
-  margin: 6px 0 4px;
-  color: #9bb4cc;
-  font-size: 11px;
-}
-.factors__empty {
-  margin: 4px 0 8px;
-  color: #6f8aa8;
-  font-size: 11px;
-  line-height: 1.4;
-}
-ol {
+.pl-conclusion {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  li {
-    display: grid;
-    grid-template-columns: 16px 1fr auto;
-    gap: 4px;
-    align-items: center;
-    font-size: 12px;
-    color: #d7e8f8;
-  }
-  em {
-    font-style: normal;
-    color: #8aa4c0;
-  }
-  b {
-    font: 700 12px/1 var(--font-num);
-    &.bad { color: #ff6b82; }
-    &.good { color: #6ef0c8; }
-  }
-}
-.stores {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 12px;
-    color: #d7e8f8;
-  }
-  b.bad {
-    color: #ff6b82;
-    font: 700 12px/1 var(--font-num);
-  }
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--c-body);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .margin__foot {
   flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding-top: 4px;
+  padding-top: 3px;
   border-top: 1px solid var(--divider);
   color: var(--c-muted);
-  font-size: 11px;
+  font-size: 10px;
   white-space: nowrap;
   span:first-child {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+.cost-popup-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 5600;
+  background: rgba(0, 16, 34, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 20px;
 }
 </style>

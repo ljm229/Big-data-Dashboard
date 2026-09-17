@@ -32,7 +32,7 @@ function storeStatus(row: {
   const weak = row.profitRate != null && row.profitRate < 0.12
   const thin = row.profitRate != null && row.profitRate < 0.18
   const highRefund = row.refundRate != null && row.refundRate >= 0.05
-  if (loss || (dropHard && weak)) return { status: '整改中', statusTone: 'bad' as const }
+  if (loss || (dropHard && weak)) return { status: '双弱', statusTone: 'bad' as const }
   if (drop || highRefund || thin) return { status: '关注', statusTone: 'warn' as const }
   return { status: '正常', statusTone: 'good' as const }
 }

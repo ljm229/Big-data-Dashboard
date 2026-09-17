@@ -41,19 +41,28 @@
               </div>
             </template>
           </TopBar>
-          <KeyNumbers />
         </section>
 
-        <main class="body" data-role="bento" data-items="8" data-cells="8">
-          <ProfitTrend class="mod trend" />
-          <div class="mod launch"><LaunchTrack /></div>
-          <CityMatrix class="mod matrix" />
-          <CityMap class="mod map" />
-          <RiskTop class="mod risk" />
-          <ChannelProfit class="mod channel" />
-          <CostBalance class="mod category" />
-          <StoreTop class="mod stores" />
-        </main>
+        <!-- 黄金比例：KPI 15% · 主体 60% · 底部 25% -->
+        <div class="cockpit-band">
+          <section class="kpi-band" aria-label="顶部核心指标">
+            <KeyNumbers />
+          </section>
+
+          <main class="body-main" data-role="bento-main">
+            <ProfitTrend class="mod trend" />
+            <div class="mod launch"><LaunchTrack /></div>
+            <CityMap class="mod map" />
+            <RiskTop class="mod risk" />
+            <ChannelProfit class="mod channel" />
+          </main>
+
+          <section class="body-bottom" data-role="bento-bottom" aria-label="底部分析">
+            <CityMatrix class="mod matrix" />
+            <CostBalance class="mod category" />
+            <StoreTop class="mod stores" />
+          </section>
+        </div>
 
         <footer class="screen__foot">
           <svg class="screen__foot-frame" viewBox="0 0 1920 40" preserveAspectRatio="none" aria-hidden="true">
@@ -284,20 +293,56 @@ watch(activeView, (view) => {
   z-index: 40;
   overflow: visible;
 }
-.body {
+/* 导航以下内容带：KPI 15% · 主体 60% · 底部分析 25% */
+.cockpit-band {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  /* 左5 : 地图9 : 右6 —— 右侧略收，避免风险/渠道表被拉得过散 */
-  grid-template-columns: repeat(20, minmax(0, 1fr));
-  /* 底行加高约 0.5cm（设计稿 +19px）；宽比 3.1:3.1:3.8 → 6:6:8 */
-  grid-template-rows: minmax(0, 306fr) minmax(0, 297fr) minmax(0, 311fr);
-  grid-template-areas:
-    'trend trend trend trend trend map map map map map map map map map risk risk risk risk risk risk'
-    'launch launch launch launch launch map map map map map map map map map channel channel channel channel channel channel'
-    'matrix matrix matrix matrix matrix matrix category category category category category category stores stores stores stores stores stores stores stores';
+  grid-template-rows: minmax(0, 15fr) minmax(0, 60fr) minmax(0, 25fr);
   gap: 8px;
   z-index: 1;
+}
+.kpi-band {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  :deep(.kpi) {
+    height: 100%;
+    min-height: 0;
+  }
+}
+/* 主体：左 30% · 中 40% · 右 30% */
+.body-main {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 30fr) minmax(0, 40fr) minmax(0, 30fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'trend map risk'
+    'launch map channel';
+  gap: 8px;
+}
+/* 底部：城市矩阵 30% · 毛利/收支 35% · 门店表现 35%；可略向下滚动 */
+.body-bottom {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 30fr) minmax(0, 35fr) minmax(0, 35fr);
+  grid-template-areas: 'matrix category stores';
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(94, 200, 255, 0.4) transparent;
+  padding-bottom: 2px;
+  /* 内容略高于可视区时可下拉 */
+  .mod {
+    min-height: max(100%, 260px);
+  }
 }
 .screen__foot {
   height: 40px;

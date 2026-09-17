@@ -1,7 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { COST_FIELDS, EXPENSE_KEYS, selectCostFacts, summarizeCosts, costComparison, costMoney } from '../src/utils/costAnalysis.ts'
+import {
+  COST_FIELDS,
+  EXPENSE_KEYS,
+  REBATE_EFFECTIVE_DATE,
+  selectCostFacts,
+  summarizeCosts,
+  costComparison,
+  costMoney,
+  rebateEffectiveInRange,
+  rebateComparable,
+} from '../src/utils/costAnalysis.ts'
 
 const real = JSON.parse(readFileSync(new URL('../src/data/costData.json', import.meta.url), 'utf8'))
 const range = { from: '2026-09-13', to: '2026-09-13' }
@@ -118,4 +128,24 @@ test('daily and weekly comparison follow filters; empty baseline stays blank', (
     costComparison(summarizeCosts(select(week)), summarizeCosts(select(prevWeek)), week, prevWeek).ready,
     true,
   )
+})
+
+test('rebate inactive before 2026-07-07 leaves rebate null and skips cross-boundary compare', () => {
+  assert.equal(REBATE_EFFECTIVE_DATE, '2026-07-07')
+  assert.equal(rebateEffectiveInRange('2026-07-01', '2026-07-06'), false)
+  assert.equal(rebateEffectiveInRange('2026-07-07', '2026-07-07'), true)
+  assert.equal(rebateComparable('2026-07-08', '2026-07-08', '2026-07-01', '2026-07-01'), false)
+  const inactive = summarizeCosts([fact({ rebate: 40, sourceProfitWithRebate: 290 })], { rebateActive: false })
+  assert.equal(inactive.rebateActive, false)
+  assert.equal(inactive.amounts.rebate.value, null)
+  assert.equal(inactive.withRebate, null)
+  assert.equal(inactive.marginRateWithRebate, null)
+})
+
+test('raw identity verifies income - expense = balance without display rounding', () => {
+  const r = summary()
+  assert.equal(r.identityOk, true)
+  assert.ok(Math.abs(r.rawIncome - r.rawExpense - r.rawBalance) < 1e-9)
+  assert.equal(r.netRate != null, true)
+  assert.ok(Math.abs(r.netRate - r.balance / r.income) < 1e-9)
 })

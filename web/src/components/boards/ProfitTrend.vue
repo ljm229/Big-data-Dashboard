@@ -21,6 +21,12 @@
         </div>
       </div>
       <p v-if="insight" class="trend__insight" :class="insight.tone">{{ insight.text }}</p>
+      <!-- 图例外置，避免与 Y 轴「25万」等刻度叠成看不清的白块 -->
+      <ul class="trend__legend" aria-label="图例">
+        <li><i class="lg-bar" />订单量</li>
+        <li><i class="lg-paid" />实付金额</li>
+        <li><i class="lg-profit" />含后返毛利</li>
+      </ul>
       <div ref="el" class="trend__chart" />
     </div>
   </Panel>
@@ -261,7 +267,8 @@ watch(
     const rows = points.value
     const moneyVals = rows.flatMap((r) => [r.paid, r.profit]).filter((v): v is number => v != null)
     const moneyMax = axisCap(moneyVals, 1000, 1.12)
-    const useWan = moneyMax >= 1e6
+    // 满 1 万即用「万」，避免 250000 / 166667 这类难读刻度
+    const useWan = moneyMax >= 1e4
     const orderMax = axisCap(
       rows.map((r) => r.orders).filter((v): v is number => v != null && v >= 0),
       10,
@@ -278,66 +285,59 @@ watch(
           ? selectedMonthId.value
           : periodRange.value.to
 
+    const fmtMoneyAxis = (v: number) => {
+      if (!Number.isFinite(v) || v === 0) return '0'
+      if (useWan || Math.abs(v) >= 10000) {
+        const w = v / 1e4
+        return Number.isInteger(w) ? `${w}万` : `${w.toFixed(1)}万`
+      }
+      if (Math.abs(v) >= 1000) return `${Math.round(v / 100) / 10}k`
+      return `${Math.round(v)}`
+    }
+
     option.value = {
       animationDuration: 200,
       animationDurationUpdate: 0,
       color: [orderColor, paidColor, profitColor],
       tooltip: {
         trigger: 'axis',
+        confine: true,
+        appendToBody: false,
         axisPointer: {
-          type: 'cross',
-          crossStyle: { color: 'rgba(150,200,235,0.45)' },
-          label: {
-            formatter: (p: { axisDimension?: string; value?: number | string; axisIndex?: number }) => {
-              const raw = Number(p.value)
-              if (!Number.isFinite(raw)) return String(p.value ?? '')
-              if (p.axisDimension === 'y') {
-                if (p.axisIndex === 1) return String(Math.round(raw))
-                return useWan ? `${(raw / 1e4).toFixed(2)}万` : formatMoney(raw).replace(/元$/, '')
-              }
-              return String(p.value ?? '')
-            },
-          },
+          type: 'shadow',
+          shadowStyle: { color: 'rgba(94, 180, 255, 0.12)' },
+          label: { show: false },
         },
         backgroundColor: PALETTE.panelDeep,
         borderColor: PALETTE.accent,
-        textStyle: { color: '#f3f8ff', fontSize: 15, fontWeight: 700 },
+        padding: [6, 8],
+        textStyle: { color: '#f3f8ff', fontSize: 12, fontWeight: 700 },
         formatter: (params: { dataIndex: number }[]) => {
           const row = rows[params[0]?.dataIndex]
           if (!row) return ''
           const head = row.sub ? `${row.label}　${row.sub}` : row.label
-          return `<div style="font-weight:700;margin-bottom:8px;color:#fff">${head}</div>
-            <div style="display:grid;grid-template-columns:auto auto;gap:5px 20px;align-items:center">
-              <span style="color:#c9d7ea">订单量</span><b style="color:${orderColor}">${formatInt(row.orders)}</b>
-              <span style="color:#c9d7ea">实付金额</span><b style="color:${paidColor}">${formatMoney(row.paid)}</b>
-              <span style="color:#c9d7ea">含后返毛利</span><b style="color:${profitColor}">${formatMoney(row.profit)}</b>
-              <span style="color:#c9d7ea">毛利率</span><b style="color:#8fd4ff">${formatPercent(row.profitRate)}</b>
+          return `<div style="font-weight:700;margin-bottom:4px;color:#fff;font-size:12px">${head}</div>
+            <div style="display:grid;grid-template-columns:auto auto;gap:2px 12px;align-items:center;font-size:11px">
+              <span style="color:#c9d7ea;font-weight:500">订单量</span><b style="color:${orderColor}">${formatInt(row.orders)}</b>
+              <span style="color:#c9d7ea;font-weight:500">实付金额</span><b style="color:${paidColor}">${formatMoney(row.paid)}</b>
+              <span style="color:#c9d7ea;font-weight:500">含后返毛利</span><b style="color:${profitColor}">${formatMoney(row.profit)}</b>
+              <span style="color:#c9d7ea;font-weight:500">毛利率</span><b style="color:#8fd4ff">${formatPercent(row.profitRate)}</b>
             </div>`
         },
       },
-      legend: {
-        data: [
-          { name: '订单量', icon: 'roundRect' },
-          { name: '实付金额', icon: 'path://M0,0 L12,0' },
-          { name: '含后返毛利', icon: 'path://M0,0 L3,0 M5,0 L8,0 M10,0 L12,0' },
-        ],
-        bottom: 0,
-        left: 'center',
-        itemWidth: 14,
-        itemHeight: 6,
-        itemGap: 16,
-        textStyle: { color: '#d7e8f8', fontSize: 12, fontWeight: 600 },
-      },
-      grid: { left: 52, right: 36, top: 10, bottom: mode === 'day' ? 48 : 52, containLabel: false },
+      legend: { show: false },
+      // 图例外置后，绘图区下移一点、底部少留白，避免上挤下空
+      grid: { left: 4, right: 4, top: 12, bottom: 8, containLabel: true },
       xAxis: {
         type: 'category',
         data: rows.map((r) => r.key),
         boundaryGap: true,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: 'rgba(150,200,235,0.28)' } },
+        axisPointer: { label: { show: false } },
         axisLabel: {
           color: '#d7e8f8',
-          margin: 10,
+          margin: 8,
           interval: 0,
           formatter: (_: string, index: number) => {
             const row = rows[index]
@@ -348,19 +348,19 @@ watch(
           rich: {
             d: {
               color: '#e8f4ff',
-              fontSize: mode === 'day' ? 13 : 12,
+              fontSize: mode === 'day' ? 12 : 11,
               fontWeight: 700,
               fontFamily: 'Bahnschrift, Segoe UI, sans-serif',
-              lineHeight: 17,
+              lineHeight: 16,
             },
             a: {
               color: '#FFE14A',
-              fontSize: mode === 'day' ? 13 : 12,
+              fontSize: mode === 'day' ? 12 : 11,
               fontWeight: 800,
               fontFamily: 'Bahnschrift, Segoe UI, sans-serif',
-              lineHeight: 17,
+              lineHeight: 16,
             },
-            w: { color: '#9bb8d4', fontSize: 11, lineHeight: 15 },
+            w: { color: '#9bb8d4', fontSize: 10, lineHeight: 14 },
           },
         },
       },
@@ -374,11 +374,14 @@ watch(
           interval: moneyMax / 3,
           splitNumber: 3,
           splitLine: { lineStyle: { color: 'rgba(70, 210, 255, 0.14)', type: 'dashed', width: 1 } },
+          axisPointer: { label: { show: false } },
           axisLabel: {
             color: '#7ec8ee',
-            fontSize: 11,
-            fontWeight: 700,
-            formatter: (v: number) => (useWan ? `${(v / 1e4).toFixed(2)}万` : `${Math.round(v)}`),
+            fontSize: 12,
+            fontWeight: 600,
+            margin: 8,
+            hideOverlap: true,
+            formatter: fmtMoneyAxis,
           },
         },
         {
@@ -390,11 +393,14 @@ watch(
           interval: orderMax / 3,
           splitNumber: 3,
           splitLine: { show: false },
+          axisPointer: { label: { show: false } },
           axisLabel: {
             color: orderColor,
-            fontSize: 11,
-            fontWeight: 700,
-            formatter: (v: number) => `${Math.round(v)}`,
+            fontSize: 12,
+            fontWeight: 600,
+            margin: 8,
+            hideOverlap: true,
+            formatter: (v: number) => (v >= 1000 ? `${Math.round(v / 100) / 10}k` : `${Math.round(v)}`),
           },
         },
       ],
@@ -403,8 +409,8 @@ watch(
           name: '订单量',
           type: 'bar',
           yAxisIndex: 1,
-          barWidth: 11,
-          barMaxWidth: 12,
+          barWidth: '42%',
+          barMaxWidth: 28,
           z: 3,
           data: rows.map((r) => ({
             value: r.orders,
@@ -470,7 +476,8 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  overflow: hidden;
 }
 .trend__stats {
   display: grid;
@@ -480,21 +487,21 @@ watch(
 }
 .stat {
   min-width: 0;
-  padding: 0 8px 2px;
+  padding: 0 6px 2px;
   border: 0;
   border-bottom: 1px solid var(--divider);
   background: transparent;
   em {
     display: block;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
     font-style: normal;
   }
   b {
     display: block;
     margin-top: 1px;
     color: var(--c-num);
-    font: 700 20px/1.1 var(--font-num);
+    font: 700 18px/1.1 var(--font-num);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
@@ -506,11 +513,11 @@ watch(
 }
 .trend__insight {
   flex-shrink: 0;
-  margin: 2px 0 0;
-  padding: 3px 8px;
+  margin: 0;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
   color: #d7e8f8;
   background: rgba(8, 40, 72, 0.55);
   border: 1px solid rgba(94, 180, 255, 0.22);
@@ -527,9 +534,76 @@ watch(
     border-color: rgba(255, 61, 90, 0.4);
   }
 }
+.trend__legend {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #d7e8f8;
+  font-size: 11px;
+  font-weight: 600;
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  i {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .lg-bar {
+    width: 12px;
+    height: 8px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #ffe14a, #e09418);
+  }
+  .lg-paid {
+    width: 14px;
+    height: 0;
+    border-top: 2px solid #3ddcff;
+    border-radius: 1px;
+    position: relative;
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: -5px;
+      width: 6px;
+      height: 6px;
+      margin-left: -3px;
+      border-radius: 50%;
+      background: #3ddcff;
+      box-shadow: 0 0 0 1px #083056;
+    }
+  }
+  .lg-profit {
+    width: 14px;
+    height: 0;
+    border-top: 2px dashed #00f0a8;
+    position: relative;
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: -5px;
+      width: 6px;
+      height: 6px;
+      margin-left: -3px;
+      background: #00f0a8;
+      transform: rotate(45deg);
+      box-shadow: 0 0 0 1px #083056;
+    }
+  }
+}
 .trend__chart {
-  flex: 1;
-  min-height: 168px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 2px;
   width: 100%;
 }
 </style>

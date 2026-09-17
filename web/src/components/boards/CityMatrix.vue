@@ -3,16 +3,17 @@
   X：有效订单量环比增速
   Y：毛利率（含平台后返）
   气泡：实付金额
-  颜色：绿健康 / 黄关注 / 红整改
+  颜色：右上绿健康 / 左上青流量弱 / 右下黄规模压 / 左下红双弱
 -->
 <template>
   <Panel title="城市经营健康矩阵" :empty="!rows.length">
     <template #extra>
-      <span class="matrix-note">
-        订单↑毛利高=绿 · 离群钉右缘
+      <span class="matrix-note" title="横轴=订单环比增速，纵轴=毛利率(含后返)，球大小=实付；四色对应四象限">
+        球=实付
         <i class="leg good" />健康
-        <i class="leg warn" />关注
-        <i class="leg bad" />整改
+        <i class="leg thin" />流量弱
+        <i class="leg warn" />规模压
+        <i class="leg bad" />双弱
       </span>
       <button type="button" class="matrix-zoom-btn" title="回到主体城市视角" @click="resetZoom">复位</button>
       <button type="button" class="matrix-zoom-btn" title="显示全部城市含离群点" @click="showAll">全部</button>
@@ -61,96 +62,87 @@ function quantile(vals: number[], q: number) {
   return s[lo]! * (1 - (i - lo)) + s[hi]! * (i - lo)
 }
 
-/** 主体视角：用 IQR 丢掉极端离群点，避免济南这类点把绿点挤到画面左侧 */
+/** 主体视角：用分位裁掉极端离群，避免高增点把黄/绿球挤到左侧 */
 function focusSpan(vals: number[], pad: number, softMin: number, softMax: number) {
   if (!vals.length) return { min: softMin - pad, max: softMax + pad }
-  const q1 = quantile(vals, 0.25)
-  const q3 = quantile(vals, 0.75)
-  const iqr = Math.max(q3 - q1, 0.06)
-  const lo = Math.max(Math.min(...vals), q1 - 1.5 * iqr)
-  const hi = Math.min(Math.max(...vals), q3 + 1.5 * iqr)
+  const lo = quantile(vals, 0.1)
+  const hi = quantile(vals, 0.85)
   return {
     min: Math.min(softMin, lo) - pad,
     max: Math.max(softMax, hi) + pad,
   }
 }
 
-/** 作图用横轴上限：极端增速钉在右缘，真实值仍在 tooltip */
+/** 默认视野右缘跟主体走，不再强行拉到 36% 造成右半空白 */
 function plotCapX(vals: number[], focusMax: number) {
-  return Math.max(0.36, focusMax + 0.06, quantile(vals, 0.8) + 0.05)
+  if (!vals.length) return Math.max(focusMax, 0.12)
+  const q90 = quantile(vals, 0.9)
+  return Math.max(focusMax, Math.min(Math.max(q90, focusMax) + 0.03, focusMax + 0.08))
 }
 
+const viewMode = ref<'focus' | 'all'>('focus')
+
 function resetZoom() {
-  const c = chart.value
-  const v = viewBox.value
-  if (!c) return
-  c.dispatchAction({
-    type: 'dataZoom',
-    batch: [
-      { dataZoomIndex: 0, startValue: v.xMin, endValue: v.xMax },
-      { dataZoomIndex: 1, startValue: v.yMin, endValue: v.yMax },
-    ],
-  })
+  viewMode.value = 'focus'
 }
 
 function showAll() {
-  const c = chart.value
-  const v = viewBox.value
-  if (!c) return
-  c.dispatchAction({
-    type: 'dataZoom',
-    batch: [
-      { dataZoomIndex: 0, startValue: v.fullXMin, endValue: v.fullXMax },
-      { dataZoomIndex: 1, startValue: v.fullYMin, endValue: v.fullYMax },
-    ],
-  })
+  viewMode.value = 'all'
 }
 
-type ZoneKey = 'healthy' | 'scaleLoss' | 'profitThin' | 'rectify'
+type ZoneKey = 'healthy' | 'scaleLoss' | 'profitThin' | 'weak'
 
+/** 四象限四色：右上绿 / 左上青 / 右下黄 / 左下红 */
 const ZONE = {
   healthy: {
     name: '健康增长',
     formula: '订单↑ · 毛利高',
-    action: '扩大投入',
+    action: '可加大投入',
     color: '#00F0A8',
     tone: '健康',
-  },
-  scaleLoss: {
-    name: '规模亏损',
-    formula: '订单↑ · 毛利低',
-    action: '控制成本/活动',
-    color: '#FFE14A',
-    tone: '关注',
   },
   profitThin: {
     name: '流量不足',
     formula: '订单↓ · 毛利高',
-    action: '提升流量',
-    color: '#FFE14A',
-    tone: '关注',
+    action: '关注流量',
+    color: '#3DB8FF',
+    tone: '流量弱',
   },
-  rectify: {
-    name: '重点整改',
+  scaleLoss: {
+    name: '规模承压',
+    formula: '订单↑ · 毛利低',
+    action: '关注成本/活动',
+    color: '#FFE14A',
+    tone: '规模压',
+  },
+  weak: {
+    name: '双弱',
     formula: '订单↓ · 毛利低',
-    action: '专项优化',
+    action: '优先排查',
     color: '#FF3D5A',
-    tone: '整改',
+    tone: '双弱',
   },
 } as const
 
-function zoneOf(growth: number, margin: number): ZoneKey {
-  const up = growth >= X_MID
+/** 按图上落点分区，保证球色与所在象限一致（含离群钉边） */
+function zoneOf(plotX: number, margin: number): ZoneKey {
+  const up = plotX >= X_MID
   const rich = margin >= Y_MID
   if (up && rich) return 'healthy'
   if (up && !rich) return 'scaleLoss'
   if (!up && rich) return 'profitThin'
-  return 'rectify'
+  return 'weak'
 }
 
 /** 有效订单量：源表 orders（有效订单，已剔整单退订） */
 function effectiveOrders(row: { orders: number | null }) {
   return row.orders
+}
+
+/** 城市毛利率：用合计 含后返毛利/实付，与球坐标、分区同口径（不用行内 rate 加权，避免错位） */
+function cityMarginRate(row: { profit: number | null; paid: number | null; profitRate: number | null }) {
+  if (row.profit != null && row.paid != null && row.paid !== 0) return row.profit / row.paid
+  return row.profitRate
 }
 
 const rows = computed(() => {
@@ -172,13 +164,13 @@ const rows = computed(() => {
         prevOrders != null && prevOrders !== 0 && orders != null
           ? (orders - prevOrders) / Math.abs(prevOrders)
           : null
+      const marginWithRebate = cityMarginRate(r)
       return {
         ...r,
         orders,
         paid,
         growth,
-        /** 源表 marginRate 加权，口径为毛利率（含平台后返） */
-        marginWithRebate: r.profitRate,
+        marginWithRebate,
       }
     })
     .filter(
@@ -198,7 +190,7 @@ const rows = computed(() => {
 const { chart } = useChart(el, option)
 
 watch(
-  [rows, selectedCities],
+  [rows, selectedCities, viewMode],
   () => {
     if (!rows.value.length) {
       option.value = null
@@ -207,19 +199,24 @@ watch(
     const maxPaid = Math.max(...rows.value.map((r) => Math.abs(r.paid)), 1)
     const xs = rows.value.map((r) => r.growth)
     const ys = rows.value.map((r) => r.marginWithRebate)
-    const xFocus = focusSpan(xs, 0.03, -0.12, 0.18)
-    const yFocus = focusSpan(ys, 0.02, 0, 0.28)
-    // 主体窗口不得小于分界线附近可读范围
-    const xMin = Math.min(xFocus.min, -0.08)
-    const xMax = Math.max(xFocus.max, 0.15)
-    const yMin = Math.min(yFocus.min, -0.02)
+    const xFocus = focusSpan(xs, 0.012, -0.08, 0.06)
+    const yFocus = focusSpan(ys, 0.012, 0.04, 0.26)
+    const xMin = Math.min(xFocus.min, -0.05)
+    const xMax = Math.max(xFocus.max, 0.08)
+    const yMin = Math.min(yFocus.min, 0)
     const yMax = Math.max(yFocus.max, 0.26)
-    // 全景横轴软裁剪：极端增速钉在右缘，避免把「健康」绿点挤到画面左侧
-    const xCap = plotCapX(xs, xMax)
-    const fullXMin = Math.min(-0.12, ...xs) - 0.02
-    const fullXMax = xCap + 0.02
-    const fullYMin = Math.min(-0.03, ...ys) - 0.02
+    const rawMax = Math.max(...xs, xMax)
+    const fullXMin = Math.min(-0.1, ...xs) - 0.02
+    const fullXMax = rawMax + 0.03
+    const fullYMin = Math.min(-0.02, ...ys) - 0.015
     const fullYMax = Math.max(0.28, ...ys) + 0.02
+    // 默认主体视野：轴范围=焦点，离群钉在右缘；「全部」才拉满
+    const focus = viewMode.value === 'focus'
+    const axisXMin = focus ? xMin : fullXMin
+    const axisXMax = focus ? xMax : fullXMax
+    const axisYMin = focus ? yMin : fullYMin
+    const axisYMax = focus ? yMax : fullYMax
+    const xCap = focus ? xMax : plotCapX(xs, xMax)
     viewBox.value = { xMin, xMax, yMin, yMax, fullXMin, fullXMax, fullYMin, fullYMax }
 
     const zoneLabel = (key: ZoneKey, position: string) => ({
@@ -275,14 +272,16 @@ watch(
           const z = ZONE[d.zone]
           const g = (d.growth * 100).toFixed(2)
           const m = formatPercent(d.value[1])
+          const side = d.growth >= X_MID ? '右' : '左'
+          const tall = d.value[1] >= Y_MID ? '上' : '下'
           const capHint = d.capped
             ? `<span style="color:#ffe14a">增速离群，已钉在右缘（真实 ${Number(g) >= 0 ? '+' : ''}${g}%）</span>`
             : null
           return [
-            `<b>${d.name}</b> · <span style="color:${z.color}">${z.formula} · ${z.name}</span>`,
+            `<b>${d.name}</b> · <span style="color:${z.color}">${side}${tall} · ${z.formula} · ${z.tone}</span>`,
             `动作建议：${z.action}`,
             `订单增长率 ${Number(g) >= 0 ? '+' : ''}${g}%`,
-            `毛利率(含后返) ${m}`,
+            `毛利率(含后返) ${m}　（毛利÷实付）`,
             `实付金额 ${formatMoney(d.paid)}`,
             `有效订单量 ${d.orders.toLocaleString('zh-CN')}`,
             `预计毛利 ${formatMoney(d.profit)}`,
@@ -293,14 +292,14 @@ watch(
             .join('<br/>')
         },
       },
-      grid: { left: 56, right: 28, top: 36, bottom: 44, containLabel: false },
+      grid: { left: 38, right: 8, top: 12, bottom: 22, containLabel: false },
       dataZoom: [
         {
           type: 'inside',
           xAxisIndex: 0,
           filterMode: 'none',
-          startValue: xMin,
-          endValue: xMax,
+          startValue: axisXMin,
+          endValue: axisXMax,
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,
@@ -310,8 +309,8 @@ watch(
           type: 'inside',
           yAxisIndex: 0,
           filterMode: 'none',
-          startValue: yMin,
-          endValue: yMax,
+          startValue: axisYMin,
+          endValue: axisYMax,
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,
@@ -322,10 +321,10 @@ watch(
         type: 'value',
         name: '低增长 ← 订单增长率 → 高增长',
         nameLocation: 'middle',
-        nameGap: 24,
-        nameTextStyle: { color: '#9ec9e8', fontSize: 11 },
-        min: fullXMin,
-        max: fullXMax,
+        nameGap: 16,
+        nameTextStyle: { color: '#9ec9e8', fontSize: 10 },
+        min: axisXMin,
+        max: axisXMax,
         axisLabel: {
           formatter: (v: number) => `${(v * 100).toFixed(0)}%`,
           color: '#8fb0c8',
@@ -337,12 +336,13 @@ watch(
       },
       yAxis: {
         type: 'value',
-        name: '高毛利率 ↑',
-        nameLocation: 'end',
-        nameGap: 6,
-        nameTextStyle: { color: '#9ec9e8', fontSize: 11 },
-        min: fullYMin,
-        max: fullYMax,
+        name: '毛利率(含后返)',
+        nameLocation: 'middle',
+        nameGap: 28,
+        nameRotate: 90,
+        nameTextStyle: { color: '#9ec9e8', fontSize: 10 },
+        min: axisYMin,
+        max: axisYMax,
         axisLabel: {
           formatter: (v: number) => `${(v * 100).toFixed(0)}%`,
           color: '#8fb0c8',
@@ -357,57 +357,94 @@ watch(
           type: 'scatter',
           z: 3,
           cursor: 'pointer',
-          data: rows.value.map((r) => {
-            const zone = zoneOf(r.growth, r.marginWithRebate)
-            const color = ZONE[zone].color
-            const picked = selectedCities.value.some((c) => c === r.key)
-            const capped = r.growth > xCap
-            const plotX = Math.min(r.growth, xCap)
-            return {
-              name: r.key,
-              growth: r.growth,
-              capped,
-              value: [plotX, r.marginWithRebate],
-              orders: r.orders,
-              paid: r.paid,
-              profit: r.profit,
-              zone,
-              itemStyle: {
-                color: vividSphere(color),
-                opacity: 1,
-                borderColor: capped ? '#FFE14A' : picked ? '#fff' : 'rgba(255,255,255,0.75)',
-                borderWidth: capped || picked ? 2.4 : 1.3,
-                shadowBlur: 16,
-                shadowColor: color,
-              },
-              label: {
-                show: true,
-                formatter: capped ? '{b}·离群' : '{b}',
-                color: '#ffffff',
-                fontSize: 11,
-                fontWeight: 700,
-                position: 'top',
-                distance: 8,
-                textBorderColor: 'rgba(4, 22, 48, 0.9)',
-                textBorderWidth: 2.5,
-              },
-            }
-          }),
+          data: (() => {
+            const labelPos = ['top', 'bottom', 'left', 'right'] as const
+            const sorted = [...rows.value].sort((a, b) => Math.abs(b.paid) - Math.abs(a.paid))
+            const rank = new Map(sorted.map((r, i) => [r.key, i]))
+            return rows.value.map((r) => {
+              const capped = r.growth > xCap
+              const plotX = Math.min(r.growth, xCap)
+              const zone = zoneOf(plotX, r.marginWithRebate)
+              const color = ZONE[zone].color
+              const picked = selectedCities.value.some((c) => c === r.key)
+              const i = rank.get(r.key) ?? 0
+              return {
+                name: r.key,
+                growth: r.growth,
+                capped,
+                value: [plotX, r.marginWithRebate],
+                orders: r.orders,
+                paid: r.paid,
+                profit: r.profit,
+                zone,
+                itemStyle: {
+                  color: vividSphere(color),
+                  opacity: 0.96,
+                  borderColor: capped ? '#FFE14A' : picked ? '#fff' : 'rgba(255,255,255,0.7)',
+                  borderWidth: capped || picked ? 2.2 : 1.2,
+                  shadowBlur: 10,
+                  shadowColor: color,
+                },
+                label: {
+                  show: true,
+                  formatter: capped ? '{b}·离群' : '{b}',
+                  color: '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  position: capped ? 'left' : labelPos[i % labelPos.length],
+                  distance: 6 + (i % 3) * 3,
+                  textBorderColor: 'rgba(4, 22, 48, 0.92)',
+                  textBorderWidth: 2.5,
+                },
+              }
+            })
+          })(),
           symbol: 'circle',
           symbolSize: (_v: number[], p: { data: { paid: number } }) =>
-            12 + Math.sqrt(Math.abs(p.data.paid) / maxPaid) * 28,
-          labelLayout: { hideOverlap: true, moveOverlap: 'shiftY' },
+            18 + Math.sqrt(Math.abs(p.data.paid) / maxPaid) * 38,
+          labelLayout: {
+            hideOverlap: true,
+            moveOverlap: 'shiftY',
+            draggable: false,
+          },
           emphasis: {
-            scale: 1.12,
-            label: { show: true, fontSize: 12 },
+            scale: 1.1,
+            focus: 'self',
+            label: { show: true, fontSize: 12, position: 'top' },
+            itemStyle: { shadowBlur: 18 },
+          },
+          blur: {
+            label: { show: false },
+            itemStyle: { opacity: 0.35 },
           },
           markLine: {
             silent: true,
             symbol: 'none',
             animation: false,
-            label: { show: false },
-            lineStyle: { type: 'dashed', width: 1, color: 'rgba(120, 200, 230, 0.5)' },
-            data: [{ xAxis: X_MID }, { yAxis: Y_MID }],
+            data: [
+              {
+                xAxis: X_MID,
+                label: {
+                  show: true,
+                  formatter: '增速 0%',
+                  position: 'insideEndTop',
+                  color: '#9ec9e8',
+                  fontSize: 10,
+                },
+                lineStyle: { type: 'solid', width: 1.2, color: 'rgba(120, 200, 230, 0.65)' },
+              },
+              {
+                yAxis: Y_MID,
+                label: {
+                  show: true,
+                  formatter: '毛利率 18%',
+                  position: 'insideStartTop',
+                  color: '#9ec9e8',
+                  fontSize: 10,
+                },
+                lineStyle: { type: 'dashed', width: 1.2, color: 'rgba(120, 200, 230, 0.65)' },
+              },
+            ],
           },
           markArea: {
             silent: true,
@@ -416,11 +453,11 @@ watch(
               [
                 {
                   name: ZONE.profitThin.name,
-                  xAxis: fullXMin,
+                  xAxis: axisXMin,
                   yAxis: Y_MID,
                   label: zoneLabel('profitThin', 'insideTopLeft'),
                 },
-                { xAxis: X_MID, yAxis: fullYMax },
+                { xAxis: X_MID, yAxis: axisYMax },
               ],
               [
                 {
@@ -429,14 +466,14 @@ watch(
                   yAxis: Y_MID,
                   label: zoneLabel('healthy', 'insideTopRight'),
                 },
-                { xAxis: fullXMax, yAxis: fullYMax },
+                { xAxis: axisXMax, yAxis: axisYMax },
               ],
               [
                 {
-                  name: ZONE.rectify.name,
-                  xAxis: fullXMin,
-                  yAxis: fullYMin,
-                  label: zoneLabel('rectify', 'insideBottomLeft'),
+                  name: ZONE.weak.name,
+                  xAxis: axisXMin,
+                  yAxis: axisYMin,
+                  label: zoneLabel('weak', 'insideBottomLeft'),
                 },
                 { xAxis: X_MID, yAxis: Y_MID },
               ],
@@ -444,10 +481,10 @@ watch(
                 {
                   name: ZONE.scaleLoss.name,
                   xAxis: X_MID,
-                  yAxis: fullYMin,
+                  yAxis: axisYMin,
                   label: zoneLabel('scaleLoss', 'insideBottomRight'),
                 },
-                { xAxis: fullXMax, yAxis: Y_MID },
+                { xAxis: axisXMax, yAxis: Y_MID },
               ],
             ],
           },
@@ -508,6 +545,10 @@ watch(chart, (c) => {
   background: #00f0a8;
   color: #00f0a8;
 }
+.leg.thin {
+  background: #3db8ff;
+  color: #3db8ff;
+}
 .leg.warn {
   background: #ffe14a;
   color: #ffe14a;
@@ -519,6 +560,12 @@ watch(chart, (c) => {
 .chart {
   width: 100%;
   height: 100%;
+  min-height: 0;
+}
+:deep(.panel__body) {
+  padding: 4px 6px 6px;
+}
+:deep(.panel__content) {
   min-height: 0;
 }
 </style>
