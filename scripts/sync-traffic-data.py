@@ -8,11 +8,26 @@ import sys
 import openpyxl
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT = ROOT / '数据源1/淘宝闪购商家/流量分析-分来源数据下载_8.15-9.13.xlsx'
+TRAFFIC_DIR = ROOT / '数据源1' / '淘宝闪购商家'
+LEGACY_DEFAULT = TRAFFIC_DIR / '流量分析-分来源数据下载_8.15-9.13.xlsx'
 FIELDS = {'exposure': '曝光人数', 'entry': '进店人数', 'orders': '下单人数'}
 DIMENSIONS = {'分平台渠道': 'platform', '淘宝闪购APP内渠道': 'app'}
 DAY_RE = re.compile(r'^\d{8}$')
 PERIOD_RE = re.compile(r'^(\d{8})-(\d{8})$')
+
+
+def latest_traffic_source() -> Path:
+    """Prefer newest 流量分析-分来源*.xlsx under 淘宝闪购商家."""
+    if not TRAFFIC_DIR.is_dir():
+        return LEGACY_DEFAULT
+    hits = [
+        p for p in TRAFFIC_DIR.glob('流量分析-分来源*.xlsx')
+        if p.is_file() and not p.name.startswith('~$')
+    ]
+    if not hits:
+        return LEGACY_DEFAULT
+    hits.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+    return hits[0]
 
 
 def count(value):
@@ -124,7 +139,7 @@ def build(source):
 
 
 def main():
-    source = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else DEFAULT
+    source = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else latest_traffic_source()
     if not source.exists():
         raise SystemExit(f'找不到源文件：{source}')
     payload = build(source)

@@ -1,32 +1,42 @@
-<!-- 重点门店经营排行：表头固定；列表自动滚动，悬停暂停可手动滑 -->
+<!-- 门店经营表现：看状态与趋势，不比谁第一 -->
 <template>
-  <Panel title="重点门店经营排行" :empty="!viewRows.length">
+  <Panel title="门店经营表现" :empty="!viewRows.length" empty-text="当前筛选下暂无门店经营数据">
     <template #extra>
       <div class="tools">
         <SelectMenu
-          class="city-select"
+          class="tool-select"
           :model-value="scopeCity"
           :options="cityOptions"
           :searchable="false"
           @update:model-value="(v) => (scopeCity = Array.isArray(v) ? v[0] || '全国' : v)"
         />
-        <div class="tabs" role="tablist" aria-label="门店分型">
-          <button type="button" role="tab" :aria-selected="tab === 'all'" :class="{ on: tab === 'all' }" @click="tab = 'all'">全部</button>
-          <button type="button" role="tab" :aria-selected="tab === 'risk'" :class="{ on: tab === 'risk' }" @click="tab = 'risk'">预警门店</button>
-          <button type="button" role="tab" :aria-selected="tab === 'high'" :class="{ on: tab === 'high' }" @click="tab = 'high'">高毛利门店</button>
-        </div>
+        <SelectMenu
+          class="tool-select wide"
+          :model-value="viewFilter"
+          :options="filterOptions"
+          :searchable="false"
+          @update:model-value="(v) => (viewFilter = String(Array.isArray(v) ? v[0] : v) as ViewFilter)"
+        />
+        <SelectMenu
+          class="tool-select wide"
+          :model-value="sortBy"
+          :options="sortOptions"
+          :searchable="false"
+          @update:model-value="(v) => (sortBy = String(Array.isArray(v) ? v[0] : v) as SortKey)"
+        />
       </div>
     </template>
     <div class="top">
       <div class="top__head">
-        <span>#</span>
-        <span>门店名称</span>
+        <span>门店</span>
         <span>城市</span>
-        <span>毛利</span>
+        <span>订单</span>
+        <span>实付</span>
+        <span>预计毛利</span>
+        <span>含后返毛利</span>
         <span>毛利率</span>
-        <span>有效订单量</span>
-        <span>日比</span>
-        <span>异常状态</span>
+        <span>趋势</span>
+        <span>状态</span>
       </div>
       <div
         ref="viewport"
@@ -45,14 +55,15 @@
             :class="{ active: selectedStores.includes(row.key) }"
             @click="toggleStore(row.key)"
           >
-            <em class="rank" :class="'r' + Math.min(row.rank, 4)">{{ row.rank }}</em>
-            <span class="name">{{ row.short }}</span>
-            <span class="city">{{ row.city || '—' }}</span>
-            <span class="profit">{{ formatMoney(row.profit) }}</span>
+            <span class="name" :title="row.key">{{ row.short }}</span>
+            <span class="city">{{ cityShort(row.city) }}</span>
+            <span class="num">{{ formatInt(row.orders) }}</span>
+            <span class="num">{{ formatMoney(row.paid) }}</span>
+            <span class="num">{{ formatMoney(row.sourceProfit) }}</span>
+            <span class="num profit">{{ formatMoney(row.profit) }}</span>
             <span class="rate">{{ formatPercent(row.profitRate) }}</span>
-            <span class="orders">{{ formatInt(row.orders) }}</span>
-            <span class="delta" :class="row.delta == null ? 'muted' : row.delta < 0 ? 'down' : 'up'">{{ deltaText(row.delta) }}</span>
-            <span class="tag" :class="row.statusTone">{{ statusText(row.status) }}</span>
+            <span class="trend" :class="trendClass(row.delta)">{{ trendMark(row.delta) }}</span>
+            <span class="tag" :class="row.statusTone">{{ row.status }}</span>
           </button>
         </div>
       </div>
@@ -65,25 +76,72 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Panel from '../Panel.vue'
 import SelectMenu from '../SelectMenu.vue'
 import { COCKPIT_CITIES } from '../../stores/filter'
-import { deltaText, useStoreTop5 } from '../../composables/useStoreTop5'
+import { useStoreTop5 } from '../../composables/useStoreTop5'
 import { formatInt, formatMoney, formatPercent } from '../../utils/format'
+
+type ViewFilter = 'all' | 'excellent' | 'drop' | 'loss' | 'rectify'
+type SortKey = 'improve' | 'risk' | 'scale'
 
 const ROW_H = 42
 const scopeCity = ref('全国')
-const tab = ref<'all' | 'risk' | 'high'>('all')
-const { filter, selectedStore, selectedStores, rows } = useStoreTop5(undefined, scopeCity)
+const viewFilter = ref<ViewFilter>('all')
+const sortBy = ref<SortKey>('improve')
+const { filter, selectedStores, rows } = useStoreTop5(undefined, scopeCity)
 const cityOptions = COCKPIT_CITIES.map((city) => ({ value: city, label: city === '全国' ? '全部城市' : city }))
+const filterOptions = [
+  { value: 'all', label: '全部门店' },
+  { value: 'excellent', label: '经营优秀' },
+  { value: 'drop', label: '毛利下降' },
+  { value: 'loss', label: '负毛利门店' },
+  { value: 'rectify', label: '整改门店' },
+]
+const sortOptions = [
+  { value: 'improve', label: '经营改善 · 毛利提升最大' },
+  { value: 'risk', label: '风险 · 毛利下降最大' },
+  { value: 'scale', label: '规模 · 订单最多' },
+]
+
 function toggleStore(name: string) {
   const cur = selectedStores.value
   filter.setStores(cur.includes(name) ? cur.filter((s) => s !== name) : [...cur, name])
 }
+function cityShort(city: string) {
+  return (city || '—').replace(/市$/, '')
+}
+function trendMark(delta: number | null) {
+  if (delta == null || Math.abs(delta) <= 0.005) return '→'
+  return delta > 0 ? '↑' : '↓'
+}
+function trendClass(delta: number | null) {
+  if (delta == null || Math.abs(delta) <= 0.005) return 'muted'
+  return delta > 0 ? 'up' : 'down'
+}
+
 const viewRows = computed(() => {
   const filtered = rows.value.filter((row) => {
-    if (tab.value === 'risk') return row.statusTone !== 'good'
-    if (tab.value === 'high') return row.profitRate != null && row.profitRate >= 0.2
+    if (viewFilter.value === 'excellent') {
+      return row.status === '正常' && (row.delta == null || row.delta >= 0) && (row.profitRate == null || row.profitRate >= 0.18)
+    }
+    if (viewFilter.value === 'drop') return row.delta != null && row.delta < -0.005
+    if (viewFilter.value === 'loss') return row.profit != null && row.profit < 0
+    if (viewFilter.value === 'rectify') return row.status === '整改中'
     return true
   })
-  return filtered.map((row, i) => ({ ...row, rank: i + 1 }))
+  const list = [...filtered]
+  list.sort((a, b) => {
+    if (sortBy.value === 'scale') return (b.orders || 0) - (a.orders || 0)
+    const av = a.profitDeltaAbs
+    const bv = b.profitDeltaAbs
+    if (sortBy.value === 'risk') {
+      const aDrop = av == null ? 0 : Math.min(0, av)
+      const bDrop = bv == null ? 0 : Math.min(0, bv)
+      return aDrop - bDrop
+    }
+    const aGain = av == null ? -Infinity : av
+    const bGain = bv == null ? -Infinity : bv
+    return bGain - aGain
+  })
+  return list
 })
 
 const viewport = ref<HTMLElement | null>(null)
@@ -131,10 +189,6 @@ function onWheel() {
   userScroll.value = true
   paused.value = true
   offset.value = 0
-  window.clearTimeout(resumeTimer)
-  resumeTimer = window.setTimeout(() => {
-    /* 离开列表后再恢复自动滚动，见 onLeave */
-  }, 0)
 }
 
 function onLeave() {
@@ -169,48 +223,32 @@ onUnmounted(() => {
   window.clearTimeout(resumeTimer)
   window.removeEventListener('resize', measure)
 })
-
-function statusText(status: string) {
-  if (status === '退款偏高') return '退款高'
-  return status
-}
 </script>
 
 <style scoped lang="scss">
-.tools { display: flex; align-items: center; gap: 8px; }
-.city-select { width: 108px; }
-.city-select :deep(.dash-select__trigger) {
+.tools { display: flex; align-items: center; gap: 6px; }
+.tool-select { width: 92px; }
+.tool-select.wide { width: 168px; }
+.tool-select :deep(.dash-select__trigger) {
   height: 30px;
   background: var(--panel-deep);
-  font-size: 14px;
+  font-size: 13px;
   border-color: var(--border);
-}
-.tabs { display: flex; gap: 0; border: 1px solid var(--border); }
-.tabs button {
-  height: 30px;
-  padding: 0 11px;
-  border: 0;
-  background: transparent;
-  color: var(--c-body);
-  font-size: 14px;
-  cursor: pointer;
-  &.on { background: var(--primary-2); color: #032043; font-weight: 700; }
-  & + button { border-left: 1px solid var(--border); }
 }
 .top { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
 .top__head, .row {
   display: grid;
-  grid-template-columns: 28px minmax(92px, 1.4fr) 56px 88px 68px 86px 72px 72px;
-  gap: 6px;
+  grid-template-columns: minmax(72px, 1.3fr) 44px 52px 72px 72px 80px 56px 36px 52px;
+  gap: 4px;
   align-items: center;
 }
 .top__head {
   flex-shrink: 0;
   height: 26px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 12px;
   padding: 0 4px;
-  > span:nth-child(n+4) { text-align: right; }
+  > span:nth-child(n+3) { text-align: right; }
 }
 .top__viewport {
   flex: 1;
@@ -238,34 +276,33 @@ function statusText(status: string) {
   width: 100%;
 }
 .row:hover, .row.active { background: var(--panel-hover); }
-.rank {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font: 700 14px var(--font-num);
-  font-style: normal;
+.name { color: #fff; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.city { font-size: 13px; color: #d4e4f4; }
+.num {
+  text-align: right;
+  color: #fff;
+  font: 600 13px var(--font-num);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.rank.r1 { background: #f0c14b; color: #1a1204; }
-.rank.r2 { background: #9aadc2; color: #0d1a28; }
-.rank.r3 { background: #d08a4a; color: #1a1008; }
-.rank.r4 { background: #163a62; color: #d8e8ff; }
-.name { color: #fff; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.city { font-size: 15px; color: #d4e4f4; }
-.profit, .orders { text-align: right; color: #fff; font: 600 16px var(--font-num); font-variant-numeric: tabular-nums; }
-.rate { text-align: right; color: var(--success); font: 600 16px var(--font-num); }
-.delta { text-align: right; font: 600 15px var(--font-num); }
-.up { color: var(--success); } .down { color: var(--danger); } .muted { color: var(--muted); }
+.profit { color: var(--success); }
+.rate { text-align: right; color: var(--success); font: 600 13px var(--font-num); }
+.trend {
+  text-align: right;
+  font: 800 16px/1 var(--font-num);
+}
+.up { color: var(--success); }
+.down { color: var(--danger); }
+.muted { color: var(--muted); }
 .tag {
   justify-self: end;
-  min-width: 54px;
-  height: 26px;
-  padding: 0 8px;
+  min-width: 48px;
+  height: 22px;
+  padding: 0 6px;
   border-radius: 3px;
   display: grid;
   place-items: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
 }
 .tag.good { color: #16f0a0; background: rgba(22, 240, 160, 0.12); }

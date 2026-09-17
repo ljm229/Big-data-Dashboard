@@ -9,44 +9,45 @@ import {
 const real = JSON.parse(readFileSync(new URL('../src/data/trafficData.json', import.meta.url), 'utf8'))
 const select = (filters = {}) => selectTraffic(real, { from: real.period.from, to: real.period.to, dimension: 'platform', ...filters })
 const sample = (overrides) => ({
-  storeId: '1', store: '甲店', city: '苏州', dimension: 'platform', source: '甲来源', row: 2, date: '2026-09-13',
+  storeId: '1', store: '甲店', city: '苏州', dimension: 'platform', source: '甲来源', row: 2, date: '2026-09-16',
   exposure: 100, entry: 30, orders: 10, reportedRates: ['30.0%', '33.3%', '10.0%'], ...overrides,
 })
 
-test('source is daily grain across 30 days, 18 stores, 8 cities, 4437 facts', () => {
-  assert.deepEqual(real.period, { from: '2026-08-15', to: '2026-09-13', grain: 'day' })
-  assert.equal(real.facts.length, 4437)
-  assert.equal(new Set(real.facts.map((r) => r.date)).size, 30)
-  assert.equal(new Set(real.facts.map((r) => r.storeId)).size, 18)
-  assert.equal(new Set(real.facts.map((r) => r.city)).size, 8)
+test('source is daily grain across extended range, stores, cities, facts', () => {
+  assert.deepEqual(real.period, { from: '2026-08-15', to: '2026-09-16', grain: 'day' })
+  assert.equal(real.facts.length, 4959)
+  assert.equal(new Set(real.facts.map((r) => r.date)).size, 33)
+  assert.equal(new Set(real.facts.map((r) => r.storeId)).size, 20)
+  assert.equal(new Set(real.facts.map((r) => r.city)).size, 9)
   assert.ok(real.facts.every((r) => typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date)))
 })
 
 test('full-range platform totals match workbook sum of daily rows', () => {
   const rows = select(), total = summarizeTraffic(rows)
-  assert.equal(rows.length, 1479)
-  assert.deepEqual([total.exposure, total.entry, total.orders], [4954711, 531164, 154469])
+  assert.equal(rows.length, 1653)
+  assert.deepEqual([total.exposure, total.entry, total.orders], [5465288, 586760, 170172])
   assert.equal(total.rateBasis, 'record-ratio')
-  assert.equal(total.p1, 531164 / 4954711)
-  assert.equal(total.p2, 154469 / 531164)
-  assert.equal(total.overall, 154469 / 4954711)
+  assert.equal(total.p1, 586760 / 5465288)
+  assert.equal(total.p2, 170172 / 586760)
+  assert.equal(total.overall, 170172 / 5465288)
 })
 
 test('APP sources are independent and cannot be merged with platform', () => {
   const rows = select({ dimension: 'app' }), total = summarizeTraffic(rows)
-  assert.equal(rows.length, 2958)
-  assert.deepEqual([total.exposure, total.entry, total.orders], [1086471, 96947, 26929])
+  assert.equal(rows.length, 3306)
+  assert.deepEqual([total.exposure, total.entry, total.orders], [1198753, 107327, 29836])
   assert.throws(() => summarizeTraffic(real.facts), /不能合并/)
 })
 
 test('day slice returns only that date; out-of-range stays empty', () => {
-  const day = select({ from: '2026-09-13', to: '2026-09-13' })
-  assert.equal(day.length, 54)
+  const day = select({ from: '2026-09-16', to: '2026-09-16' })
+  assert.equal(day.length, 60)
   assert.deepEqual(
     [summarizeTraffic(day).exposure, summarizeTraffic(day).entry, summarizeTraffic(day).orders],
-    [201385, 20811, 6229],
+    [174987, 18931, 5368],
   )
-  assert.equal(select({ from: '2026-09-14', to: '2026-09-14' }).length, 0)
+  assert.equal(select({ from: '2026-09-14', to: '2026-09-14' }).length, 54)
+  assert.equal(select({ from: '2026-09-17', to: '2026-09-17' }).length, 0)
   assert.equal(select({ from: '2026-07-01', to: '2026-07-31' }).length, 0)
 })
 
@@ -89,10 +90,10 @@ test('aggregation uses ratio of sums, not mean of source percentages', () => {
 })
 
 test('daily series omits empty days and preserves totals', () => {
-  const rows = select({ from: '2026-09-07', to: '2026-09-13' })
+  const rows = select({ from: '2026-09-10', to: '2026-09-16' })
   const series = trafficDailySeries(rows)
   assert.ok(series.length >= 1)
-  assert.ok(series.every((p) => p.date >= '2026-09-07' && p.date <= '2026-09-13'))
+  assert.ok(series.every((p) => p.date >= '2026-09-10' && p.date <= '2026-09-16'))
   assert.equal(series.reduce((n, p) => n + (p.exposure || 0), 0), summarizeTraffic(rows).exposure)
 })
 
@@ -101,9 +102,9 @@ test('日比 / 周比 deltas: counts as ratio, rates as pts; missing prev is nul
   assert.ok(Math.abs(trafficDelta(0.12, 0.1, 'pts') - 0.02) < 1e-12)
   assert.equal(trafficDelta(10, 0, 'ratio'), null)
   assert.equal(trafficDelta(10, null, 'ratio'), null)
-  const cur = summarizeTraffic(select({ from: '2026-09-13', to: '2026-09-13' }))
-  const prev = summarizeTraffic(select({ from: '2026-09-12', to: '2026-09-12' }))
-  const week = summarizeTraffic(select({ from: '2026-09-06', to: '2026-09-06' }))
+  const cur = summarizeTraffic(select({ from: '2026-09-16', to: '2026-09-16' }))
+  const prev = summarizeTraffic(select({ from: '2026-09-15', to: '2026-09-15' }))
+  const week = summarizeTraffic(select({ from: '2026-09-09', to: '2026-09-09' }))
   assert.ok(trafficMetricDelta(cur, prev, 'exposure') !== null)
   assert.ok(trafficMetricDelta(cur, week, 'overall') !== null)
   assert.equal(trafficMetricDelta(cur, summarizeTraffic([]), 'exposure'), null)

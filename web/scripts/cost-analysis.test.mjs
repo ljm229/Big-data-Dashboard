@@ -63,7 +63,7 @@ test('date, city, normalized store and channel intersect, county maps to prefect
   const d = { stores: [{ name: '便利店（甲店）', city: '苏州昆山' }], facts: [fact(), fact({ channel: '美团' })] }
   assert.equal(selectCostFacts(d, { ...range, city: '苏州市', store: '便利店（甲店）', channel: '淘宝闪购' }).length, 1)
   assert.equal(selectCostFacts(d, { ...range, city: '杭州' }).length, 0)
-  assert.equal(select({ from: '2026-09-14', to: '2026-09-15' }).length, 0)
+  assert.equal(select({ from: '2026-09-17', to: '2026-09-18' }).length, 0)
 })
 test('source1 daily totals reconcile against audited workbook columns', () => {
   const r = summarizeCosts(select())
@@ -73,11 +73,11 @@ test('source1 daily totals reconcile against audited workbook columns', () => {
   assert.equal(r.differences.length, 0); assert.equal(r.storeCount, 18)
 })
 test('all facts unique and cost columns complete; source adjustments not silently corrected', () => {
-  assert.equal(real.facts.length, 1009)
-  assert.equal(new Set(real.facts.map(r => `${r.date}|${r.store}|${r.channel}`)).size, 1009)
+  assert.equal(real.facts.length, 1142)
+  assert.equal(new Set(real.facts.map(r => `${r.date}|${r.store}|${r.channel}`)).size, 1142)
   const r = summarizeCosts(real.facts)
   assert.ok(EXPENSE_KEYS.every(k => r.amounts[k].complete))
-  assert.deepEqual(r.differences.map(x => [x.row, x.difference]), [[1091, 23.56]])
+  assert.deepEqual(r.differences.map(x => [x.row, x.difference]), [[639, 23.56]])
 })
 test('period sums are additive and retain every record provenance', () => {
   const week = select({ from: '2026-09-04', to: '2026-09-10' })
@@ -86,20 +86,36 @@ test('period sums are additive and retain every record provenance', () => {
   assert.ok(Math.abs(r.expense - daySum) < 1e-6)
   assert.ok(r.rows.every(r => Number.isInteger(r.row) && r.row >= 2))
 })
-test('comparison accepts matching coverage and rejects missing or shifted daily keys', () => {
+test('comparison uses same-filter totals when both periods have rows', () => {
   const prevRange = { from: '2026-09-12', to: '2026-09-12' }
   const prev = summary({ date: prevRange.to, turnover: 500 })
   const compare = costComparison(summary(), prev, range, prevRange)
   assert.equal(compare.ready, true); assert.equal(compare.growth(200, 100), 1)
   assert.equal(compare.growth(10, 0), null); assert.equal(compare.growth(10, -10), null)
   assert.equal(compare.growth(null, 10), null)
-  assert.equal(costComparison(summary(), summary({ date: prevRange.to, store: '新店' }), range, prevRange).ready, false)
+  assert.equal(costComparison(summary(), summary({ date: prevRange.to, store: '新店' }), range, prevRange).ready, true)
   assert.equal(costComparison(summary(), prev, range, null).ready, false)
-  assert.equal(costComparison(summary(), summary(), range, prevRange).ready, false)
+  assert.equal(costComparison(summary(), summarizeCosts([]), range, prevRange).ready, false)
+  // 残月天数不一致也可比
+  assert.equal(
+    costComparison(
+      summarizeCosts(select({ from: '2026-09-01', to: '2026-09-13' })),
+      summarizeCosts(select({ from: '2026-08-15', to: '2026-08-31' })),
+      { from: '2026-09-01', to: '2026-09-13' },
+      { from: '2026-08-15', to: '2026-08-31' },
+    ).ready,
+    true,
+  )
 })
-test('daily and complete weekly comparison match real coverage; monthly incomplete periods do not force a baseline', () => {
+test('daily and weekly comparison follow filters; empty baseline stays blank', () => {
   const r = summarizeCosts(select()), prevRange = { from: '2026-09-12', to: '2026-09-12' }
   const prev = summarizeCosts(select(prevRange))
   assert.equal(costComparison(r, prev, range, prevRange).ready, true)
   assert.equal(costComparison(r, summarizeCosts([]), range, null).growth(r.income, null), null)
+  const week = { from: '2026-09-04', to: '2026-09-10' }
+  const prevWeek = { from: '2026-08-28', to: '2026-09-03' }
+  assert.equal(
+    costComparison(summarizeCosts(select(week)), summarizeCosts(select(prevWeek)), week, prevWeek).ready,
+    true,
+  )
 })
