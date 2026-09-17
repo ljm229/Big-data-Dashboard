@@ -3,8 +3,8 @@
   <div v-if="!unlocked" class="gate">
     <form class="gate__card" @submit.prevent="submit">
       <div class="gate__mark">密</div>
-      <h1>电商数据大屏</h1>
-      <p>请输入访问密码</p>
+      <h1>电商即时零售经营数据驾驶舱</h1>
+      <p>请输入访问密码后进入最新版大屏</p>
       <input
         v-model="password"
         type="password"
