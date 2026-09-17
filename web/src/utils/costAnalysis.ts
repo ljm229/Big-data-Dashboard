@@ -12,6 +12,9 @@ export type CostFilter = { from: string; to: string; city?: string | string[]; s
 export const EXPENSE_KEYS: CostKey[] = ['goodsCost', 'platformDelivery', 'commission', 'selfDelivery', 'promotion', 'maintenance']
 export const INCOME_KEYS: CostKey[] = ['goodsOriginal', 'packaging', 'deliveryIncome', 'marketing']
 
+/** 平台确认：含后返相关字段自该日起生效；此前不填 0、不跨口径环比 */
+export const REBATE_EFFECTIVE_DATE = '2026-07-07'
+
 /** 盈亏明细表行：对齐平台「收入明细 / 支出明细」指标清单；无独立字段时 key 为 null，显示 — 不填 0 */
 export type CostDetailRow = { id: string; label: string; key: CostKey | null; note?: string; deduction?: boolean }
 export const INCOME_DETAIL_ROWS: CostDetailRow[] = [
@@ -45,13 +48,27 @@ const city = (s: string) => {
 }
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
 const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+/** 展示用四舍五入；验算请用 raw* 未舍入字段 */
 const calculate = (values: (number | null)[], fn: (v: number[]) => number): number | null =>
   values.every(finite) ? round(fn(values as number[])) : null
+const calculateRaw = (values: (number | null)[], fn: (v: number[]) => number): number | null =>
+  values.every(finite) ? fn(values as number[]) : null
 
 function locList(v?: string | string[]) {
   if (v == null || v === '') return []
   if (Array.isArray(v)) return v.map(String).map((x) => x.trim()).filter(Boolean)
   return String(v).split(/[|、,，]/).map((x) => x.trim()).filter(Boolean)
+}
+
+/** 区间是否完全落在后返生效日及之后 */
+export function rebateEffectiveInRange(from: string, to: string) {
+  if (!from || !to) return false
+  return from >= REBATE_EFFECTIVE_DATE && to >= REBATE_EFFECTIVE_DATE
+}
+
+/** 两期是否可对后返做环比（均已生效且有数据） */
+export function rebateComparable(currentFrom: string, currentTo: string, prevFrom: string, prevTo: string) {
+  return rebateEffectiveInRange(currentFrom, currentTo) && rebateEffectiveInRange(prevFrom, prevTo)
 }
 
 export function selectCostFacts(data: CostData, f: CostFilter) {
@@ -66,17 +83,42 @@ export function selectCostFacts(data: CostData, f: CostFilter) {
     && (cityAll || cityList.some((c) => cities.get(norm(r.store)) === city(c))))
 }
 
-export function summarizeCosts(rows: CostFact[]) {
+export function summarizeCosts(rows: CostFact[], opts?: { rebateActive?: boolean }) {
+  const rebateActive = opts?.rebateActive !== false
   const amounts = Object.fromEntries(Object.keys(COST_FIELDS).map(k => {
     const values = rows.map(r => r[k as CostKey]).filter(finite)
     return [k, { value: values.length ? round(values.reduce((s, v) => s + v, 0)) : null,
       valid: values.length, total: rows.length, complete: rows.length > 0 && values.length === rows.length }]
   })) as Record<CostKey, Amount>
+
+  // 后返未生效：后返相关金额置空，不填 0
+  if (!rebateActive) {
+    amounts.rebate = { value: null, valid: 0, total: rows.length, complete: false }
+    amounts.sourceProfitWithRebate = { value: null, valid: 0, total: rows.length, complete: false }
+  }
+
   const value = (key: CostKey) => amounts[key].complete ? amounts[key].value : null
+  const rawValue = (key: CostKey) => {
+    const values = rows.map(r => r[key]).filter(finite)
+    if (!values.length) return null
+    if (values.length !== rows.length) return null
+    return values.reduce((s, v) => s + v, 0)
+  }
+
   const income = calculate([value('turnover'), value('marketing')], v => v[0]! - v[1]!)
   const expense = calculate(EXPENSE_KEYS.map(value), v => v.reduce((s, n) => s + n, 0))
   const balance = calculate([income, expense], v => v[0]! - v[1]!)
-  const withRebate = calculate([balance, value('rebate')], v => v[0]! + v[1]!)
+  const withRebate = rebateActive
+    ? calculate([balance, value('rebate')], v => v[0]! + v[1]!)
+    : null
+
+  const rawIncome = calculateRaw([rawValue('turnover'), rawValue('marketing')], v => v[0]! - v[1]!)
+  const rawExpense = calculateRaw(EXPENSE_KEYS.map(rawValue), v => v.reduce((s, n) => s + n, 0))
+  const rawBalance = calculateRaw([rawIncome, rawExpense], v => v[0]! - v[1]!)
+  const rawWithRebate = rebateActive
+    ? calculateRaw([rawBalance, rawValue('rebate')], v => v[0]! + v[1]!)
+    : null
+
   const differences = rows.flatMap(r => {
     // Platform profit excludes promotion in this export. Keep source adjustments visible.
     const expected = calculate([r.turnover, r.marketing, ...EXPENSE_KEYS.filter(k => k !== 'promotion').map(k => r[k])],
@@ -87,10 +129,31 @@ export function summarizeCosts(rows: CostFact[]) {
   const chartReady = expense !== null && expense > 0 && EXPENSE_KEYS.every(k => value(k)! >= 0)
   const expenses = EXPENSE_KEYS.map(key => ({ key, label: COST_FIELDS[key], ...amounts[key],
     share: chartReady ? value(key)! / expense! : null }))
-  return { rows, amounts, income, expense, balance, withRebate, expenses, differences, chartReady,
+
+  /** 净利率 = 收支结余 / 经营收入（合计口径，非门店比例简单平均） */
+  const netRate = balance !== null && income !== null && income !== 0 ? balance / income : null
+  /** 毛利率（含后返）仅在后返生效且字段齐全时用源表合计 / 线上收入 */
+  const marginRateWithRebate = (() => {
+    if (!rebateActive) return null
+    const profit = value('sourceProfitWithRebate')
+    const base = value('onlineIncome')
+    if (profit == null || base == null || base <= 0) return null
+    return profit / base
+  })()
+
+  return {
+    rows, amounts, income, expense, balance, withRebate, expenses, differences, chartReady,
+    rawIncome, rawExpense, rawBalance, rawWithRebate,
+    rebateActive,
+    netRate,
+    marginRateWithRebate,
     expenseRate: expense !== null && income !== null && income > 0 ? expense / income : null,
     storeCount: new Set(rows.map(r => norm(r.store))).size,
-    days: [...new Set(rows.map(r => r.date))].sort() }
+    days: [...new Set(rows.map(r => r.date))].sort(),
+    /** 未舍入验算：收入 − 支出 − 结余 ≈ 0 */
+    identityOk: rawIncome != null && rawExpense != null && rawBalance != null
+      && Math.abs(rawIncome - rawExpense - rawBalance) < 1e-6,
+  }
 }
 export type CostSummary = ReturnType<typeof summarizeCosts>
 
@@ -115,4 +178,12 @@ export function costComparison(current: CostSummary, previous: CostSummary, curr
 export function costMoney(n: number | null, unit: 'yuan' | 'wan' = 'yuan') {
   if (n === null || !Number.isFinite(n)) return '—'
   return (unit === 'wan' ? n / 10000 : n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** 明细行取值：无字段 → null（展示 —）；有字段但不完整 → null */
+export function detailAmount(summary: CostSummary, row: CostDetailRow): number | null {
+  if (!row.key) return null
+  const amt = summary.amounts[row.key]
+  if (!amt.valid) return null
+  return amt.value
 }
