@@ -18,9 +18,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: web/web/package-lock.json
       - name: Install & Build
-        working-directory: web
+        working-directory: web/web
         run: |
           npm ci
           npm run build
@@ -30,4 +30,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=flash-player-dashboard
-          workingDirectory: web
+          workingDirectory: web/web
