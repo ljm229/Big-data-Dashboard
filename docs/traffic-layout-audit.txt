@@ -1,0 +1,8 @@
+[PASS] R1 eyebrow<=ceil(sections/3): 0 eyebrows, cap 1 (1 sections)
+[PASS] R2 consecutive image+text split<=2: longest split run = 0
+[PASS] R3 layout families>=4 (n>=8): skipped (n=1<8); 0 families present
+[PASS] R4 hero subtext<=20 words & <=4 lines: 0 words, 0 line(s)
+[FAIL] R5 nav single-line & <=80px: height=Nonepx, single_line=True
+[PASS] R6 bento items==cells: items=0, cells=0
+[PASS] R7 key data-* annotation coverage: all key elements annotated
+--- 6/7 rules passed ---

@@ -1,0 +1,76 @@
+{
+  "status": "FAIL",
+  "results": [
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "audit": {
+        "text": "经营异常 TOP5\n全部\n利润\n供给\n服务\n异常门店\n14 店\n重点异常\n2 项\n关注异常\n14 项\n营业门店\n筹备 / 待核对 4\n16 项，展示前 5\n1\n杭州 · 滨江店\n重点利润 · 美团 · 09-13\n-550.41 元\n最低单日毛利 · 1 天\n2\n金华 · 金华店\n重点利润 · 美团 · 09-13\n-209.52 元\n最低单日毛利 · 1 天\n3\n苏州 · 黄桥店\n关注服务 · 京东 · 09-13\n16.67%\n最高单日退款率 · 1 天\n4\n杭州 · 城西中心店\n关注服务 · 京东 · 09-13\n10.00%\n最高单日退款率 · 1 天\n5\n武汉 · 龙湖天街店\n关注服务 · 美团 · 09-13\n5.32%\n最高单日退款率 · 1 天\n2026-09-13 · 日快照\n全部 16 项\n规则与覆盖",
+        "rect": {
+          "x": 1346.390625,
+          "y": 214,
+          "width": 565.59375,
+          "height": 318.0625,
+          "top": 214,
+          "right": 1911.984375,
+          "bottom": 532.0625,
+          "left": 1346.390625
+        },
+        "overflow": [],
+        "names": 0
+      },
+      "screenshot": "D:\\Flash‑Player Data Dashboard\\Flash‑Player Data Dashboard1\\browser-qa\\risk\\risk-1920.png",
+      "sha256": "bbc0ca3b7f8fc522e155da194296ddc65c165777e39d17d6fb4800c11dd3d82f"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "audit": {
+        "text": "经营异常 TOP5\n全部\n利润\n供给\n服务\n异常门店\n14 店\n重点异常\n2 项\n关注异常\n14 项\n营业门店\n筹备 / 待核对 4\n16 项，展示前 5\n1\n杭州 · 滨江店\n重点利润 · 美团 · 09-13\n-550.41 元\n最低单日毛利 · 1 天\n2\n金华 · 金华店\n重点利润 · 美团 · 09-13\n-209.52 元\n最低单日毛利 · 1 天\n3\n苏州 · 黄桥店\n关注服务 · 京东 · 09-13\n16.67%\n最高单日退款率 · 1 天\n4\n杭州 · 城西中心店\n关注服务 · 京东 · 09-13\n10.00%\n最高单日退款率 · 1 天\n5\n武汉 · 龙湖天街店\n关注服务 · 美团 · 09-13\n5.32%\n最高单日退款率 · 1 天\n2026-09-13 · 日快照\n全部 16 项\n规则与覆盖",
+        "rect": {
+          "x": 1009.79296875,
+          "y": 160.5,
+          "width": 424.1953125,
+          "height": 238.546875,
+          "top": 160.5,
+          "right": 1433.98828125,
+          "bottom": 399.046875,
+          "left": 1009.79296875
+        },
+        "overflow": [],
+        "names": 0
+      },
+      "screenshot": "D:\\Flash‑Player Data Dashboard\\Flash‑Player Data Dashboard1\\browser-qa\\risk\\risk-1440.png",
+      "sha256": "2e7075ecffbfe001d3dd709955a21a2f7952f754a7d7b3307f48dadd0f9806a4"
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "audit": {
+        "text": "经营异常 TOP5\n全部\n利润\n供给\n服务\n异常门店\n14 店\n重点异常\n2 项\n关注异常\n14 项\n营业门店\n筹备 / 待核对 4\n16 项，展示前 5\n1\n杭州 · 滨江店\n重点利润 · 美团 · 09-13\n-550.41 元\n最低单日毛利 · 1 天\n2\n金华 · 金华店\n重点利润 · 美团 · 09-13\n-209.52 元\n最低单日毛利 · 1 天\n3\n苏州 · 黄桥店\n关注服务 · 京东 · 09-13\n16.67%\n最高单日退款率 · 1 天\n4\n杭州 · 城西中心店\n关注服务 · 京东 · 09-13\n10.00%\n最高单日退款率 · 1 天\n5\n武汉 · 龙湖天街店\n关注服务 · 美团 · 09-13\n5.32%\n最高单日退款率 · 1 天\n2026-09-13 · 日快照\n全部 16 项\n规则与覆盖",
+        "rect": {
+          "x": 957.9008178710938,
+          "y": 152.2520751953125,
+          "width": 402.39642333984375,
+          "height": 226.2882080078125,
+          "top": 152.2520751953125,
+          "right": 1360.2972412109375,
+          "bottom": 378.540283203125,
+          "left": 957.9008178710938
+        },
+        "overflow": [],
+        "names": 0
+      },
+      "screenshot": "D:\\Flash‑Player Data Dashboard\\Flash‑Player Data Dashboard1\\browser-qa\\risk\\risk-1366.png",
+      "sha256": "2d1d9a8cc7e39d909279112e0e92df6632536c513eadfc89877f507c54001371"
+    }
+  ],
+  "errors": [],
+  "failure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert.ok(await page.evaluate(() => !!document.activeElement?.closest('.risk-dialog')))\n"
+}

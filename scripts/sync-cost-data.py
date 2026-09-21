@@ -9,6 +9,8 @@ from openpyxl.utils import get_column_letter
 helpers = runpy.run_path(str(Path(__file__).with_name("sync-risk-data.py")))
 load, number, norm, iso, unique = [helpers[k] for k in ["load", "number", "norm", "iso", "unique"]]
 ROOT = Path(__file__).resolve().parents[1]
+OUT_CANDIDATES = [ROOT / "web/web/src/data/costData.json", ROOT / "web/src/data/costData.json"]
+COST_OUTPUT = next((c for c in OUT_CANDIDATES if c.parent.exists()), OUT_CANDIDATES[0])
 FIELDS = {
     "turnover": ("总营业额", "AB"), "goodsOriginal": ("商品原价", "AE"),
     "packaging": ("包装费原价", "AH"), "deliveryIncome": ("应收配送费&地址变更费", "AK"),
@@ -40,7 +42,7 @@ def main():
                "storeSource": store_source, "fields": {k: {"label": v[0], "column": get_column_letter(list(rows[0][1]).index(v[0]) + 1)} for k, v in FIELDS.items()},
                "stats": {"facts": len(facts), "skipped": len(rows) - len(facts) - duplicates, "duplicates": duplicates},
                "stores": stores, "facts": facts}
-    output = ROOT / "web/src/data/costData.json"
+    output = COST_OUTPUT
     output.parent.mkdir(parents=True, exist_ok=True)
     temp = output.with_suffix(".json.tmp")
     temp.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")

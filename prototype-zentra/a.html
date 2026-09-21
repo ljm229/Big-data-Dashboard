@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>原型 A · 管理层概览（Zentra 风）</title>
+<link rel="stylesheet" href="./_base.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; }
+  .sub { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  /* 漏斗柱：实色→透明渐变 */
+  .funnel { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; gap: 10px; height: 190px; padding: 6px 2px 0; }
+  .funnel .col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .funnel .v { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .funnel .l { font-size: 11px; color: var(--text-3); }
+  .funnel .bar {
+    width: 100%; border-radius: 10px 10px 6px 6px;
+    background: linear-gradient(180deg, #2563FF 0%, rgba(37,99,255,.08) 100%);
+  }
+  .funnel .bar--dim { background: linear-gradient(180deg, rgba(37,99,255,.55) 0%, rgba(37,99,255,.05) 100%); }
+  /* 折线（SVG 平滑曲线，无网格） */
+  .spark { width: 100%; height: 130px; display: block; }
+  /* AI 提问条 */
+  .ask {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, #EFF4FF, #FFFFFF);
+    border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow-sm);
+  }
+  .ask input { flex: 1; border: 0; outline: 0; background: #FFFFFF; border-radius: 10px; height: 36px; padding: 0 12px; font-size: 13px; box-shadow: var(--shadow-sm); }
+  .ask input::placeholder { color: var(--text-3); }
+  /* 洞察渐变卡 */
+  .insight {
+    border-radius: var(--r-card); padding: 24px; color: #fff; box-shadow: var(--shadow);
+    background:
+      radial-gradient(120% 90% at 85% 10%, rgba(255,170,60,.85) 0%, transparent 55%),
+      radial-gradient(120% 120% at 10% 100%, rgba(37,99,255,.9) 0%, transparent 60%),
+      linear-gradient(135deg, #2B3A67 0%, #4A5FA5 55%, #7FB3E8 100%);
+    min-height: 240px; display: flex; flex-direction: column; gap: 12px; justify-content: flex-end;
+  }
+  .insight .tag { align-self: flex-start; background: rgba(255,255,255,.22); border-radius: 999px; padding: 4px 10px; font-size: 12px; backdrop-filter: blur(6px); }
+  .insight .big { font-size: 56px; font-weight: 700; letter-spacing: -.04em; }
+  .insight p { font-size: 14px; line-height: 1.6; opacity: .95; }
+  .insight small { font-size: 12px; opacity: .75; }
+  .insight .bar { height: 4px; border-radius: 99px; background: rgba(255,255,255,.35); overflow: hidden; }
+  .insight .bar b { display: block; width: 72%; height: 100%; background: #fff; border-radius: inherit; }
+  @media (max-width: 1080px){ .layout,.sub{ grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav__brand"><span class="nav__logo"></span> zentra</div>
+    <div class="nav__menu">
+      <a class="is-active" href="#">Home</a><a href="./b.html">门店诊断</a><a href="./c.html">渠道与风险</a>
+      <a href="#">Balances</a><a href="#">Reports</a>
+    </div>
+    <div class="nav__right"><button class="icon-btn">⌕</button><button class="icon-btn">♢</button><span class="avatar"></span></div>
+  </nav>
+
+  <div class="page">
+    <div class="page-head">
+      <div class="page-title"><h1>Overview</h1><span class="edit">✎</span></div>
+      <div class="filters">
+        <button class="chip">📅 Jan 01 – July 31 ▾</button>
+        <span style="color:var(--text-3);font-size:12px">compared to</span>
+        <button class="chip">Aug 01 – Dec 31 ▾</button>
+        <button class="chip">Daily ▾</button>
+        <button class="chip chip--accent">Add widget ＋</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="card">
+        <div class="card__head"><h3>Payments</h3><span class="more">•••</span></div>
+        <div class="funnel">
+          <div class="col"><span class="v">65.2k</span><div class="bar bar--dim" style="height:150px"></div><span class="l">Initiated</span></div>
+          <div class="col"><span class="v">54.8k</span><div class="bar bar--dim" style="height:126px"></div><span class="l">Authorized</span></div>
+          <div class="col"><span class="v" style="color:var(--text-1)">48.6k</span><div class="bar" style="height:112px"></div><span class="l">Successful</span></div>
+          <div class="col"><span class="v">38.3k</span><div class="bar bar--dim" style="height:88px"></div><span class="l">Payouts</span></div>
+          <div class="col"><span class="v">32.9k</span><div class="bar bar--dim" style="height:76px"></div><span class="l">Completed</span></div>
+        </div>
+        <div class="ask">
+          <span style="font-size:12px;color:var(--text-2)">✦ What would you like to explore next?</span>
+        </div>
+        <div class="ask" style="margin-top:-8px;background:#fff">
+          <input placeholder="I want to know what caused the drop-off from authorized to /successful payments…" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><h3>Gross Volume</h3><span class="more">•••</span></div>
+        <div class="kpi-big"><span class="num">$41,540</span><span class="pill pill--up">▲ 15%</span></div>
+        <hr class="hr" />
+        <div>
+          <div class="meter-row"><span class="label">Online Payments</span><span class="val">$26,800</span></div>
+          <div class="meter"><b style="width:72%;background:var(--color-success)"></b></div>
+          <div class="meter-row" style="margin-top:14px"><span class="label">Subscriptions</span><span class="val">$10,400</span></div>
+          <div class="meter"><b style="width:48%;background:var(--color-primary)"></b></div>
+          <div class="meter-row" style="margin-top:14px"><span class="label">In-Store Sales</span><span class="val">$4,340</span></div>
+          <div class="meter"><b style="width:28%;background:var(--color-danger)"></b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub" style="margin-top:18px">
+      <div class="card">
+        <div class="card__head"><h3>Retention</h3><span class="pill pill--plain">42%</span></div>
+        <svg class="spark" viewBox="0 0 400 130" preserveAspectRatio="none">
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#FF4D6D" stop-opacity=".28"/><stop offset="1" stop-color="#FF4D6D" stop-opacity="0"/>
+          </linearGradient></defs>
+          <path d="M0,95 C30,90 45,60 70,66 C95,72 105,40 130,44 C155,48 160,80 185,74 C210,68 220,30 250,34 C280,38 290,70 320,66 C350,62 370,84 400,78 L400,130 L0,130 Z" fill="url(#g1)"/>
+          <path d="M0,95 C30,90 45,60 70,66 C95,72 105,40 130,44 C155,48 160,80 185,74 C210,68 220,30 250,34 C280,38 290,70 320,66 C350,62 370,84 400,78" fill="none" stroke="#FF4D6D" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <div class="legend"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+      </div>
+
+      <div style="display:grid;gap:18px">
+        <div class="card" style="flex-direction:row;align-items:center;justify-content:space-between">
+          <div><h3 style="font-size:16px;font-weight:600">Transactions</h3><div class="kpi-big" style="margin-top:8px"><span class="num" style="font-size:38px">106k</span></div></div>
+          <div style="text-align:right"><span class="pill pill--plain">Peak: Wed</span>
+            <div class="mini-cols" style="margin-top:8px;justify-content:flex-end">
+              <span style="height:22px"></span><span style="height:30px"></span><span style="height:26px"></span>
+              <span style="height:52px;background:var(--color-success)"></span><span style="height:64px;background:var(--color-success)"></span>
+              <span style="height:34px"></span><span style="height:28px"></span><span style="height:20px"></span>
+            </div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:6px">vs last period <b style="color:var(--text-1)">+34,002</b></div>
+          </div>
+        </div>
+        <div class="card" style="flex-direction:row;align-items:center;justify-content:space-between">
+          <div><h3 style="font-size:16px;font-weight:600">Customers</h3><div class="kpi-big" style="margin-top:8px"><span class="num" style="font-size:38px">1,284</span></div></div>
+          <div style="text-align:right"><span class="pill pill--plain">Highest: Thu</span>
+            <div class="mini-cols" style="margin-top:8px;justify-content:flex-end">
+              <span style="height:18px"></span><span style="height:26px"></span><span style="height:32px"></span>
+              <span style="height:56px;background:var(--color-primary)"></span><span style="height:44px;background:var(--color-primary)"></span>
+              <span style="height:30px"></span><span style="height:24px"></span>
+            </div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:6px">vs last period <b style="color:var(--text-1)">+320</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="insight" style="grid-column:1/-1">
+        <span class="tag">◉ Insights</span>
+        <div class="big">75%</div>
+        <p><b>Authorization rate increased by 4% compared to last week.</b></p>
+        <small>This improvement reduced failed transactions by 950 and is projected to recover $12,400.</small>
+        <div class="bar"><b></b></div>
+      </div>
+    </div>
+
+    <p class="foot-note">原型 A · 管理层概览 —— 仅预览，不写入 src ｜ 打开方式：直接双击 a.html</p>
+  </div>
+</body>
+</html>

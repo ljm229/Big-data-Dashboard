@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-15",
+  "method": "CUA browser interactions and read-only DOM inspection after fixes",
+  "status": "PASS",
+  "screenshots": "Reviewed native tool images in conversation; not saved as final PNG files",
+  "initialHeadlessReport": "report.json remains the original failed run; its keyboard issue was fixed and retested via CUA",
+  "checks": {
+    "fullFiveRowsVisible": true,
+    "desktopWidthsWithoutHorizontalOverflow": [1920, 1440, 1366],
+    "localCategoryPreservesGlobalFiltersAndSummary": true,
+    "allRowsCount": 16,
+    "detailsPreserveGlobalFilters": true,
+    "tabFocusInsideModalConsecutiveChecks": 10,
+    "escapeClosesAndRestoresFocus": true,
+    "newDetailScrollTop": 0,
+    "huaitongPendingOnlyAttendance": "36.17%",
+    "profitAndServiceCoverage": "18 / 19",
+    "supplyCoverage": "19 / 19",
+    "explicitMapActionSelectsBinjiangAndMeituan": true,
+    "meituanSupplyNotApplicable": true,
+    "restoredSelection": "2026-09-13 / 全国 / 全部平台"
+  },
+  "automatedUnitTests": {"risk":16,"map":9,"failed":0},
+  "build":"PASS",
+  "limitations":["No automated contrast result: shared visual_qa dependency unavailable", "Offline source snapshots only; latest business date 2026-09-13"]
+}

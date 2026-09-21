@@ -11,9 +11,11 @@ import { fileURLToPath } from 'node:url'
 import XLSX from 'xlsx'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const srcDir = path.join(root, '数据源1')
-const outFile = path.join(root, 'web', 'src', 'data', 'source1.json')
-const opsPackFile = path.join(root, 'web', 'src', 'data', 'opsPack.json')
+const srcCandidates = [path.join(root, '数据源'), path.join(root, '数据源1')]
+const srcDir = srcCandidates.find((d) => { try { return fs.existsSync(d) } catch { return false } }) || srcCandidates[0]
+const outCandidates = [path.join(root, 'web', 'web', 'src', 'data', 'source1.json'), path.join(root, 'web', 'src', 'data', 'source1.json')]
+const outFile = outCandidates.find((f) => { try { return fs.existsSync(path.dirname(f)) } catch { return false } }) || outCandidates[0]
+const opsPackFile = path.join(path.dirname(outFile), 'opsPack.json')
 
 function toIso(v) {
   const s = String(v ?? '').trim()
@@ -103,7 +105,7 @@ const stores = []
 const cityByStore = new Map()
 const storeAlias = new Map()
 
-function registerStore(name, city = '', status = '', address = '') {
+function registerStore(name, city = '', status = '', address = '', isNew = '') {
   const key = normStore(name)
   if (!key) return null
   const existing = cityByStore.get(key)
@@ -111,14 +113,16 @@ function registerStore(name, city = '', status = '', address = '') {
     if (!existing.city && city) existing.city = city
     if (!existing.status && status) existing.status = status
     if (!existing.address && address) existing.address = address
+    if (existing.isNew == null && isNew !== '') existing.isNew = isNew
     storeAlias.set(name, existing.name)
     storeAlias.set(key, existing.name)
     return existing.name
   }
+  if (/^(门店|门店名称)$/.test(key) || /模板店/.test(key) || /优沃森超市/.test(key)) return null
   const row = { name: key.includes('(') ? key : normStore(name) || name, city, status, address }
   // 优先保留翱象侧带城市的规范名
   const preferred = String(name).trim() || row.name
-  const final = { name: preferred.replace(/（/g, '(').replace(/）/g, ')'), city, status, address }
+  const final = { name: preferred.replace(/（/g, '(').replace(/）/g, ')'), city, status, address, isNew: isNew === '' ? null : isNew }
   stores.push(final)
   cityByStore.set(key, final)
   storeAlias.set(name, final.name)
@@ -128,17 +132,19 @@ function registerStore(name, city = '', status = '', address = '') {
 }
 
 for (const r of launchRows) {
+  const isNewRaw = String(r['是否新店'] || '').trim()
   registerStore(
     String(r['门店'] || '').trim(),
     canonCity(String(r['城市'] || '').trim()),
     String(r['是否上线'] || '').trim(),
     String(r['地址'] || '').trim(),
+    isNewRaw === '是' ? true : isNewRaw === '否' ? false : '',
   )
 }
 
 function resolveStore(raw) {
   const name = String(raw || '').trim()
-  if (!name) return ''
+  if (!name || /^(门店|门店名称)$/.test(name) || /模板店/.test(name) || /优沃森超市/.test(name)) return ''
   const key = normStore(name)
   if (storeAlias.has(name)) return storeAlias.get(name)
   if (storeAlias.has(key)) return storeAlias.get(key)
@@ -156,6 +162,7 @@ for (const r of factRows) {
   const store = resolveStore(r['门店'])
   if (!date || !channel || !store) continue
   const profit = toNum(r['预计毛利(含平台后返)'])
+  const turnover = toNum(r['总营业额'])
   const onlineRevenue = toNum(r['预计线上收入'])
   const marginRate = toNum(r['毛利率(含平台后返)'])
   const unitProfit = toNum(r['单均毛利(含平台后返)'])
@@ -163,13 +170,14 @@ for (const r of factRows) {
   const orders = toNum(r['有效订单量'])
   const refundRate = toNum(r['退款率'])
   const refundOrders = toNum(r['退款订单量'])
-  if (onlineRevenue == null && profit == null && paid == null && orders == null) continue
+  if (turnover == null && onlineRevenue == null && profit == null && paid == null && orders == null) continue
   days.add(date)
   channels.add(channel)
   facts.push({
     date,
     channel,
     store,
+    turnover,
     onlineRevenue,
     profit,
     marginRate,
@@ -248,7 +256,8 @@ if (supplyFile) {
 /** 品类区间汇总（淘宝闪购商品明细，无品类毛利字段，用实际销售额） */
 let categoryPeriod = null
 const categoryByStore = []
-if (productFile) {
+const skipProduct = process.env.SYNC_SOURCE1_SKIP_PRODUCT === '1'
+if (productFile && !skipProduct) {
   console.log('reading product detail…')
   const rows = readSheet(productFile, 'data')
   const catMap = new Map()
@@ -319,6 +328,8 @@ if (productFile) {
     })
   }
   categoryPeriod = { from, to, channel: '淘宝闪购', categories }
+} else if (skipProduct && productFile) {
+  console.log('skip product detail (SYNC_SOURCE1_SKIP_PRODUCT=1)')
 }
 
 const payload = {

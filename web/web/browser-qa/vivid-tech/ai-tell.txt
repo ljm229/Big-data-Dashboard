@@ -1,0 +1,11 @@
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.
+L24 [T4 em-dash] {{ picked.arpu == null ? '��' : picked.arpu.toFixed(2) }} Ԫ
+L26 [T4 em-dash] {{ picked.open == null ? '��' : picked.open + ' / ' + picked.plan }}
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.
+CLEAN: no AI-tells found.

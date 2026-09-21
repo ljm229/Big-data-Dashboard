@@ -1,0 +1,89 @@
+{
+  "schema": "light.frontend_delivery.v1",
+  "delivery_claim": "DRAFT",
+  "scenario": "dashboard",
+  "decisions": [
+    {
+      "kind": "scenario",
+      "authority": "inherited",
+      "selected": "dashboard",
+      "source_locator": "web/src/App.vue"
+    },
+    {
+      "kind": "style_direction",
+      "authority": "delegated",
+      "selected": "鲜明立体、适度高光、深蓝实底、宽度铺满、底部可滚动",
+      "user_authorization": "用户本轮明确要求按所附驾驶舱截图改造现有项目。"
+    },
+    {
+      "kind": "stack",
+      "authority": "inherited",
+      "selected": "Vue + Vite + ECharts",
+      "source_locator": "web/package.json"
+    },
+    {
+      "kind": "color",
+      "authority": "delegated",
+      "selected": "高饱和蓝青绿黄橙、渠道分色",
+      "user_authorization": "用户本轮明确指定深蓝实底和高饱和蓝、青、绿、黄、橙科技配色。"
+    },
+    {
+      "kind": "font",
+      "authority": "inherited",
+      "selected": "项目本地中文字体栈及数字字体回退",
+      "source_locator": "web/src/styles/global.scss"
+    },
+    {
+      "kind": "density",
+      "authority": "inherited",
+      "selected": "高密度经营驾驶舱，保留现有模块",
+      "source_locator": "web/src/App.vue"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "user-reference",
+      "name": "用户本轮附图",
+      "kind": "inspiration",
+      "use": "reference_only",
+      "locator": "C:/Users/PC/AppData/Local/Temp/codex-clipboard-3726508f-c4e0-48bb-a1f6-c8c488653766.png",
+      "access_tier": "unknown",
+      "license": "用户提供，仅作视觉参考，不分发原图",
+      "last_checked": "2026-09-15"
+    }
+  ],
+  "token_system": {
+    "single_token_source": false,
+    "token_source_locator": "web/src/styles/global.scss",
+    "foreign_hardcoded_colors_remaining": false,
+    "second_design_system_present": false,
+    "note": "CSS、ECharts 色板和保留的渠道颜色映射尚未自动统一为单文件源。"
+  },
+  "qa": {
+    "contrast_lint": {
+      "status": "UNAVAILABLE",
+      "reason": "本机 _shared.visual_qa 缺失",
+      "artifact": "web/browser-qa/vivid-tech/contrast.txt"
+    },
+    "ai_tell_lint": {
+      "status": "WARN",
+      "artifact": "web/browser-qa/vivid-tech/ai-tell.txt",
+      "warning_summary": "两处模板中的缺值破折号被误报英文装饰文案，人工核对为正常缺值表达。"
+    },
+    "audit_checklist": {
+      "status": "PASS",
+      "artifact": "web/browser-qa/vivid-tech/audit.txt"
+    },
+    "browser_qa": {
+      "status": "PASS",
+      "artifact": "web/browser-qa/vivid-tech/report.json"
+    },
+    "render_review": {
+      "status": "PASS",
+      "artifact": "docs/商务科技驾驶舱视觉调整说明.md",
+      "reviewed_at": "2026-09-15",
+      "summary": "已回看三档截图与城市点击详情，颜色更新已保留，无关键布局缺陷。",
+      "critical_count": 0
+    }
+  }
+}

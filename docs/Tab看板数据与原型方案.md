@@ -121,7 +121,7 @@
 - `fact_coaching_task`：问题、动作、责任人、截止、状态、复查数据
 - `fact_store_target_monthly`：门店月目标
 
-所有事实表保留 `source_file`、`source_updated_at`、`ingested_at` 和原始指标 JSON，便于追溯与新增字段。
+所有事实表保留原始指标 JSON，便于后续扩展字段。
 
 ## 7. 更新与校验流程
 

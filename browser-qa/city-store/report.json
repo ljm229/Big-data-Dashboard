@@ -1,0 +1,62 @@
+[
+  {
+    "viewport": "1920",
+    "audit": {
+      "navActive": "城市门店",
+      "sw": 1920,
+      "cw": 1920,
+      "sh": 1080,
+      "ch": 1080,
+      "empty": [],
+      "canvas": 1,
+      "unnamed": 0
+    },
+    "errors": [],
+    "bad": [],
+    "interactions": [
+      {
+        "mapModes": true
+      },
+      {
+        "city": "杭州市",
+        "linked": true
+      },
+      {
+        "store": "城西中心店",
+        "storeLinked": true
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "audit": {
+      "navActive": "城市门店",
+      "sw": 1440,
+      "cw": 1440,
+      "sh": 900,
+      "ch": 900,
+      "empty": [],
+      "canvas": 1,
+      "unnamed": 0
+    },
+    "errors": [],
+    "bad": [],
+    "interactions": []
+  },
+  {
+    "viewport": "1366",
+    "audit": {
+      "navActive": "城市门店",
+      "sw": 1366,
+      "cw": 1366,
+      "sh": 877,
+      "ch": 768,
+      "empty": [],
+      "canvas": 1,
+      "unnamed": 0
+    },
+    "errors": [],
+    "bad": [],
+    "interactions": []
+  }
+]

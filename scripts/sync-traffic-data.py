@@ -8,7 +8,7 @@ import sys
 import openpyxl
 
 ROOT = Path(__file__).resolve().parents[1]
-TRAFFIC_DIR = ROOT / '数据源1' / '淘宝闪购商家'
+TRAFFIC_DIR = ROOT / '数据源' / '淘宝闪购商家'
 LEGACY_DEFAULT = TRAFFIC_DIR / '流量分析-分来源数据下载_8.15-9.13.xlsx'
 FIELDS = {'exposure': '曝光人数', 'entry': '进店人数', 'orders': '下单人数'}
 DIMENSIONS = {'分平台渠道': 'platform', '淘宝闪购APP内渠道': 'app'}
@@ -62,6 +62,8 @@ def build(source):
                 continue
             r = dict(zip(headers, values))
             raw_date = str(r['日期']).strip()
+            if not raw_date or raw_date in ('日期', 'date', 'Date'):
+                continue
             day_match = DAY_RE.fullmatch(raw_date)
             period_match = PERIOD_RE.fullmatch(raw_date)
             if day_match:
@@ -69,16 +71,22 @@ def build(source):
                 day = iso_day(raw_date)
                 start = end = day
             elif period_match:
-                grain = 'period'
                 start, end = [iso_day(x) for x in period_match.groups()]
                 if start > end:
                     raise ValueError(f'data!A{index} 周期起止顺序错误')
-                day = None
+                if start == end:
+                    # 平台将单日导出成 YYYYMMDD-YYYYMMDD，它仍然是可入日趋势的日快照
+                    grain = 'day'
+                    day = start
+                else:
+                    grain = 'period'
+                    day = None
             else:
-                raise ValueError(f'data!A{index} 日期格式不支持：{raw_date!r}（需要 YYYYMMDD 或 YYYYMMDD-YYYYMMDD）')
+                continue
+            if grains and grain not in grains:
+                # 日明细 + 非单日周期汇总行：跳过汇总，保留日粒度
+                continue
             grains.add(grain)
-            if len(grains) > 1:
-                raise ValueError('同一文件不能混用日粒度与周期汇总')
             dimension = DIMENSIONS.get(str(r['来源分类']).strip())
             if not dimension:
                 raise ValueError(f'未知来源分类：{r["来源分类"]}')
@@ -143,17 +151,21 @@ def main():
     if not source.exists():
         raise SystemExit(f'找不到源文件：{source}')
     payload = build(source)
-    output = ROOT / 'web/src/data/trafficData.json'
-    temp = output.with_suffix('.json.tmp')
-    temp.write_text(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False), encoding='utf-8')
-    temp.replace(output)
+    outputs = [ROOT / 'web/web/src/data/trafficData.json', ROOT / 'web/src/data/trafficData.json']
+    written = []
+    for output in outputs:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        temp = output.with_suffix('.json.tmp')
+        temp.write_text(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False), encoding='utf-8')
+        temp.replace(output)
+        written.append(str(output))
     print(json.dumps({
         'file': source.name,
         'period': payload['period'],
         'rows': len(payload['facts']),
         'stores': len({r['storeId'] for r in payload['facts']}),
         'days': len({r.get('date') for r in payload['facts'] if r.get('date')}),
-        'output': str(output),
+        'outputs': written,
     }, ensure_ascii=False))
 
 

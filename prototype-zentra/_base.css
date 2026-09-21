@@ -1,0 +1,149 @@
+/* =========================================================
+   Zentra 风格原型 · 基础令牌（不改动 src，仅原型预览用）
+   规则：中性底 + 高纯度强调色；无硬边框；柔和扩散阴影
+   ========================================================= */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* 80% 中性骨架 */
+  --bg-page: #F5F5F7;
+  --bg-card: #FFFFFF;
+  --bg-soft: #F1F1F3;
+  --bg-sunken: #EDEDEF;
+
+  --text-1: #111113;   /* 主文字 近纯黑深灰 */
+  --text-2: #6E6E73;   /* 辅助文字 */
+  --text-3: #AEAEB2;   /* 坐标轴 / 说明 */
+  --line: #F0F0F2;     /* 极浅分割 */
+
+  /* 20% 强调色 · 只表达状态，不做背景装饰 */
+  --color-primary: #2563FF;   /* 核心指标 / 客观数据 */
+  --color-success: #00C389;   /* 增长 / 良好 */
+  --color-danger:  #FF4D6D;   /* 异常 / 下跌 */
+  --color-insight: #FF8A00;   /* 洞察 / 机会点 */
+  --color-violet:  #8B5CF6;   /* 次级洞察 */
+
+  /* 软阴影（灵魂） */
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, .03);
+  --shadow:    0 4px 24px rgba(0, 0, 0, .04);
+  --shadow-hi: 0 8px 36px rgba(0, 0, 0, .06);
+
+  /* 形状 */
+  --r-card: 20px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
+          "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+  --num: "SF Pro Display", Bahnschrift, "DIN Alternate", "PingFang SC", sans-serif;
+}
+
+body {
+  background: var(--bg-page);
+  font-family: var(--font);
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  padding-bottom: 48px;
+}
+
+/* ---------- 顶栏 ---------- */
+.nav {
+  display: flex; align-items: center; gap: 26px;
+  padding: 16px 40px;
+  background: rgba(245, 245, 247, .78);
+  backdrop-filter: saturate(180%) blur(20px);
+  position: sticky; top: 0; z-index: 20;
+}
+.nav__brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+.nav__logo {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--color-insight), #FFC24B);
+  box-shadow: 0 4px 12px rgba(255, 138, 0, .28);
+}
+.nav__menu { display: flex; align-items: center; gap: 4px; margin: 0 auto; }
+.nav__menu a {
+  text-decoration: none; color: var(--text-2); font-size: 14px; font-weight: 500;
+  padding: 7px 14px; border-radius: var(--r-pill); transition: .18s;
+}
+.nav__menu a:hover { color: var(--text-1); }
+.nav__menu a.is-active { background: #FFFFFF; color: var(--text-1); box-shadow: var(--shadow-sm); font-weight: 600; }
+.nav__right { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #FFFFFF; box-shadow: var(--shadow-sm);
+  display: grid; place-items: center; color: var(--text-2);
+}
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #C7D2FE, #93C5FD); box-shadow: var(--shadow-sm); }
+
+/* ---------- 页头 ---------- */
+.page { max-width: 1440px; margin: 0 auto; padding: 8px 40px 0; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 18px 0 20px; }
+.page-title { display: flex; align-items: center; gap: 12px; }
+.page-title h1 { font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
+.page-title .edit { width: 30px; height: 30px; border-radius: 50%; background: #FFFFFF; box-shadow: var(--shadow-sm); display: grid; place-items: center; color: var(--text-2); }
+.filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 14px; border-radius: 12px; border: 0;
+  background: #FFFFFF; color: var(--text-1); font-size: 13px; font-weight: 500;
+  box-shadow: var(--shadow-sm); cursor: pointer; font-family: var(--font);
+}
+.chip--soft { background: var(--bg-soft); box-shadow: none; color: var(--text-2); }
+.chip--accent { color: var(--text-1); }
+.chip i { color: var(--text-3); font-style: normal; }
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+  display: flex; flex-direction: column; gap: 16px;
+  min-width: 0;
+}
+.card--soft { background: var(--bg-page); box-shadow: none; }
+.card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card__head h3 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.card__head .more { color: var(--text-3); font-size: 18px; letter-spacing: 2px; cursor: pointer; line-height: .5; }
+.card__sub { font-size: 12px; color: var(--text-3); font-weight: 400; }
+
+/* ---------- KPI 大数字排版（高低对比） ---------- */
+.kpi-big { display: flex; align-items: flex-end; gap: 10px; }
+.kpi-big .num { font-family: var(--num); font-size: 52px; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+.kpi-big .unit { font-size: 12px; color: var(--text-3); padding-bottom: 8px; }
+
+/* 胶囊标签：10% 透明底 + 语义色文字 */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 600; line-height: 1.4; white-space: nowrap;
+}
+.pill--up   { background: color-mix(in srgb, var(--color-success) 12%, #fff); color: var(--color-success); }
+.pill--down { background: color-mix(in srgb, var(--color-danger) 12%, #fff);  color: var(--color-danger); }
+.pill--flat { background: var(--bg-soft); color: var(--text-2); }
+.pill--info { background: color-mix(in srgb, var(--color-primary) 10%, #fff); color: var(--color-primary); }
+.pill--insight { background: color-mix(in srgb, var(--color-insight) 14%, #fff); color: var(--color-insight); }
+.pill--plain { background: #FFFFFF; color: var(--text-2); box-shadow: var(--shadow-sm); }
+
+/* 进度条清单（Gross Volume 风格） */
+.meter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.meter-row:last-child { margin-bottom: 0; }
+.meter-row .label { font-size: 14px; color: var(--text-2); }
+.meter-row .val { font-family: var(--num); font-size: 15px; font-weight: 600; }
+.meter { height: 6px; border-radius: var(--r-pill); background: var(--bg-sunken); overflow: hidden; margin-top: 8px; }
+.meter > b { display: block; height: 100%; border-radius: inherit; }
+
+/* 迷你柱状（订单 / 交易） */
+.mini-cols { display: flex; align-items: flex-end; gap: 6px; height: 74px; }
+.mini-cols span { width: 12px; border-radius: 6px; background: var(--bg-sunken); }
+
+/* 图例 */
+.legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.hr { height: 1px; background: var(--line); border: 0; }
+
+.grid { display: grid; gap: 18px; }
+.foot-note { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 28px; }

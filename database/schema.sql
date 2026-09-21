@@ -19,23 +19,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS dim_store_code_uniq
 CREATE INDEX IF NOT EXISTS dim_store_name_idx ON retail.dim_store (store_name);
 CREATE INDEX IF NOT EXISTS dim_store_city_idx ON retail.dim_store (city);
 
-CREATE TABLE IF NOT EXISTS retail.ingestion_batch (
-  id bigserial PRIMARY KEY,
-  source_code text NOT NULL,
-  file_name text NOT NULL,
-  file_hash text NOT NULL,
-  source_updated_at timestamptz,
-  imported_at timestamptz NOT NULL DEFAULT now(),
-  row_count integer NOT NULL DEFAULT 0,
-  date_min date,
-  date_max date,
-  status text NOT NULL DEFAULT 'success',
-  message text NOT NULL DEFAULT ''
-);
-
-CREATE INDEX IF NOT EXISTS ingestion_source_time_idx
-  ON retail.ingestion_batch (source_code, imported_at DESC);
-
 CREATE TABLE IF NOT EXISTS retail.fact_business_daily (
   source_code text NOT NULL,
   business_date date NOT NULL,
@@ -44,8 +27,6 @@ CREATE TABLE IF NOT EXISTS retail.fact_business_daily (
   store_name text NOT NULL DEFAULT '',
   channel text NOT NULL DEFAULT '',
   metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
-  source_file text NOT NULL,
-  ingested_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (source_code, business_date, dimension_key)
 );
 
@@ -66,8 +47,6 @@ CREATE TABLE IF NOT EXISTS retail.fact_store_quality_daily (
   merchant_issue_rate numeric(18,8),
   shop_score numeric(18,4),
   raw_metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
-  source_file text NOT NULL,
-  ingested_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (business_date, store_key)
 );
 

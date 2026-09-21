@@ -1,0 +1,29 @@
+{
+  "schema": "light.frontend_delivery.v1",
+  "delivery_claim": "DRAFT",
+  "scenario": "dashboard",
+  "decisions": [
+    { "kind": "density", "authority": "inherited", "selected": "六项 KPI、三张上排分析卡及三张下排卡；窄屏响应堆叠，明细逐级展开", "source_locator": "用户提供的流量转化看板原型及 web/src/components/StoreBoard.vue" },
+    { "kind": "scenario", "authority": "inherited", "selected": "dashboard", "source_locator": "用户提供的流量转化看板原型及现有经典版看板" },
+    { "kind": "style_direction", "authority": "inherited", "selected": "保持浅色信息密集型经典看板，以来源视角切换作为主要交互", "source_locator": "用户截图 codex-clipboard-8ef9e3a0-d3ea-4cd7-8295-e882f4b9d398.png" },
+    { "kind": "stack", "authority": "inherited", "selected": "现有 Vue 3 + Pinia + Vite，无新安装依赖", "source_locator": "web/package.json" },
+    { "kind": "color", "authority": "inherited", "selected": "现有浅蓝白经典版，蓝色作为交互主色", "source_locator": "web/src/styles/classic-cockpit.scss" },
+    { "kind": "font", "authority": "inherited", "selected": "继承 --ck-font 与 --ck-font-num", "source_locator": "web/src/styles/classic-cockpit.scss" }
+  ],
+  "sources": [
+    { "source_id": "user-traffic-reference", "name": "用户提供的流量页面原型", "kind": "inspiration", "use": "inspiration_only", "locator": "C:/Users/PC/AppData/Local/Temp/codex-clipboard-8ef9e3a0-d3ea-4cd7-8295-e882f4b9d398.png", "access_tier": "unknown", "license": "unknown", "last_checked": "2026-09-15", "copied_code": false }
+  ],
+  "token_system": {
+    "single_token_source": true,
+    "token_source_locator": "web/src/components/classic-pages/traffic-analysis.scss",
+    "foreign_hardcoded_colors_remaining": false,
+    "second_design_system_present": false
+  },
+  "qa": {
+    "contrast_lint": { "status": "UNAVAILABLE", "warning_summary": "_shared.visual_qa 缺失，未声称 WCAG 通过" },
+    "ai_tell_lint": { "status": "FAIL", "artifact": "docs/traffic-ai-tell.txt", "warning_summary": "脚本命中占位破折号，人工复核保留，不隐瞒脚本原始结果" },
+    "audit_checklist": { "status": "FAIL", "artifact": "docs/traffic-layout-audit.txt", "warning_summary": "6/7，子组件的导航检查不能识别父壳导航；真实浏览器已检查" },
+    "browser_qa": { "status": "UNAVAILABLE", "warning_summary": "脚本依赖缺失；已通过应用内浏览器执行三视口、交互和运行日志检查，见验证记录" },
+    "render_review": { "status": "WARN", "artifact": "docs/流量转化验证记录.md", "reviewed_at": "2026-09-15", "summary": "已检查实际截图，修复窄屏控件挤出；模拟视口截图有捕获缩放/黑边，不构造正式截图文件证据", "warning_summary": "未具备完整正式截图校验及对比度报告", "critical_count": 0 }
+  }
+}

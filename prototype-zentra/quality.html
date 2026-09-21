@@ -1,0 +1,119 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>运营质量 · Zentra版HTML原型</title>
+<link rel="stylesheet" href="./_base.css"/>
+<style>
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
+.kpi{background:#fff;border-radius:20px;box-shadow:var(--shadow);padding:16px 18px}
+.kpi .n{font-size:13px;color:var(--text-2)}.kpi .n small{color:var(--text-3);font-size:11px;margin-left:6px}
+.kpi .v{font-family:var(--num);font-size:30px;font-weight:700;letter-spacing:-.02em;margin:8px 0 10px}
+.grid-top{display:grid;grid-template-columns:.95fr 1.35fr 1.05fr;gap:18px}
+.grid-bot{display:grid;grid-template-columns:1.1fr 1.05fr 1.05fr;gap:18px;margin-top:18px}
+.donut-wrap{display:flex;gap:16px;align-items:center}
+.donut{width:120px;height:120px;border-radius:50%;flex:none;position:relative;
+background:conic-gradient(#2563FF 0 20%,#00C389 20% 50%,#FF8A00 50% 75%,#FF4D6D 75% 100%)}
+.donut::after{content:"B\A 30.0%";white-space:pre;text-align:center;position:absolute;inset:28px;background:#fff;border-radius:50%;display:grid;place-content:center;font-weight:700;font-size:14px;line-height:1.3}
+.glist{list-style:none;display:grid;gap:7px;font-size:12px;color:var(--text-2);flex:1}
+.glist li{display:grid;grid-template-columns:8px 1fr auto auto;gap:8px;align-items:center}
+.glist i{width:8px;height:8px;border-radius:50%}
+.glist b{font-family:var(--num)}
+.glist em{font-style:normal;color:var(--text-3);margin-left:8px}
+.hbar{display:grid;grid-template-columns:64px 1fr 52px;gap:10px;align-items:center;font-size:13px;margin:10px 0}
+.track{height:8px;border-radius:99px;background:var(--bg-sunken);overflow:hidden}
+.track b{display:block;height:100%;border-radius:inherit}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{color:var(--text-3);font-weight:500;text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+td{padding:7px 6px;border-bottom:1px solid var(--line);color:var(--text-1)}
+.cell{display:inline-block;min-width:52px;text-align:center;padding:4px 8px;border-radius:999px;font-weight:600;font-size:11px}
+.c-ok{background:rgba(0,195,137,.12);color:#00C389}.c-warn{background:rgba(255,138,0,.14);color:#FF8A00}.c-bad{background:rgba(255,77,109,.12);color:#FF4D6D}
+.stack{display:grid;gap:14px}
+.trend{width:100%;height:150px;display:block}
+.advice{border-radius:14px;padding:12px 14px;background:#fff;box-shadow:var(--shadow-sm);margin-bottom:10px}
+.advice strong{display:inline-block;font-size:12px;padding:3px 9px;border-radius:999px;margin-bottom:6px}
+.advice p{font-size:12px;color:var(--text-2);line-height:1.6}
+.dist{display:flex;align-items:flex-end;gap:10px;height:150px;padding-top:10px}
+.dist .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
+.dist .bar{width:34px;border-radius:8px 8px 4px 4px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.dist .bar i{display:block}
+.dist small{font-size:11px;color:var(--text-3)}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.grid-top,.grid-bot{grid-template-columns:1fr}}
+</style></head><body>
+<nav class="nav"><div class="nav__brand"><span class="nav__logo"></span> zentra</div>
+<div class="nav__menu"><a href="./a.html">总览</a><a class="is-active" href="#">运营质量</a><a href="./b.html">门店诊断</a><a href="./c.html">渠道与风险</a></div>
+<div class="nav__right"><button class="chip">9月17日 ▾</button><button class="chip chip--accent">Add widget ＋</button></div></nav>
+<div class="page">
+<div class="page-head"><div class="page-title"><h1>运营质量</h1><span class="pill pill--flat">主营到店 · 日比</span></div>
+<div class="filters"><button class="chip">按日 ▾</button><button class="chip">全部渠道 ▾</button><button class="chip">全部 ▾</button></div></div>
+
+<div class="kpis">
+<div class="kpi"><div class="n">参评门店</div><div class="v">20</div><span class="pill pill--flat">日比 0</span></div>
+<div class="kpi"><div class="n">综合合格率</div><div class="v">20.00%</div><span class="pill pill--up">日比 +5.0%</span></div>
+<div class="kpi"><div class="n">D红线店</div><div class="v" style="color:var(--color-danger)">5</div><span class="pill pill--down">日比 +1</span></div>
+<div class="kpi"><div class="n">未达标指标</div><div class="v">41</div><span class="pill pill--down">日比 -5</span></div>
+<div class="kpi"><div class="n">日比改善</div><div class="v">8</div><span class="pill pill--up">日比 +8</span></div>
+<div class="kpi"><div class="n">待整改 / 逾期<small>待整改 5</small></div><div class="v">5 / 0</div><span class="pill pill--insight">闭环跟踪</span></div>
+</div>
+
+<div class="grid-top">
+<div class="stack">
+<div class="card"><div class="card__head"><h3>质量状态概览</h3><span class="more">•••</span></div>
+<div class="donut-wrap"><div class="donut"></div>
+<ul class="glist">
+<li><i style="background:#2563FF"></i>S 鲜领先<span><b>0</b><em>0.00%</em></span></li>
+<li><i style="background:#00C389"></i>A 合格店<span><b>4</b><em>20.00%</em></span></li>
+<li><i style="background:#EAB308"></i>B 预警店<span><b>6</b><em>30.00%</em></span></li>
+<li><i style="background:#FF8A00"></i>C 不合格<span><b>5</b><em>25.00%</em></span></li>
+<li><i style="background:#FF4D6D"></i>D 红线店<span><b>5</b><em>25.00%</em></span></li>
+</ul></div></div>
+<div class="card"><div class="card__head"><h3>核心指标合格率</h3></div>
+<div class="hbar"><span>售罄率</span><div class="track"><b style="width:25%;background:var(--color-danger)"></b></div><b>25.0%</b></div>
+<div class="hbar"><span>错漏拣</span><div class="track"><b style="width:50%;background:var(--color-insight)"></b></div><b>50.0%</b></div>
+<div class="hbar"><span>仓配时效</span><div class="track"><b style="width:90%;background:var(--color-success)"></b></div><b>90.0%</b></div>
+<div class="hbar"><span>商责取消</span><div class="track"><b style="width:47%;background:var(--color-insight)"></b></div><b>47.4%</b></div>
+<div class="hbar"><span>回复率</span><div class="track"><b style="width:80%;background:var(--color-success)"></b></div><b>80.0%</b></div>
+</div></div>
+
+<div class="card"><div class="card__head"><h3>门店 × 指标热力矩阵</h3><span class="pill pill--plain">优秀 S/A · 预警 B · 不合格 C/D</span></div>
+<table><tr><th>#</th><th>门店</th><th>售罄率</th><th>错漏拣</th><th>仓配时效</th><th>综合</th></tr>
+<tr><td>1</td><td>城北店</td><td><span class="cell c-bad">7.29%</span></td><td><span class="cell c-ok">0.00%</span></td><td><span class="cell c-ok">2.4</span></td><td><span class="pill pill--up">A</span></td></tr>
+<tr><td>2</td><td>金桥店</td><td><span class="cell c-ok">8.27%</span></td><td><span class="cell c-ok">0.00%</span></td><td><span class="cell c-ok">2.7</span></td><td><span class="pill pill--up">A</span></td></tr>
+<tr><td>3</td><td>滨江店</td><td><span class="cell c-warn">10.58%</span></td><td><span class="cell c-ok">0.81%</span></td><td><span class="cell c-ok">3.1</span></td><td><span class="pill pill--down">C</span></td></tr>
+<tr><td>12</td><td>九龙汇店</td><td><span class="cell c-warn">11.45%</span></td><td><span class="cell c-ok">0.45%</span></td><td><span class="cell c-ok">3.0</span></td><td><span class="pill pill--down">C</span></td></tr>
+<tr><td>13</td><td>港闸店</td><td><span class="cell c-warn">11.95%</span></td><td><span class="cell c-ok">0.00%</span></td><td><span class="cell c-ok">3.3</span></td><td><span class="pill pill--down">C</span></td></tr>
+</table></div>
+
+<div class="card"><div class="card__head"><h3>门店详情</h3><span class="pill pill--plain">城北店 ▾</span></div>
+<div><span class="pill pill--up">A 合格店</span> <span style="font-size:12px;color:var(--text-3)">综合分 88.0</span></div>
+<table style="margin-top:8px"><tr><th>考核指标</th><th>实际值</th><th>环比</th><th>状态</th></tr>
+<tr><td>动销商品缺货率</td><td>7.29%</td><td>-7.88pp</td><td><span class="cell c-ok">合格</span></td></tr>
+<tr><td>拣货差错率</td><td>0.00%</td><td>-1.03pp</td><td><span class="cell c-ok">合格</span></td></tr>
+<tr><td>平均拣货时长</td><td>2.4</td><td>-0.1</td><td><span class="cell c-ok">合格</span></td></tr>
+<tr><td>即时单99分时达率</td><td>87.50%</td><td>-12.50pp</td><td><span class="cell c-bad">不合格</span></td></tr>
+</table></div>
+</div>
+
+<div class="grid-bot">
+<div class="card"><div class="card__head"><h3>门店合格率分布（按城市）</h3><span class="pill pill--plain">按城市 · 按门店</span></div>
+<div class="legend"><span><i style="background:#2563FF"></i>S级</span><span><i style="background:#00C389"></i>A级</span><span><i style="background:#EAB308"></i>B级</span><span><i style="background:#FF8A00"></i>C级</span><span><i style="background:#FF4D6D"></i>D级</span></div>
+<div class="dist">
+<div class="col"><div class="bar" style="height:120px"><i style="height:20%;background:#FF4D6D"></i><i style="height:30%;background:#FF8A00"></i><i style="height:30%;background:#EAB308"></i><i style="height:20%;background:#00C389"></i></div><small>苏州市</small></div>
+<div class="col"><div class="bar" style="height:120px"><i style="height:25%;background:#FF4D6D"></i><i style="height:50%;background:#FF8A00"></i><i style="height:25%;background:#00C389"></i></div><small>杭州市</small></div>
+<div class="col"><div class="bar" style="height:120px;background:#F1F1F3"><i style="height:100%;background:#00C389"></i></div><small>嘉兴市</small></div>
+<div class="col"><div class="bar" style="height:120px;background:#F1F1F3"><i style="height:100%;background:#EAB308"></i></div><small>南通市</small></div>
+<div class="col"><div class="bar" style="height:120px;background:#F1F1F3"><i style="height:100%;background:#FF4D6D"></i></div><small>济南市</small></div>
+</div></div>
+<div class="card"><div class="card__head"><h3>指标趋势</h3><span class="pill pill--plain">动销商品缺货率 ▾</span></div>
+<svg class="trend" viewBox="0 0 400 150" preserveAspectRatio="none">
+<defs><linearGradient id="q" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2563FF" stop-opacity=".2"/><stop offset="1" stop-color="#2563FF" stop-opacity="0"/></linearGradient></defs>
+<line x1="0" y1="60" x2="400" y2="60" stroke="#FF8A00" stroke-dasharray="5 4" stroke-width="1.5"/>
+<path d="M0,45 C40,40 60,55 90,50 C120,45 140,60 180,52 C220,44 250,58 290,50 C330,42 360,55 400,50 L400,150 L0,150 Z" fill="url(#q)"/>
+<path d="M0,45 C40,40 60,55 90,50 C120,45 140,60 180,52 C220,44 250,58 290,50 C330,42 360,55 400,50" fill="none" stroke="#2563FF" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
+<div class="legend"><span>09-11</span><span>09-13</span><span>09-15</span><span>09-17</span><span style="margin-left:auto;color:var(--color-insight)">- - 合格线 ≤8%</span></div></div>
+<div class="card"><div class="card__head"><h3>整改建议</h3><span class="card__sub">分析后 · 共 4 条</span></div>
+<div class="advice"><strong class="pill pill--info">动销商品缺货率 未达标</strong><p>重点整改：龙虎店(13.64%)、城北店(13.92%)、城中店(12.42%)。</p></div>
+<div class="advice"><strong class="pill pill--insight">拣货差错 未达标</strong><p>治阳店 1单：补拣(5.93%)、盘点亏(2.06%)、复核亏(1.86%)。</p></div>
+<div class="advice"><strong class="pill pill--down">商责取消率 未达标</strong><p>D红线 5 家逐店挂账，本周内一店一策。</p></div>
+</div>
+</div>
+<p class="foot-note">运营质量 Zentra版 · 静态HTML预览，不改业务逻辑</p></div></body></html>

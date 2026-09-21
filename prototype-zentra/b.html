@@ -1,0 +1,51 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/><title>原型 B · 新店诊断</title>
+<link rel="stylesheet" href="./_base.css"/>
+<style>
+.grid2{display:grid;grid-template-columns:1.4fr .9fr;gap:18px}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
+.kpi{background:#fff;border-radius:20px;box-shadow:var(--shadow);padding:16px}
+.kpi .n{font-size:13px;color:var(--text-2)}.kpi .v{font-family:var(--num);font-size:28px;font-weight:700;letter-spacing:-.02em;margin:6px 0}
+.bars{display:grid;gap:10px}.bar-row{display:grid;grid-template-columns:110px 1fr 64px;gap:10px;align-items:center;font-size:13px}
+.track{height:14px;border-radius:99px;background:var(--bg-sunken);display:flex;gap:3px;overflow:hidden}
+.track b{display:block;height:100%}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--text-3);font-weight:500;text-align:left;padding:8px}td{padding:9px 8px;border-top:1px solid var(--line)}
+@media(max-width:1000px){.grid2,.kpis{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<nav class="nav"><div class="nav__brand"><span class="nav__logo"></span> zentra</div>
+<div class="nav__menu"><a href="./a.html">Home</a><a class="is-active" href="#">门店诊断</a><a href="./c.html">渠道与风险</a></div>
+<div class="nav__right"><button class="icon-btn">⌕</button><span class="avatar"></span></div></nav>
+<div class="page">
+<div class="page-head"><div class="page-title"><h1>新店诊断</h1></div>
+<div class="filters"><button class="chip">近 30 天 ▾</button><button class="chip">全部渠道 ▾</button><button class="chip chip--accent">Add widget ＋</button></div></div>
+<div class="kpis">
+<div class="kpi"><div class="n">本期毛利</div><div class="v">¥86.2w</div><span class="pill pill--up">+8.4%</span></div>
+<div class="kpi"><div class="n">本期订单</div><div class="v">48,610</div><span class="pill pill--up">+5.1%</span></div>
+<div class="kpi"><div class="n">客单价 · 元</div><div class="v">32.6</div><span class="pill pill--flat">-0.3%</span></div>
+<div class="kpi"><div class="n">新店订单</div><div class="v">9,204</div><span class="pill pill--info">占 19%</span></div>
+<div class="kpi"><div class="n">新店毛利</div><div class="v">¥12.4w</div><span class="pill pill--insight">待爬坡</span></div>
+<div class="kpi"><div class="n">缺货损失</div><div class="v">¥1.1w</div><span class="pill pill--down">偏高</span></div>
+</div>
+<div class="grid2">
+<div class="card"><div class="card__head"><h3>门店排行榜 <span class="card__sub">蓝=新店 · 绿=老店</span></h3><span class="more">•••</span></div>
+<div class="bars">
+<div class="bar-row"><span>淘闪·朝阳店</span><div class="track"><b style="width:82%;background:linear-gradient(90deg,#2563FF,rgba(37,99,255,.25))"></b></div><b>¥3.2w</b></div>
+<div class="bar-row"><span>淘闪·通州店</span><div class="track"><b style="width:64%;background:linear-gradient(90deg,#00C389,rgba(0,195,137,.25))"></b></div><b>¥2.1w</b></div>
+<div class="bar-row"><span>淘闪·新店A</span><div class="track"><b style="width:38%;background:linear-gradient(90deg,#2563FF,rgba(37,99,255,.25))"></b></div><b>¥0.8w</b></div>
+<div class="bar-row"><span>淘闪·新店B</span><div class="track"><b style="width:12%;background:linear-gradient(90deg,#FF4D6D,rgba(255,77,109,.25))"></b></div><b style="color:var(--color-danger)">-¥0.4w</b></div>
+</div></div>
+<div class="card"><div class="card__head"><h3>新店 vs 老店</h3><span class="more">•••</span></div>
+<div class="meter-row"><span class="label">订单量</span><span class="pill pill--info">环比 +4.2%</span></div>
+<div class="meter"><b style="width:19%;background:var(--color-primary)"></b></div>
+<div class="meter-row" style="margin-top:12px"><span class="label">实付金额</span><span class="pill pill--flat">环比 +1.8%</span></div>
+<div class="meter"><b style="width:15%;background:var(--color-violet)"></b></div>
+<div class="meter-row" style="margin-top:12px"><span class="label">含后返毛利</span><span class="pill pill--up">环比 +8.4%</span></div>
+<div class="meter"><b style="width:14%;background:var(--color-success)"></b></div></div>
+</div>
+<div class="card" style="margin-top:18px"><div class="card__head"><h3>诊断明细</h3><span class="pill pill--plain">淘闪·新店B · 新店</span></div>
+<table><tr><th>渠道</th><th>订单</th><th>毛利</th><th>状态</th></tr>
+<tr><td>淘闪外卖</td><td>1,204</td><td>-¥4,200</td><td><span class="pill pill--down">主因</span></td></tr>
+<tr><td>淘闪商超</td><td>860</td><td>¥1,120</td><td><span class="pill pill--up">健康</span></td></tr>
+<tr><td>堂食</td><td>312</td><td>¥640</td><td><span class="pill pill--up">健康</span></td></tr></table></div>
+<p class="foot-note">原型 B · 新店诊断 —— 纯静态预览</p></div></body></html>

@@ -11,8 +11,10 @@ import { fileURLToPath } from 'node:url'
 import xlsx from 'xlsx'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const SOURCE = path.join(ROOT, '数据源1', '翱象')
-const OUTPUT = path.join(ROOT, 'web', 'src', 'data', 'orderMarginData.json')
+const SOURCE_CANDIDATES = [path.join(ROOT, '数据源', '翱象'), path.join(ROOT, '数据源1', '翱象')]
+const SOURCE = SOURCE_CANDIDATES.find((d) => existsSync(d)) || SOURCE_CANDIDATES[0]
+const OUTPUT_CANDIDATES = [path.join(ROOT, 'web', 'web', 'src', 'data', 'orderMarginData.json'), path.join(ROOT, 'web', 'src', 'data', 'orderMarginData.json')]
+const OUTPUT = OUTPUT_CANDIDATES.find((p) => existsSync(p)) || OUTPUT_CANDIDATES[0]
 const TMP = `${OUTPUT}.tmp`
 
 const REASON_KEYS = ['商品毛利为负', '营销折扣过高', '配送成本过高', '平台费用占比高', '其他']
@@ -60,7 +62,7 @@ function money(v) {
 function pickSourceFile() {
   if (!existsSync(SOURCE)) throw new Error(`缺少目录: ${SOURCE}`)
   const files = readdirSync(SOURCE).filter(
-    (f) => f.includes('订单毛利') && f.endsWith('.xlsx') && !f.startsWith('~$'),
+    (f) => (f.includes('订单毛利') || f.includes('毛利订单')) && f.endsWith('.xlsx') && !f.startsWith('~$'),
   )
   if (!files.length) throw new Error('缺少源文件: 翱象/*订单毛利*.xlsx')
   return files
@@ -204,7 +206,7 @@ function main() {
   const payload = {
     generatedAt: new Date().toISOString(),
     source: {
-      path: path.relative(path.join(ROOT, '数据源1'), src.full).replace(/\\/g, '/'),
+      path: path.relative(ROOT, src.full).replace(/\\/g, '/'),
       sheet: sheetName,
       sha256,
       note: '全量订单；负毛利结构按预计毛利<0；＞3元=预计毛利≤-3；变化桥字段=应收/预计毛利/营销/配送/平台费/退款单毛利。',

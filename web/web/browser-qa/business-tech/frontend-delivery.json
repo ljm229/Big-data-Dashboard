@@ -1,0 +1,22 @@
+{
+  "schema": "light.frontend_delivery.v1",
+  "delivery_claim": "DRAFT",
+  "scenario": "dashboard",
+  "decisions": [
+    {"kind":"scenario","authority":"inherited","selected":"dashboard","source_locator":"web/src/App.vue"},
+    {"kind":"style_direction","authority":"delegated","selected":"深蓝实底、通透商务科技驾驶舱、细青蓝切角框","user_authorization":"用户本轮明确要求按所附驾驶舱截图改造现有项目。"},
+    {"kind":"stack","authority":"inherited","selected":"Vue + Vite + ECharts","source_locator":"web/package.json"},
+    {"kind":"color","authority":"delegated","selected":"深蓝背景及高饱和蓝青绿黄橙图表","user_authorization":"用户本轮明确指定深蓝实底和高饱和蓝、青、绿、黄、橙科技配色。"},
+    {"kind":"font","authority":"inherited","selected":"项目本地中文字体栈及数字字体回退","source_locator":"web/src/styles/global.scss"},
+    {"kind":"density","authority":"inherited","selected":"高密度经营驾驶舱，保留现有模块","source_locator":"web/src/App.vue"}
+  ],
+  "sources": [{"source_id":"user-reference","name":"用户本轮附图","kind":"inspiration","use":"reference_only","locator":"C:/Users/PC/AppData/Local/Temp/codex-clipboard-dda649a4-7adb-4967-aad1-89cd47ac9219.png","access_tier":"unknown","license":"用户提供，仅作视觉参考，不分发原图","last_checked":"2026-09-15"}],
+  "token_system": {"single_token_source":false,"token_source_locator":"web/src/styles/global.scss","foreign_hardcoded_colors_remaining":false,"second_design_system_present":false,"note":"CSS 与 ECharts 维持一致配色，但尚非自动生成的单文件源。"},
+  "qa": {
+    "contrast_lint":{"status":"UNAVAILABLE","reason":"本机技能缺少 _shared.visual_qa，未伪造通过报告。"},
+    "ai_tell_lint":{"status":"PASS","artifact":"docs/商务科技驾驶舱视觉调整说明.md"},
+    "audit_checklist":{"status":"PASS","artifact":"docs/商务科技驾驶舱视觉调整说明.md"},
+    "browser_qa":{"status":"PASS","artifact":"web/browser-qa/business-tech/report.json"},
+    "render_review":{"status":"PASS","artifact":"docs/商务科技驾驶舱视觉调整说明.md","reviewed_at":"2026-09-15","summary":"已回看三档截图，无关键视觉溢出，长三角标签已错位修正。","critical_count":0}
+  }
+}

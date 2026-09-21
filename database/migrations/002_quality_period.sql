@@ -10,8 +10,6 @@ CREATE TABLE IF NOT EXISTS retail.fact_store_quality_period (
   merchant_issue_rate numeric(18,8),
   shop_score numeric(18,4),
   raw_metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
-  source_file text NOT NULL,
-  ingested_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (period_start, period_end, store_key),
   CHECK (period_end >= period_start)
 );

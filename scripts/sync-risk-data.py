@@ -12,8 +12,10 @@ import re
 import openpyxl
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "数据源1"
-OUTPUT = ROOT / "web/src/data/riskData.json"
+CANDIDATES = [ROOT / "数据源", ROOT / "数据源1"]
+SOURCE = next((c for c in CANDIDATES if c.exists()), CANDIDATES[0])
+OUT_CANDIDATES = [ROOT / "web/web/src/data/riskData.json", ROOT / "web/src/data/riskData.json"]
+OUTPUT = next((c for c in OUT_CANDIDATES if c.parent.exists()), OUT_CANDIDATES[0])
 
 
 def norm(value):

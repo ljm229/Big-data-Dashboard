@@ -1,0 +1,15 @@
+{
+  "name": "automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "aixiang:open": "node scripts/aixiang-open.mjs",
+    "aixiang:check": "node scripts/aixiang-check.mjs",
+    "aixiang:export-yesterday": "node scripts/aixiang-business-detail-yesterday.mjs",
+    "aixiang:session-check": "node scripts/aixiang-session-check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}

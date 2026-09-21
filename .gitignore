@@ -1,6 +1,8 @@
 node_modules/
 web/node_modules/
+web/web/node_modules/
 web/dist/
+web/web/dist/
 server/node_modules/
 server/.npm-cache/
 server/.env

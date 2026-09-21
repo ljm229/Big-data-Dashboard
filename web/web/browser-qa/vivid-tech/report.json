@@ -1,0 +1,320 @@
+{
+  "schema": "light.frontend.browser_qa.v1",
+  "target": "http://127.0.0.1:5182/",
+  "status": "PASS",
+  "viewports": [
+    {
+      "viewport": "full-hd",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "status": "PASS",
+      "audit": {
+        "document": {
+          "scrollWidth": 1920,
+          "scrollHeight": 1200,
+          "clientWidth": 1920,
+          "clientHeight": 1080
+        },
+        "screen": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1200
+        },
+        "panelCount": 8,
+        "panelOverflows": [],
+        "footer": {
+          "top": 1160,
+          "bottom": 1200
+        },
+        "headerHeights": [
+          46,
+          46,
+          46,
+          46,
+          46,
+          46,
+          46,
+          46
+        ],
+        "surfaces": [
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(2, 22, 47)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          }
+        ],
+        "interactiveCount": 52,
+        "unnamedControls": [],
+        "bodyText": "按日\n按周\n按月\n9月13日\n全部平台\n电商即时零售经营数据驾驶舱\n\nE-COMMERCE INSTANT RETAIL DATA COCKPIT\n\n经营总览\n运营·经典\n运营·Tab\n2026/09/15 周二 01:49:12\n截止 09/13\n总营业（元）\n178,043.06\n日环比+6.5%\n周环比+2.4%\n实付金额（元）\n207,150.74\n日环比+7.0%\n周环比+2.3%\n预计毛利（元）\n38,033.82\n日环比+3.3%\n周环比+5.6%\n毛利率（含后返）\n21.4%\n日环比-0.7pct\n周环比+0.7pct\n有效订单量\n8,637\n日环比+4.7%\n周环比-1.4%"
+      },
+      "focus": {
+        "sampled": 36,
+        "withIndicator": 36
+      },
+      "interactions": [
+        {
+          "action": "按周",
+          "ok": true
+        },
+        {
+          "action": "按日",
+          "ok": true
+        },
+        {
+          "action": "地图标题区城市、门店筛选联动与重置",
+          "ok": true
+        },
+        {
+          "action": "真实鼠标点击地图气泡并展示城市详情",
+          "ok": true
+        },
+        {
+          "action": "地图缩放与重置",
+          "ok": true
+        },
+        {
+          "action": "省域背景点击与无数据反馈",
+          "ok": true
+        },
+        {
+          "action": "渠道筛选切换与恢复",
+          "ok": true
+        }
+      ],
+      "failures": [],
+      "screenshot": "D:\\Flash‑Player Data Dashboard\\Flash‑Player Data Dashboard1\\web\\browser-qa\\vivid-tech\\full-hd.png",
+      "screenshot_sha256": "sha256:f130b392a88426438e68b56eb58d14e00fe66fcb9d7104f1c00ddc6c9613886c"
+    },
+    {
+      "viewport": "desktop-16x10",
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "status": "PASS",
+      "audit": {
+        "document": {
+          "scrollWidth": 1440,
+          "scrollHeight": 900,
+          "clientWidth": 1440,
+          "clientHeight": 900
+        },
+        "screen": {
+          "left": 0,
+          "top": 0,
+          "right": 1440,
+          "bottom": 900
+        },
+        "panelCount": 8,
+        "panelOverflows": [],
+        "footer": {
+          "top": 870,
+          "bottom": 900
+        },
+        "headerHeights": [
+          46,
+          46,
+          46,
+          46,
+          46,
+          46,
+          46,
+          46
+        ],
+        "surfaces": [
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(2, 22, 47)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          }
+        ],
+        "interactiveCount": 52,
+        "unnamedControls": [],
+        "bodyText": "按日\n按周\n按月\n9月13日\n全部平台\n电商即时零售经营数据驾驶舱\n\nE-COMMERCE INSTANT RETAIL DATA COCKPIT\n\n经营总览\n运营·经典\n运营·Tab\n2026/09/15 周二 01:49:27\n截止 09/13\n总营业（元）\n178,043.06\n日环比+6.5%\n周环比+2.4%\n实付金额（元）\n207,150.74\n日环比+7.0%\n周环比+2.3%\n预计毛利（元）\n38,033.82\n日环比+3.3%\n周环比+5.6%\n毛利率（含后返）\n21.4%\n日环比-0.7pct\n周环比+0.7pct\n有效订单量\n8,637\n日环比+4.7%\n周环比-1.4%"
+      },
+      "focus": {
+        "sampled": 36,
+        "withIndicator": 36
+      },
+      "interactions": [],
+      "failures": [],
+      "screenshot": "D:\\Flash‑Player Data Dashboard\\Flash‑Player Data Dashboard1\\web\\browser-qa\\vivid-tech\\desktop-16x10.png",
+      "screenshot_sha256": "sha256:59627a4d505288a832d969f0e3b2c3acfcb6150ca571a1adb3253eaf05c3b259"
+    },
+    {
+      "viewport": "laptop",
+      "dimensions": {
+        "width": 1366,
+        "height": 768
+      },
+      "status": "PASS",
+      "audit": {
+        "document": {
+          "scrollWidth": 1366,
+          "scrollHeight": 854,
+          "clientWidth": 1366,
+          "clientHeight": 768
+        },
+        "screen": {
+          "left": 0,
+          "top": 0,
+          "right": 1366,
+          "bottom": 853.75
+        },
+        "panelCount": 8,
+        "panelOverflows": [],
+        "footer": {
+          "top": 825.2916870117188,
+          "bottom": 853.75
+        },
+        "headerHeights": [
+          46,
+          46,
+          46,
+          46,
+          46,
+          46,
+          46,
+          46
+        ],
+        "surfaces": [
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(2, 22, 47)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          },
+          {
+            "background": "rgb(3, 32, 67)",
+            "filter": "none",
+            "opacity": "1"
+          }
+        ],
+        "interactiveCount": 52,
+        "unnamedControls": [],
+        "bodyText": "按日\n按周\n按月\n9月13日\n全部平台\n电商即时零售经营数据驾驶舱\n\nE-COMMERCE INSTANT RETAIL DATA COCKPIT\n\n经营总览\n运营·经典\n运营·Tab\n2026/09/15 周二 01:49:35\n截止 09/13\n总营业（元）\n178,043.06\n日环比+6.5%\n周环比+2.4%\n实付金额（元）\n207,150.74\n日环比+7.0%\n周环比+2.3%\n预计毛利（元）\n38,033.82\n日环比+3.3%\n周环比+5.6%\n毛利率（含后返）\n21.4%\n日环比-0.7pct\n周环比+0.7pct\n有效订单量\n8,637\n日环比+4.7%\n周环比-1.4%"
+      },
+      "focus": {
+        "sampled": 36,
+        "withIndicator": 36
+      },
+      "interactions": [],
+      "failures": [],
+      "screenshot": "D:\\Flash‑Player Data Dashboard\\Flash‑Player Data Dashboard1\\web\\browser-qa\\vivid-tech\\laptop.png",
+      "screenshot_sha256": "sha256:ec2e0de92a27bd153b34abea360c6e46fbc7e8dd552f4c881370170ed275aae9"
+    }
+  ],
+  "coverage": {
+    "real_chromium": true,
+    "checks": [
+      "console/page errors",
+      "document/panel overflow",
+      "accessible control names",
+      "keyboard focus indicator",
+      "key filter interactions",
+      "screenshots"
+    ]
+  }
+}
