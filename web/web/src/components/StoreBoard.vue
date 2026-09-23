@@ -118,6 +118,7 @@
 
     <main class="ck-main">
       <ProfitCostPage v-if="activeTab === 'profit'" />
+      <BusinessDetailPage v-else-if="activeTab === 'bizdetail'" />
       <NewStoreDiagnosisPage v-else-if="activeTab === 'diag'" />
       <CoreMetricsTrackTab v-else-if="activeTab === 'track'" />
       <TrafficConvertPage v-else-if="activeTab === 'traffic'" />
@@ -132,6 +133,7 @@
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import DateFilter from './DateFilter.vue'
+import BusinessDetailPage from './classic-pages/BusinessDetailPage.vue'
 import NewStoreDiagnosisPage from './classic-pages/NewStoreDiagnosisPage.vue'
 import SelectMenu from './SelectMenu.vue'
 import ProfitCostPage from './classic-pages/ProfitCostPage.vue'
@@ -148,11 +150,12 @@ import { profitDimension } from '../api/profitPc'
 
 const emit = defineEmits<{ 'switch-view': []; 'switch-edition': [] }>()
 
-type TabId = 'overview' | 'profit' | 'track' | 'traffic' | 'quality' | 'diag' | 'datasource'
+type TabId = 'overview' | 'profit' | 'track' | 'traffic' | 'quality' | 'diag' | 'datasource' | 'bizdetail'
 
 const navItems: Array<{ id: TabId; label: string }> = [
   { id: 'overview', label: '数据大屏' },
   { id: 'quality', label: '运营质量' },
+  { id: 'bizdetail', label: '经营明细' },
   { id: 'track', label: '指标追踪' },
   { id: 'profit', label: '利润成本' },
   { id: 'traffic', label: '流量转化' },
@@ -162,7 +165,7 @@ const navItems: Array<{ id: TabId; label: string }> = [
 
 const requestedRaw = new URLSearchParams(window.location.search).get('tab')
 const requestedTab = requestedRaw === 'channel' || requestedRaw === 'city' ? 'quality' : requestedRaw
-const classicTabs: Array<Exclude<TabId, 'overview'>> = ['quality', 'profit', 'traffic', 'track', 'diag', 'datasource']
+const classicTabs: Array<Exclude<TabId, 'overview'>> = ['quality', 'bizdetail', 'profit', 'traffic', 'track', 'diag', 'datasource']
 const activeTab = ref<Exclude<TabId, 'overview'>>(
   classicTabs.includes(requestedTab as Exclude<TabId, 'overview'>)
     ? requestedTab as Exclude<TabId, 'overview'>
