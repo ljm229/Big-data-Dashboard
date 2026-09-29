@@ -26,7 +26,7 @@ const emit = defineEmits<{ select: [string]; fallback: [] }>()
 const container = ref<HTMLDivElement | null>(null)
 const tileState = ref<'loading' | 'ready' | 'error'>('loading')
 const providerName = ref('OpenStreetMap')
-/** 国内可直连的街道底图源：高德/CARTO 为主，OSM 兜底。GCJ-02 偏移对此处概位展示可接受 */
+/** 国内可直连的街道底图源：高德为主，OSM 兜底（CARTO 自 2026 起需 API Key，已移除）。GCJ-02 偏移对此处概位展示可接受 */
 const TILE_PROVIDERS = [
   {
     name: '高德街道',
@@ -34,13 +34,6 @@ const TILE_PROVIDERS = [
     attribution: '&copy; <a href="https://www.amap.com/" target="_blank" rel="noopener noreferrer">高德地图 GS(2021)1030号</a>',
     subdomains: ['01', '02', '03', '04'],
     maxZoom: 18,
-  },
-  {
-    name: 'Carto 街道',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 20,
   },
   {
     name: 'OpenStreetMap',

@@ -3,7 +3,12 @@
  * 说明：无官方门店经纬度时，用门店信息表地址对应商圈/区县中心做可展示级定位。
  */
 
-export type ProvinceKey = 'zhejiang' | 'jiangsu' | 'shanghai' | 'shandong' | 'henan' | 'hubei'
+export type ProvinceKey =
+  | 'zhejiang' | 'jiangsu' | 'shanghai' | 'shandong' | 'henan' | 'hubei'
+  | 'beijing' | 'tianjin' | 'hebei' | 'shanxi' | 'neimenggu' | 'liaoning'
+  | 'jilin' | 'heilongjiang' | 'anhui' | 'fujian' | 'jiangxi' | 'hunan'
+  | 'guangdong' | 'guangxi' | 'hainan' | 'chongqing' | 'sichuan' | 'guizhou'
+  | 'yunnan' | 'xizang' | 'shaanxi' | 'gansu' | 'qinghai' | 'ningxia' | 'xinjiang'
 
 export type ProvinceMeta = {
   key: ProvinceKey
@@ -21,6 +26,31 @@ export const PROVINCES: Record<ProvinceKey, ProvinceMeta> = {
   shandong: { key: 'shandong', name: '山东省', adcode: '370000', center: [118.5, 36.3], zoom: 1.05 },
   henan: { key: 'henan', name: '河南省', adcode: '410000', center: [113.6, 33.9], zoom: 1.05 },
   hubei: { key: 'hubei', name: '湖北省', adcode: '420000', center: [112.3, 31.0], zoom: 1.05 },
+  beijing: { key: 'beijing', name: '北京市', adcode: '110000', center: [116.4, 39.9], zoom: 1.1 },
+  tianjin: { key: 'tianjin', name: '天津市', adcode: '120000', center: [117.2, 39.13], zoom: 1.1 },
+  hebei: { key: 'hebei', name: '河北省', adcode: '130000', center: [114.51, 38.04], zoom: 0.9 },
+  shanxi: { key: 'shanxi', name: '山西省', adcode: '140000', center: [112.55, 37.87], zoom: 0.9 },
+  neimenggu: { key: 'neimenggu', name: '内蒙古自治区', adcode: '150000', center: [111.75, 40.84], zoom: 0.6 },
+  liaoning: { key: 'liaoning', name: '辽宁省', adcode: '210000', center: [123.43, 41.8], zoom: 0.9 },
+  jilin: { key: 'jilin', name: '吉林省', adcode: '220000', center: [125.32, 43.89], zoom: 0.9 },
+  heilongjiang: { key: 'heilongjiang', name: '黑龙江省', adcode: '230000', center: [126.53, 45.8], zoom: 0.7 },
+  anhui: { key: 'anhui', name: '安徽省', adcode: '340000', center: [117.28, 31.86], zoom: 1.0 },
+  fujian: { key: 'fujian', name: '福建省', adcode: '350000', center: [119.3, 26.08], zoom: 1.0 },
+  jiangxi: { key: 'jiangxi', name: '江西省', adcode: '360000', center: [115.86, 28.68], zoom: 1.0 },
+  hunan: { key: 'hunan', name: '湖南省', adcode: '430000', center: [112.94, 28.23], zoom: 1.0 },
+  guangdong: { key: 'guangdong', name: '广东省', adcode: '440000', center: [113.26, 23.13], zoom: 0.9 },
+  guangxi: { key: 'guangxi', name: '广西壮族自治区', adcode: '450000', center: [108.32, 22.82], zoom: 0.9 },
+  hainan: { key: 'hainan', name: '海南省', adcode: '460000', center: [110.35, 20.02], zoom: 1.3 },
+  chongqing: { key: 'chongqing', name: '重庆市', adcode: '500000', center: [106.55, 29.56], zoom: 1.0 },
+  sichuan: { key: 'sichuan', name: '四川省', adcode: '510000', center: [104.07, 30.57], zoom: 0.8 },
+  guizhou: { key: 'guizhou', name: '贵州省', adcode: '520000', center: [106.63, 26.65], zoom: 1.0 },
+  yunnan: { key: 'yunnan', name: '云南省', adcode: '530000', center: [102.83, 24.88], zoom: 0.9 },
+  xizang: { key: 'xizang', name: '西藏自治区', adcode: '540000', center: [91.11, 29.97], zoom: 0.5 },
+  shaanxi: { key: 'shaanxi', name: '陕西省', adcode: '610000', center: [108.94, 34.34], zoom: 0.9 },
+  gansu: { key: 'gansu', name: '甘肃省', adcode: '620000', center: [103.83, 36.06], zoom: 0.7 },
+  qinghai: { key: 'qinghai', name: '青海省', adcode: '630000', center: [101.78, 36.62], zoom: 0.6 },
+  ningxia: { key: 'ningxia', name: '宁夏回族自治区', adcode: '640000', center: [106.23, 38.49], zoom: 1.1 },
+  xinjiang: { key: 'xinjiang', name: '新疆维吾尔自治区', adcode: '650000', center: [87.62, 43.83], zoom: 0.5 },
 }
 
 /** 城市 → 省份 */
@@ -51,6 +81,34 @@ export const CITY_PROVINCE: Record<string, ProvinceKey> = {
   青岛市: 'shandong',
   郑州市: 'henan',
   武汉市: 'hubei',
+  北京市: 'beijing',
+  天津市: 'tianjin',
+  石家庄市: 'hebei',
+  太原市: 'shanxi',
+  呼和浩特市: 'neimenggu',
+  沈阳市: 'liaoning',
+  大连市: 'liaoning',
+  长春市: 'jilin',
+  哈尔滨市: 'heilongjiang',
+  合肥市: 'anhui',
+  福州市: 'fujian',
+  厦门市: 'fujian',
+  南昌市: 'jiangxi',
+  长沙市: 'hunan',
+  广州市: 'guangdong',
+  深圳市: 'guangdong',
+  南宁市: 'guangxi',
+  海口市: 'hainan',
+  重庆市: 'chongqing',
+  成都市: 'sichuan',
+  贵阳市: 'guizhou',
+  昆明市: 'yunnan',
+  拉萨市: 'xizang',
+  西安市: 'shaanxi',
+  兰州市: 'gansu',
+  西宁市: 'qinghai',
+  银川市: 'ningxia',
+  乌鲁木齐市: 'xinjiang',
 }
 
 /** 更新后的城市中心坐标 */
@@ -71,6 +129,34 @@ export const CITY_COORDS: Record<string, [number, number]> = {
   青岛市: [120.3826, 36.0671],
   宁波市: [121.544, 29.8683],
   常州市: [119.9465, 31.7728],
+  北京市: [116.4074, 39.9042],
+  天津市: [117.201, 39.0842],
+  石家庄市: [114.5149, 38.0428],
+  太原市: [112.5492, 37.8571],
+  呼和浩特市: [111.7492, 40.8426],
+  沈阳市: [123.4291, 41.7968],
+  大连市: [121.6147, 38.914],
+  长春市: [125.3235, 43.8868],
+  哈尔滨市: [126.534, 45.8038],
+  合肥市: [117.283, 31.8616],
+  福州市: [119.2965, 26.0745],
+  厦门市: [118.0894, 24.4798],
+  南昌市: [115.8581, 28.6832],
+  长沙市: [112.9388, 28.2282],
+  广州市: [113.2644, 23.1291],
+  深圳市: [114.0579, 22.5431],
+  南宁市: [108.3209, 22.824],
+  海口市: [110.3544, 20.017],
+  重庆市: [106.5049, 29.5338],
+  成都市: [104.0665, 30.5723],
+  贵阳市: [106.6302, 26.6477],
+  昆明市: [102.8332, 24.8801],
+  拉萨市: [91.1145, 29.9737],
+  西安市: [108.9398, 34.3416],
+  兰州市: [103.8343, 36.0611],
+  西宁市: [101.7782, 36.6171],
+  银川市: [106.2309, 38.4872],
+  乌鲁木齐市: [87.6168, 43.8256],
 }
 
 /**
