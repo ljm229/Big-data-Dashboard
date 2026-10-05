@@ -1,11 +1,13 @@
 # 数据库
 
-PostgreSQL 主库为 `retail_dashboard`，业务表位于 `retail` schema。
+当前生产主库为 MySQL `dashboard`。建库脚本为 `mysql-schema.sql`，日更由
+`automation/scripts/daily-run.ps1` 执行；前端以 MySQL 生成的 JSON 快照发布。
 
-- `migrations/`：增量结构脚本，由后端初始化命令自动执行。
-- `retail.fact_business_daily`：经营分析日粒度明细。
-- `retail.fact_store_quality_daily`：门店运营质量日粒度明细。
-- `retail.fact_store_quality_period`：平台只提供周汇总时的原粒度记录，不拆成虚构日数据。
-- `retail.refresh_state`：前端分秒级刷新使用的数据版本。
+`schema.sql` 与 `migrations/` 属于已停止演进的 PostgreSQL 原型，仅为历史兼容
+保留，不能与 MySQL 生产链路混用。
 
-连接密码仅保存在 `server/.env`，该文件不提交到版本库。
+- `fact_ax_business_daily`、`fact_traffic_daily` 等：业务事实表。
+- `fact_product_item_period`：商品周期汇总，禁止作为日趋势数据。
+- `refresh_state`：每个数据集的业务日期和行数水位。
+
+连接参数仅保存在 `automation/.env`，该文件不提交到版本库。

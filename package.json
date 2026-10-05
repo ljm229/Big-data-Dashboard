@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "db:init": "node server/src/init-db.mjs",
-    "start": "node server/src/server.mjs"
+    "start": "node server/mysql-api.mjs",
+    "api": "node server/mysql-api.mjs"
   },
   "dependencies": {
+    "mysql2": "^3.24.4",
     "playwright-core": "1.63.0",
     "xlsx": "^0.18.5"
   },

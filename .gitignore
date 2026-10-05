@@ -1,13 +1,25 @@
 node_modules/
 web/node_modules/
-web/web/node_modules/
 web/dist/
-web/web/dist/
 server/node_modules/
 server/.npm-cache/
 server/.env
 .cursor/
 .tools/
+.agents/
 *.log
 .npm-cache/
 web/browser-qa/
+/archive/
+/automation/output/
+/web/.env*
+# 数据源/ 下自动抓取产物（每天再生，不进仓库；看板只消费 web/src/data/*.json）
+# 手工表（城市门店及上线进度、门店核心指标追踪表）继续提交
+数据源/淘宝闪购商家/流量分析-*.xlsx
+数据源/淘宝闪购商家/商品分析-*.xlsx
+数据源/淘宝闪购商家/订单分析-*.xlsx
+数据源/翱象/渠道门店周期数据*.xlsx
+数据源/翱象/盈亏分析PC-*.xlsx
+数据源/翱象/门店营运考核指标-*.xlsx
+数据源/翱象/毛利订单-*.xlsx
+数据源/翱象/订单毛利*.xlsx

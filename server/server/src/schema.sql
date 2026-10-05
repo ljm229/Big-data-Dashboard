@@ -1,1 +1,0 @@
--- 已迁移至 database/schema.sql；请使用 server/src/init-db.mjs 初始化。
