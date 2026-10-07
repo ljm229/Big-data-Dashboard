@@ -17,7 +17,7 @@ try {
     if (m) env[m[1]] = m[2].trim()
   }
 } catch {}
-const pool = mysql.createPool({ host: env.DB_HOST || '127.0.0.1', port: Number(env.DB_PORT || 3306), user: env.DB_USER || 'root', password: env.DB_PASSWORD || '', database: env.DB_NAME || 'dashboard', connectionLimit: 4, dateStrings: true })
+const pool = mysql.createPool({ host: env.DB_HOST || '127.0.0.1', port: Number(env.DB_PORT || 3306), user: env.DB_USER || 'root', password: env.DB_PASSWORD || '', database: env.DB_NAME || 'taobian', connectionLimit: 4, dateStrings: true })
 const generatedAt = new Date().toISOString()
 const J = (v) => (typeof v === 'string' ? JSON.parse(v) : v)
 const N = (v) => {
@@ -86,7 +86,7 @@ async function source1() {
     categoryPeriod = { from, to, channel: '淘宝闪购', categories }
   }
   write('source1.json', {
-    source: 'mysql:dashboard', generatedAt, files: {},
+    source: 'mysql:taobian', generatedAt, files: {},
     days: [...days].sort(), channels: [...channels].sort(), stores, facts, supply, categoryPeriod, categoryByStore,
   })
   console.log(`  facts=${facts.length} supply=${supply.length} stores=${stores.length} days=${days.size}`)

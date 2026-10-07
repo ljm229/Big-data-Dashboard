@@ -1,6 +1,6 @@
 # 数据库
 
-当前生产主库为 MySQL `dashboard`。建库脚本为 `mysql-schema.sql`，日更由
+当前生产主库为公司 MySQL `taobian`。建库脚本为 `mysql-schema.sql`，日更由
 `automation/scripts/daily-run.ps1` 执行；前端以 MySQL 生成的 JSON 快照发布。
 
 `schema.sql` 与 `migrations/` 属于已停止演进的 PostgreSQL 原型，仅为历史兼容

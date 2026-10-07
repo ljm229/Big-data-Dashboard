@@ -31,7 +31,7 @@ const pool = mysql.createPool({
   port: Number(env.DB_PORT || 3306),
   user: env.DB_USER || 'root',
   password: env.DB_PASSWORD || '',
-  database: env.DB_NAME || 'dashboard',
+  database: env.DB_NAME || 'taobian',
   connectionLimit: 4,
 })
 
@@ -466,7 +466,7 @@ try {
 }
 // 归档：订单毛利在线只留 180 天，超期整行迁入 archive 表（细则不变）
 if (jobs.some(([ds]) => ds === 'ax_margin')) {
-  const pool2 = mysql.createPool({ host: env.DB_HOST || '127.0.0.1', port: Number(env.DB_PORT || 3306), user: env.DB_USER || 'root', password: env.DB_PASSWORD || '', database: env.DB_NAME || 'dashboard', connectionLimit: 2 })
+  const pool2 = mysql.createPool({ host: env.DB_HOST || '127.0.0.1', port: Number(env.DB_PORT || 3306), user: env.DB_USER || 'root', password: env.DB_PASSWORD || '', database: env.DB_NAME || 'taobian', connectionLimit: 2 })
   try {
     await pool2.query(`CREATE TABLE IF NOT EXISTS fact_ax_order_margin_archive LIKE fact_ax_order_margin`)
     const [moved] = await pool2.query(`INSERT INTO fact_ax_order_margin_archive SELECT * FROM fact_ax_order_margin WHERE created_time < CURDATE() - INTERVAL 180 DAY ON DUPLICATE KEY UPDATE order_code=VALUES(order_code)`)

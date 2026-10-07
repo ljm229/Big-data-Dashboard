@@ -1,8 +1,8 @@
 -- MySQL 8.x 建库脚本：抓取数据入库 + 看板读取。
 -- 执行：mysql -h127.0.0.1 -P3306 -uroot -p < database/mysql-schema.sql
 -- 字符集 utf8mb4（门店名含中文/括号），时区以 DATE 列为准不存时间戳。
-CREATE DATABASE IF NOT EXISTS dashboard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE dashboard;
+CREATE DATABASE IF NOT EXISTS taobian CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE taobian;
 
 -- 门店维度（nr/翱象两边门店名统一归一到这里）
 CREATE TABLE IF NOT EXISTS dim_store (
