@@ -23,6 +23,17 @@ function Invoke-Step([string]$Name, [string[]]$Command, [int]$MaxAttempts = 3) {
   }
   throw "$Name 连续 $MaxAttempts 次失败"
 }
+function Remove-DownloadedFiles {
+  $downloadExtensions = @('.csv', '.xls', '.xlsx', '.zip', '.crdownload', '.tmp')
+  $failedDir = Join-Path $root 'output/failed'
+  $files = Get-ChildItem -LiteralPath (Join-Path $root 'output') -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object {
+      $downloadExtensions -contains $_.Extension.ToLowerInvariant() -and
+      (-not $_.FullName.StartsWith($failedDir, [StringComparison]::OrdinalIgnoreCase))
+    }
+  foreach ($file in $files) { Remove-Item -LiteralPath $file.FullName -Force }
+  "$(Get-Date -Format o) 已清理成功处理的原始下载文件：$($files.Count) 个" | Tee-Object -FilePath $log -Append
+}
 function Send-Alert([string]$Message) {
   $line = Get-Content (Join-Path $root '.env') -ErrorAction SilentlyContinue | Where-Object { $_ -match '^ALERT_WEBHOOK_URL=' } | Select-Object -Last 1
   $url = if ($env:ALERT_WEBHOOK_URL) { $env:ALERT_WEBHOOK_URL } elseif ($line) { ($line -split '=', 2)[1].Trim() } else { '' }
@@ -48,6 +59,9 @@ try {
       git push company HEAD:refs/heads/codex/import-september-history
       if ($LASTEXITCODE -ne 0) { throw 'GitLab 目标分支推送失败' }
     }
+    Remove-DownloadedFiles
+  } else {
+    '已跳过 GitLab 推送，本次不清理原始下载文件' | Tee-Object -FilePath $log -Append
   }
   $success = "✅ 日间刷新成功：$date，版本校验通过"
   $success | Tee-Object -FilePath $log -Append

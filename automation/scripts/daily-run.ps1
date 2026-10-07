@@ -55,6 +55,19 @@ function Invoke-Step([string]$Name, [string[]]$Command, [int]$MaxAttempts = 3) {
   }
   throw "$Name 连续 $MaxAttempts 次失败"
 }
+function Remove-DownloadedFiles {
+  $downloadExtensions = @('.csv', '.xls', '.xlsx', '.zip', '.crdownload', '.tmp')
+  $failedDir = Join-Path $logDir 'failed'
+  $files = Get-ChildItem -LiteralPath $logDir -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object {
+      $downloadExtensions -contains $_.Extension.ToLowerInvariant() -and
+      (-not $_.FullName.StartsWith($failedDir, [StringComparison]::OrdinalIgnoreCase))
+    }
+  foreach ($file in $files) {
+    Remove-Item -LiteralPath $file.FullName -Force
+  }
+  Write-Log "已清理本次成功处理的原始下载文件：$($files.Count) 个；日志和登录状态已保留"
+}
 
 try {
   $lock = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
@@ -89,6 +102,9 @@ try {
       if ($LASTEXITCODE -ne 0) { throw 'GitLab 目标分支推送失败' }
       Write-Log '数据已推送到 GitLab codex/import-september-history；等待生产部署流水线完成'
     } else { Write-Log '前端数据无变化，无需推送' }
+    Remove-DownloadedFiles
+  } else {
+    Write-Log '已跳过 GitLab 推送，本次不清理原始下载文件'
   }
   $summary = "✅ 日更成功：业务日期 $Date；JSON版本校验通过；日志 $log"
   Write-Log $summary
